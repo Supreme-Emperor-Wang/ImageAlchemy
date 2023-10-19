@@ -1,19 +1,64 @@
+from datetime import datetime
 import time
 from typing import Tuple
 import bittensor as bt
 from generate import generate
-from utils import output_log
+from utils import output_log, sh
+
+
+def get_caller_stake(self, synapse):
+    """
+    Look up the stake of the requesting validator.
+    """
+    if synapse.dendrite.hotkey in self.miner.metagraph.hotkeys:
+        index = self.miner.metagraph.hotkeys.index(synapse.dendrite.hotkey)
+        return self.miner.metagraph.S[index].item()
+    return None
+
+
+def do_logs(self, synapse):
+    """
+    Output logs for each request that comes through.
+    """
+    time_elapsed = datetime.now() - self.miner.stats.start_time
+    output_log(
+        f"{sh('Info')} -> Date {datetime.strftime(self.miner.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.miner.stats.total_requests/(time_elapsed.total_seconds()/60):.2f} | Model {self.miner.model['model_name']} | Seed {self.miner.seed}."
+    )
+    output_log(
+        f"{sh('Stats')} -> Total requests {self.miner.stats.total_requests} | Timeouts {self.miner.stats.timeouts}."
+    )
+    requester_stake = get_caller_stake(self, synapse)
+    if not requester_stake:
+        requester_stake = -1
+    output_log(
+        f"{sh('Caller')} -> Stake {int(requester_stake):,} | Hotkey {synapse.dendrite.hotkey}"
+    )
+    num_images = self.miner.args["num_images_per_prompt"]
+    output_log(f"{sh('Generating')} -> {num_images} images.")
+
+
+def shared_logic(self, synapse, t2i=True):
+    """
+    Forward logic shared between both text-to-image and image-to-image
+    """
+    do_logs(self, synapse)
+
+    start_time = time.perf_counter()
+    if t2i:
+        images = generate(self.miner.t2i_model, self.miner.t2i_args)
+    else:
+        images = generate(self.miner.i2i_model, self.miner.i2i_args)
+    output_log(f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.")
+    synapse.images = images
+    pass
 
 
 class Synapses:
     class TextToImage:
         def forward_fn(self, synapse):
-            output_log(f"Generating {self.miner.args['num_images_per_prompt']} images.")
-            start_time = time.perf_counter()
-            images = generate(self.miner.t2i_model, self.miner.t2i_args)
-            end_time = time.perf_counter() - start_time
+            shared_logic(self, synapse)
 
-            synapse.images = images
+            return synapse
 
         def blacklist_fn(self, synapse) -> Tuple[bool, str]:
             if synapse.dendrite.hotkey not in self.metagraph.hotkeys:
@@ -43,7 +88,8 @@ class Synapses:
 
     class ImageToImage:
         def forward_fn(self, synapse):
-            pass
+            shared_logic(self, synapse, t2i=False)
+            return synapse
 
         def blacklist_fn(self, synapse) -> Tuple[bool, str]:
             if synapse.dendrite.hotkey not in self.metagraph.hotkeys:
