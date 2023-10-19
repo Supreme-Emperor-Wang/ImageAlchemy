@@ -1,12 +1,34 @@
+from datetime import datetime
 import traceback, torch, time, random, os, argparse
 from typing import Dict
 import bittensor as bt
 from abc import ABC, abstractmethod
 from synapses import Synapses
 from utils import output_log
+from dataclasses import dataclass
+
+
+@dataclass
+class Stats:
+    start_time: datetime
+    start_dt: datetime
+    total_requests: int
+    timeouts: int
+    response_times: list
 
 
 class BaseMiner(ABC):
+    def get_defaults(self):
+        now = datetime.now()
+        stats = Stats(
+            start_time=now,
+            start_dt=datetime.strftime(now, "%Y/%m/%d %H:%M"),
+            total_requests=0,
+            timeouts=0,
+            response_times=[],
+        )
+        return stats
+
     def get_args(self) -> Dict:
         {
             "guidance_scale": self.config.miner.guidance_scale,
@@ -108,6 +130,13 @@ class BaseMiner(ABC):
 
         #### Wait until the miner is registered
         self.loop_until_registered()
+
+        ### Defaults
+        self.stats = self.get_defaults()
+
+        ### Start the wandb logging thread
+        if all([self.config.wandb.project, self.config.wandb.entity]):
+            self.wandb_thread = None
 
         #### Load the model
         self.t2i_model, self.i2i_model = self.load_models()
