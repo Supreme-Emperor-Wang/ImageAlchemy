@@ -3,3 +3,5 @@ invisible_watermark
 transformers
 accelerate
 safetensors
+bittensor>=6.1.0
+torch>=2.1.0
