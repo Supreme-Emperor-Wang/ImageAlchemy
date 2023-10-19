@@ -184,7 +184,10 @@ class BaseMiner(ABC):
 
             if not is_registered:
                 output_log("The miner is not currently registered.", "r")
-                time.sleep(30)
+                time.sleep(120)
+
+                ### Ensure the metagraph is synced before the next registration check
+                self.metagraph.sync(lite=True)
                 continue
 
             #### Output current statistics and set weights
