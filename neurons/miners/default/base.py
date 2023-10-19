@@ -1,15 +1,22 @@
-import argparse
-import os
-import time
-import traceback
+import traceback, torch, time, random, os, argparse
+from typing import Dict
 import bittensor as bt
-
-# from config import get_config
+from abc import ABC, abstractmethod
 from synapses import Synapses
 from utils import output_log
 
 
-class BaseMiner:
+class BaseMiner(ABC):
+    def get_args(self) -> Dict:
+        {
+            "guidance_scale": self.config.miner.guidance_scale,
+            "num_inference_steps": self.config.miner.steps,
+            "num_images_per_prompt": self.config.num_images,
+            "generator": torch.Generator(device=self.config.miner.device).manual_seed(
+                self.config.miner.seed
+            ),
+        }
+
     def get_config(self) -> "bt.config":
         argp = argparse.ArgumentParser(description="Miner Configs")
 
@@ -20,6 +27,13 @@ class BaseMiner:
         argp.add_argument("--wandb.project", type=str, default="")
         argp.add_argument("--wandb.entity", type=str, default="")
         argp.add_argument("--miner.device", type=str, default="cuda:0")
+
+        seed = random.randint(0, 100_000_000_000)
+        argp.add_argument("--miner.seed", type=int, default=seed)
+
+        argp.add_argument("--miner.guidance_scale", type=float, default=7.5)
+        argp.add_argument("--miner.steps", type=int, default=30)
+        argp.add_argument("--miner.num_images", type=int, default=1)
 
         bt.subtensor.add_args(argp)
         bt.logging.add_args(argp)
@@ -43,6 +57,10 @@ class BaseMiner:
 
         return config
 
+    @abstractmethod
+    def load_models(self):
+        ...
+
     def add_args(cls, argp: argparse.ArgumentParser):
         pass
 
@@ -61,7 +79,8 @@ class BaseMiner:
                 f"Miner {self.wallet.config.hotkey} is not registered. Sleeping for 30 seconds...",
                 "r",
             )
-            time.sleep(30)
+            time.sleep(120)
+            self.metagraph.sync(lite=True)
 
     def __init__(self):
         #### Parse the config
@@ -70,6 +89,9 @@ class BaseMiner:
         #### Output the config
         output_log("Outputting miner config:", "c")
         output_log(f"{self.config}")
+
+        #### Build args
+        self.miner.args = self.get_args()
 
         #### Initialize the synapse classes
         self.synapses = Synapses()
@@ -86,6 +108,19 @@ class BaseMiner:
 
         #### Wait until the miner is registered
         self.loop_until_registered()
+
+        #### Load the model
+        self.t2i_model, self.i2i_model = self.load_models()
+
+        #### Optimize model
+        if self.config.miner.optimize:
+            self.t2i_model.unet = torch.compile(
+                self.t2i_model.unet, mode="reduce-overhead", fullgraph=True
+            )
+
+            #### Warm up model
+
+        #### Load the safety checker (WIP)
 
         #### Serve the axon
         output_log(f"Serving axon on port {self.config.axon.port}.", "g", type="debug")
@@ -144,7 +179,7 @@ class BaseMiner:
     def loop(self):
         step = 0
         while True:
-            ### Check the miner is still registered
+            #### Check the miner is still registered
             is_registered = self.check_still_registered()
 
             if not is_registered:
@@ -153,10 +188,9 @@ class BaseMiner:
                 continue
 
             #### Output current statistics and set weights
-
             try:
                 if step % 5 == 0:
-                    ### Output metrics
+                    #### Output metrics
                     log = (
                         f"Step:{step} | "
                         f"Block:{self.metagraph.block.item()} | "
@@ -169,7 +203,7 @@ class BaseMiner:
                     )
                     output_log(log, "g")
 
-                    ### Set weights (WIP)
+                    #### Set weights (WIP)
                     output_log("Settings weights.")
 
                     weights = [0.0] * len(self.metagraph.uids)
