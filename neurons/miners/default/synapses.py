@@ -1,17 +1,25 @@
+import time
 from typing import Tuple
 import bittensor as bt
+from generate import generate
+from utils import output_log
 
 
 class Synapses:
     class TextToImage:
         def forward_fn(self, synapse):
-            pass
+            output_log(f"Generating {self.miner.args['num_images_per_prompt']} images.")
+            start_time = time.perf_counter()
+            images = generate(self.miner.t2i_model, self.miner.t2i_args)
+            end_time = time.perf_counter() - start_time
+
+            synapse.images = images
 
         def blacklist_fn(self, synapse) -> Tuple[bool, str]:
             if synapse.dendrite.hotkey not in self.metagraph.hotkeys:
                 #### Ignore requests from non-registered entities
                 bt.logging.trace(
-                    f"Blacklisting unrecognized hotkey {synapse.dendrite.hotkey}"
+                    f"Blacklisting unrecognized hotkey {synapse.dendrite.hotkey}."
                 )
                 return True, "Unrecognized hotkey."
 
@@ -63,6 +71,7 @@ class Synapses:
             #### Return stake as priority
             return float(self.metagraph.S[uid_index])
 
-    def __init__(self):
+    def __init__(self, miner):
         self.text_to_image = self.TextToImage()
         self.image_to_image = self.ImageToImage()
+        self.miner = miner
