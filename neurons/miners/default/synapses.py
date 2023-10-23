@@ -4,10 +4,18 @@ from typing import Dict, List, Tuple
 import bittensor as bt
 from utils import output_log, sh, Images
 import template
+import copy
+import torchvision.transforms as transforms
+from PIL import Image
 
+transform = transforms.Compose([
+    transforms.PILToTensor()
+])
 
-def generate(model, args: Dict) -> List:
-    images = model(**args).images
+def generate(model, args: Dict, synapse) -> List:
+    d = copy.copy(args)
+    d["prompt"] = synapse.prompt
+    images = model(**d).images
     return images
 
 
@@ -21,13 +29,19 @@ def get_caller_stake(self, synapse):
     return None
 
 
-def do_logs(self, synapse):
+def do_logs(self, synapse, t2i):
     """
     Output logs for each request that comes through.
     """
     time_elapsed = datetime.now() - self.miner.stats.start_time
+    
+    if t2i:
+        num_images = self.miner.t2i_args["num_images_per_prompt"]
+    else:
+        num_images = self.miner.i2i_args["num_images_per_prompt"]
+    
     output_log(
-        f"{sh('Info')} -> Date {datetime.strftime(self.miner.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.miner.stats.total_requests/(time_elapsed.total_seconds()/60):.2f} | Model {self.miner.model['model_name']} | Seed {self.miner.seed}."
+        f"{sh('Info')} -> Date {datetime.strftime(self.miner.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.miner.stats.total_requests/(time_elapsed.total_seconds()/60):.2f} | Model {self.miner.config.miner.model} | Seed {self.miner.config.miner.seed}."
     )
     output_log(
         f"{sh('Stats')} -> Total requests {self.miner.stats.total_requests} | Timeouts {self.miner.stats.timeouts}."
@@ -38,7 +52,6 @@ def do_logs(self, synapse):
     output_log(
         f"{sh('Caller')} -> Stake {int(requester_stake):,} | Hotkey {synapse.dendrite.hotkey}"
     )
-    num_images = self.miner.args["num_images_per_prompt"]
     output_log(f"{sh('Generating')} -> {num_images} images.")
 
 
@@ -46,15 +59,18 @@ def shared_logic(self, synapse, t2i=True):
     """
     Forward logic shared between both text-to-image and image-to-image
     """
-    do_logs(self, synapse)
+    do_logs(self, synapse, t2i)
 
     start_time = time.perf_counter()
     if t2i:
-        images = generate(self.miner.t2i_model, self.miner.t2i_args)
+        images = generate(self.miner.t2i_model, self.miner.t2i_args, synapse)
     else:
-        images = generate(self.miner.i2i_model, self.miner.i2i_args)
+        images = generate(self.miner.i2i_model, self.miner.i2i_args, synapse)
+
+    synapse.images = [bt.Tensor.serialize( transform(image) ) for image in images]
+    
     output_log(f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.")
-    synapse.images = images
+
 
 
 class Synapses:

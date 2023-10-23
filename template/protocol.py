@@ -19,6 +19,7 @@
 
 import typing
 import bittensor as bt
+import pydantic
 
 # TODO(developer): Rewrite with your protocol definition.
 
@@ -57,20 +58,6 @@ class Dummy(bt.Synapse):
     # Optional request output, filled by recieving axon.
     dummy_output: typing.Optional[int] = None
 
-    def deserialize(self) -> int:
-        """
-        Deserialize the dummy output. This method retrieves the response from
-        the miner in the form of dummy_output, deserializes it and returns it
-        as the output of the dendrite.query() call.
+    prompt: str = pydantic.Field( "Bird in the sky" , allow_mutation = False)
 
-        Returns:
-        - int: The deserialized response, which in this case is the value of dummy_output.
-
-        Example:
-        Assuming a Dummy instance has a dummy_output value of 5:
-        >>> dummy_instance = Dummy(dummy_input=4)
-        >>> dummy_instance.dummy_output = 5
-        >>> dummy_instance.deserialize()
-        5
-        """
-        return self.dummy_output
+    images = []

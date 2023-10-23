@@ -30,10 +30,17 @@ class BaseMiner(ABC):
         return stats
 
     def get_args(self) -> Dict:
-        {
+        return {
             "guidance_scale": self.config.miner.guidance_scale,
             "num_inference_steps": self.config.miner.steps,
-            "num_images_per_prompt": self.config.num_images,
+            "num_images_per_prompt": self.config.miner.num_images,
+            "generator": torch.Generator(device=self.config.miner.device).manual_seed(
+                self.config.miner.seed
+            ),
+        }, {
+            "guidance_scale": self.config.miner.guidance_scale,
+            "num_inference_steps": self.config.miner.steps,
+            "num_images_per_prompt": self.config.miner.num_images,
             "generator": torch.Generator(device=self.config.miner.device).manual_seed(
                 self.config.miner.seed
             ),
@@ -130,7 +137,7 @@ class BaseMiner(ABC):
         output_log(f"{self.config}")
 
         #### Build args
-        self.args = self.get_args()
+        self.t2i_args, self.i2i_args = self.get_args()
 
         #### Initialize the synapse classes
         self.synapses = Synapses(self)
@@ -167,7 +174,7 @@ class BaseMiner(ABC):
 
             #### Warm up model
             output_log("Warming up model with compile...")
-            generate(self.t2i_model, self.args)
+            generate(self.t2i_model, self.t2i_args)
 
         #### Load the safety checker (WIP)
 

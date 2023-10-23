@@ -183,7 +183,15 @@ def main(config):
                 # All responses have the deserialize function called on them before returning.
                 deserialize=True,
             )
+            
+            # dendrite.query(metagraph.axons, template.protocol.Dummy(dummy_input=step), timeout = 100)
+            
+            import asyncio
+            loop = asyncio.get_event_loop()
+            responses = loop.run_until_complete( dendrite(metagraph.axons, template.protocol.Dummy(dummy_input=step), timeout = 100))
+            loop.close()
             breakpoint()
+
             async def run_forward():
                 corutines = [
                     forward(self, query, uid) 
