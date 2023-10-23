@@ -3,7 +3,7 @@ import traceback, torch, time, random, os, argparse
 from typing import Dict
 import bittensor as bt
 from abc import ABC, abstractmethod
-from synapses import Synapses, forward_fn, generate
+from synapses import Synapses, generate
 from utils import output_log, WandbUtils
 from dataclasses import dataclass
 
@@ -182,8 +182,8 @@ class BaseMiner(ABC):
                 external_ip=bt.utils.networking.get_external_ip(),
             )
             .attach(
-                forward_fn,
-                # self.synapses.text_to_image.forward_fn,
+                # forward_fn,
+                self.synapses.text_to_image.forward_fn,
                 self.synapses.text_to_image.priority_fn,
                 self.synapses.text_to_image.blacklist_fn,
             )
