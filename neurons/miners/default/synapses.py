@@ -64,6 +64,9 @@ def shared_logic(self, synapse, t2i=True):
 
 class Synapses:
     class TextToImage:
+        def __init__(self, miner):
+            self.miner = miner
+
         def forward_fn(self, synapse: template.protocol.Dummy):
             shared_logic(synapse)
 
@@ -96,6 +99,9 @@ class Synapses:
             return float(self.miner.metagraph.S[uid_index])
 
     class ImageToImage:
+        def __init__(self, miner):
+            self.miner = miner
+
         def forward_fn(self, synapse: template.protocol.Dummy):
             shared_logic(self, synapse, t2i=False)
             return synapse
@@ -127,6 +133,6 @@ class Synapses:
             return float(self.miner.metagraph.S[uid_index])
 
     def __init__(self, miner):
-        self.text_to_image = self.TextToImage()
-        self.image_to_image = self.ImageToImage()
         self.miner = miner
+        self.text_to_image = self.TextToImage(self.miner)
+        self.image_to_image = self.ImageToImage(self.miner)
