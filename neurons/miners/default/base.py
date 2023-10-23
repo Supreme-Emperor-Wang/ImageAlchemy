@@ -3,8 +3,8 @@ import traceback, torch, time, random, os, argparse
 from typing import Dict
 import bittensor as bt
 from abc import ABC, abstractmethod
-from synapses import Synapses
-from utils import output_log
+from synapses import Synapses, generate
+from utils import output_log, WandbUtils
 from dataclasses import dataclass
 
 
@@ -104,6 +104,23 @@ class BaseMiner(ABC):
             time.sleep(120)
             self.metagraph.sync(lite=True)
 
+    def get_miner_info(self):
+        block = self.metagraph.block.item()
+        stake = self.metagraph.S[self.miner_index]
+        trust = self.metagraph.T[self.miner_index]
+        consensus = self.metagraph.C[self.miner_index]
+        incentive = self.metagraph.I[self.miner_index]
+        emissions = self.metagraph.E[self.miner_index]
+
+        return {
+            "block": block,
+            "stake": stake,
+            "trust": trust,
+            "consensus": consensus,
+            "incentive": incentive,
+            "emissions": emissions,
+        }
+
     def __init__(self):
         #### Parse the config
         self.config = self.get_config()
@@ -113,7 +130,7 @@ class BaseMiner(ABC):
         output_log(f"{self.config}")
 
         #### Build args
-        self.miner.args = self.get_args()
+        self.args = self.get_args()
 
         #### Initialize the synapse classes
         self.synapses = Synapses()
@@ -133,10 +150,11 @@ class BaseMiner(ABC):
 
         ### Defaults
         self.stats = self.get_defaults()
+        self.wandb = None
 
-        ### Start the wandb logging thread
+        ### Start the wandb logging thread if both project and entity have been provided
         if all([self.config.wandb.project, self.config.wandb.entity]):
-            self.wandb_thread = None
+            self.wandb = WandbUtils(self)
 
         #### Load the model
         self.t2i_model, self.i2i_model = self.load_models()
@@ -148,22 +166,33 @@ class BaseMiner(ABC):
             )
 
             #### Warm up model
+            output_log("Warming up model with compile...")
+            generate(self.t2i_model, self.args)
 
         #### Load the safety checker (WIP)
 
         #### Serve the axon
         output_log(f"Serving axon on port {self.config.axon.port}.", "g", type="debug")
-        # self.axon = (
-        #     bt.axon(
-        #         wallet=self.wallet,
-        #         config=self.config,
-        #         ip="127.0.0.1",
-        #         external_ip=bt.utils.networking.get_external_ip(),
-        #     )
-        #     .attach(self.synapses.text_to_image.forward_fn, self.synapses.text_to_image.blacklist_fn)
-        #     .attach(self.synapses.image_to_image.forward_fn, self.synapses.image_to_image.blacklist_fn)
-        #     .start()
-        # )
+
+        self.axon = (
+            bt.axon(
+                wallet=self.wallet,
+                config=self.config,
+                ip="127.0.0.1",
+                external_ip=bt.utils.networking.get_external_ip(),
+            )
+            .attach(
+                self.synapses.text_to_image.forward_fn,
+                self.synapses.text_to_image.priority_fn,
+                self.synapses.text_to_image.blacklist_fn,
+            )
+            .attach(
+                self.synapses.image_to_image.forward_fn,
+                self.synapses.image_to_image.priority_fn,
+                self.synapses.image_to_image.blacklist_fn,
+            )
+            .start()
+        )
 
         #### Start the weight setting loop
         output_log("Starting weight setting loop.", "g", type="debug")
