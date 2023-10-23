@@ -33,6 +33,7 @@ import random
 import template
 
 from utils import check_uid_availability
+from typing import List
 
 
 # Step 2: Set up the configuration parser
@@ -169,8 +170,8 @@ def main(config):
     step = 0
     while True:
         try:
-            k = 12
-            uids = get_random_uids(self, k=k).to(self.device)
+            # k = 12
+            # uids = get_random_uids(self, k=k).to(self.device)
 
             # TODO(developer): Define how the validator selects a miner to query, how often, etc.
             # Broadcast a query to all miners on the network.
@@ -182,7 +183,7 @@ def main(config):
                 # All responses have the deserialize function called on them before returning.
                 deserialize=True,
             )
-        
+            breakpoint()
             async def run_forward():
                 corutines = [
                     forward(self, query, uid) 

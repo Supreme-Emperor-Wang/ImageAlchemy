@@ -57,18 +57,13 @@ def shared_logic(self, synapse, t2i=True):
     synapse.images = images
 
 
-# def forward_fn(synapse: template.protocol.Dummy):
-#     bt.logging.debug("PASSED FORWARD FUNCTION...")
-#     shared_logic(synapse)
-
-
 class Synapses:
     class TextToImage:
         def __init__(self, miner):
             self.miner = miner
 
         def forward_fn(self, synapse: template.protocol.Dummy):
-            shared_logic(synapse)
+            shared_logic(self, synapse)
 
             return synapse
 
