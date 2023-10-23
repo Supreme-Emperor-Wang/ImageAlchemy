@@ -70,7 +70,7 @@ class Synapses:
             return synapse
 
         def blacklist_fn(self, synapse: template.protocol.Dummy) -> Tuple[bool, str]:
-            if synapse.dendrite.hotkey not in self.metagraph.hotkeys:
+            if synapse.dendrite.hotkey not in self.miner.metagraph.hotkeys:
                 #### Ignore requests from non-registered entities
                 bt.logging.trace(
                     f"Blacklisting unrecognized hotkey {synapse.dendrite.hotkey}."
@@ -78,22 +78,22 @@ class Synapses:
                 return True, "Unrecognized hotkey."
 
             #### Get index of caller uid
-            uid_index = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
+            uid_index = self.miner.metagraph.hotkeys.index(synapse.dendrite.hotkey)
 
-            if not self.metagraph.validator_permit[uid_index]:
+            if not self.miner.metagraph.validator_permit[uid_index]:
                 return True, "No validator permit."
 
-            if self.metagraph.S[uid_index] < 1024:
+            if self.miner.metagraph.S[uid_index] < 1024:
                 return True, "Insufficient stake."
 
             return False, "Hotkey recognized."
 
         def priority_fn(self, synapse: template.protocol.Dummy) -> float:
             #### Get index of requestor
-            uid_index = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
+            uid_index = self.miner.metagraph.hotkeys.index(synapse.dendrite.hotkey)
 
             #### Return stake as priority
-            return float(self.metagraph.S[uid_index])
+            return float(self.miner.metagraph.S[uid_index])
 
     class ImageToImage:
         def forward_fn(self, synapse: template.protocol.Dummy):
@@ -101,7 +101,7 @@ class Synapses:
             return synapse
 
         def blacklist_fn(self, synapse: template.protocol.Dummy) -> Tuple[bool, str]:
-            if synapse.dendrite.hotkey not in self.metagraph.hotkeys:
+            if synapse.dendrite.hotkey not in self.miner.metagraph.hotkeys:
                 #### Ignore requests from non-registered entities
                 bt.logging.trace(
                     f"Blacklisting unrecognized hotkey {synapse.dendrite.hotkey}"
@@ -109,22 +109,22 @@ class Synapses:
                 return True, "Unrecognized hotkey."
 
             #### Get index of caller uid
-            uid_index = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
+            uid_index = self.miner.metagraph.hotkeys.index(synapse.dendrite.hotkey)
 
-            if not self.metagraph.validator_permit[uid_index]:
+            if not self.miner.metagraph.validator_permit[uid_index]:
                 return True, "No validator permit."
 
-            if self.metagraph.S[uid_index] < 1024:
+            if self.miner.metagraph.S[uid_index] < 1024:
                 return True, "Insufficient stake."
 
             return False, "Hotkey recognized."
 
         def priority_fn(self, synapse: template.protocol.Dummy) -> float:
             #### Get index of requestor
-            uid_index = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
+            uid_index = self.miner.metagraph.hotkeys.index(synapse.dendrite.hotkey)
 
             #### Return stake as priority
-            return float(self.metagraph.S[uid_index])
+            return float(self.miner.metagraph.S[uid_index])
 
     def __init__(self, miner):
         self.text_to_image = self.TextToImage()
