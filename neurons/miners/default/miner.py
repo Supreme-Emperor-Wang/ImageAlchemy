@@ -1,5 +1,4 @@
 import argparse, torch
-from generate import generate
 from utils import output_log
 from base import BaseMiner
 from diffusers import AutoPipelineForText2Image, AutoPipelineForImage2Image
@@ -13,6 +12,8 @@ class SDXLMiner(BaseMiner):
             type=str,
             default="stabilityai/stable-diffusion-xl-base-1.0",
         )
+        ### Add any args here that you'd like to add-in to this miner
+        ...
 
     def load_models(self):
         ### Load the text-to-image model
