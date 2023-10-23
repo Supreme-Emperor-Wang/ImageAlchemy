@@ -56,6 +56,11 @@ def shared_logic(self, synapse, t2i=True):
     synapse.images = images
 
 
+def forward_fn(synapse):
+    bt.logging.debug("PASSED FORWARD FUNCTION...")
+    shared_logic(synapse)
+
+
 class Synapses:
     class TextToImage:
         def forward_fn(self, synapse):
