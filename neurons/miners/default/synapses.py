@@ -3,6 +3,7 @@ import time
 from typing import Dict, List, Tuple
 import bittensor as bt
 from utils import output_log, sh, Images
+import template
 
 
 def generate(model, args: Dict) -> List:
@@ -56,19 +57,19 @@ def shared_logic(self, synapse, t2i=True):
     synapse.images = images
 
 
-def forward_fn(synapse):
-    bt.logging.debug("PASSED FORWARD FUNCTION...")
-    shared_logic(synapse)
+# def forward_fn(synapse: template.protocol.Dummy):
+#     bt.logging.debug("PASSED FORWARD FUNCTION...")
+#     shared_logic(synapse)
 
 
 class Synapses:
     class TextToImage:
-        def forward_fn(self, synapse):
-            shared_logic(self, synapse)
+        def forward_fn(self, synapse: template.protocol.Dummy):
+            shared_logic(synapse)
 
             return synapse
 
-        def blacklist_fn(self, synapse) -> Tuple[bool, str]:
+        def blacklist_fn(self, synapse: template.protocol.Dummy) -> Tuple[bool, str]:
             if synapse.dendrite.hotkey not in self.metagraph.hotkeys:
                 #### Ignore requests from non-registered entities
                 bt.logging.trace(
@@ -87,7 +88,7 @@ class Synapses:
 
             return False, "Hotkey recognized."
 
-        def priority_fn(self, synapse) -> float:
+        def priority_fn(self, synapse: template.protocol.Dummy) -> float:
             #### Get index of requestor
             uid_index = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
 
@@ -95,11 +96,11 @@ class Synapses:
             return float(self.metagraph.S[uid_index])
 
     class ImageToImage:
-        def forward_fn(self, synapse):
+        def forward_fn(self, synapse: template.protocol.Dummy):
             shared_logic(self, synapse, t2i=False)
             return synapse
 
-        def blacklist_fn(self, synapse) -> Tuple[bool, str]:
+        def blacklist_fn(self, synapse: template.protocol.Dummy) -> Tuple[bool, str]:
             if synapse.dendrite.hotkey not in self.metagraph.hotkeys:
                 #### Ignore requests from non-registered entities
                 bt.logging.trace(
@@ -118,7 +119,7 @@ class Synapses:
 
             return False, "Hotkey recognized."
 
-        def priority_fn(self, synapse) -> float:
+        def priority_fn(self, synapse: template.protocol.Dummy) -> float:
             #### Get index of requestor
             uid_index = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
 
