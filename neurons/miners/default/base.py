@@ -133,7 +133,7 @@ class BaseMiner(ABC):
         self.args = self.get_args()
 
         #### Initialize the synapse classes
-        self.synapses = Synapses()
+        self.synapses = Synapses(self)
 
         #### Establish subtensor connection
         output_log("Establishing subtensor connection.", "g", type="debug")
