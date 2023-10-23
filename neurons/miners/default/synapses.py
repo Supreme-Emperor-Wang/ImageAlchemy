@@ -55,7 +55,6 @@ def shared_logic(self, synapse, t2i=True):
         images = generate(self.miner.i2i_model, self.miner.i2i_args)
     output_log(f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.")
     synapse.images = images
-    pass
 
 
 class Synapses:
