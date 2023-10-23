@@ -184,13 +184,13 @@ class BaseMiner(ABC):
             .attach(
                 # forward_fn,
                 self.synapses.text_to_image.forward_fn,
-                self.synapses.text_to_image.priority_fn,
                 self.synapses.text_to_image.blacklist_fn,
+                self.synapses.text_to_image.priority_fn,
             )
             .attach(
                 self.synapses.image_to_image.forward_fn,
-                self.synapses.image_to_image.priority_fn,
                 self.synapses.image_to_image.blacklist_fn,
+                self.synapses.image_to_image.priority_fn,
             )
             .start()
         )
