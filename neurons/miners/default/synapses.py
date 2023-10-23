@@ -2,7 +2,6 @@ from datetime import datetime
 import time
 from typing import Dict, List, Tuple
 import bittensor as bt
-from generate import generate
 from utils import output_log, sh, Images
 
 
