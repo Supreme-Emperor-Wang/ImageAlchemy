@@ -15,6 +15,7 @@ transform = transforms.Compose([
 def generate(model, args: Dict, synapse) -> List:
     d = copy.copy(args)
     d["prompt"] = synapse.prompt
+    d["target_size"] = (synapse.height, synapse.width)
     images = model(**d).images
     return images
 

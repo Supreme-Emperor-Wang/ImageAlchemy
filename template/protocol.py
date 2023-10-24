@@ -60,4 +60,9 @@ class Dummy(bt.Synapse):
 
     prompt: str = pydantic.Field( "Bird in the sky" , allow_mutation = False)
 
-    images = []
+    images: list[ bt.Tensor ] = []
+
+    num_images_per_prompt: int = pydantic.Field( 1 , allow_mutation = False)
+
+    height: int = pydantic.Field( 1024 , allow_mutation = False)
+    width: int = pydantic.Field( 1024 , allow_mutation = False)

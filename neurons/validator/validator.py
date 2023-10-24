@@ -34,7 +34,8 @@ import template
 
 from utils import check_uid_availability
 from typing import List
-
+import asyncio
+from reward  import BlacklistFilter, NSFWRewardModel, ImageRewardModel, DiversityRewardModel
 
 # Step 2: Set up the configuration parser
 # This function is responsible for setting up and parsing command-line arguments.
@@ -165,7 +166,20 @@ def main(config):
     bt.logging.info("Building validation weights.")
     scores = torch.ones_like(metagraph.S, dtype=torch.float32)
     bt.logging.info(f"Weights: {scores}")
-    # Step 7: The Main Validation Loop
+    
+    # Step 7: Set up reward functions
+    reward_functions = [
+        ImageRewardModel(),
+        # DiversityRewardModel()
+    ]
+    
+    # Step 8: Set up masking functions
+    masking_functions = [
+        BlacklistFilter(),
+        NSFWRewardModel()
+    ]
+
+    # Step 9: The Main Validation Loop
     bt.logging.info("Starting validator loop.")
     step = 0
     while True:
@@ -175,32 +189,48 @@ def main(config):
 
             # TODO(developer): Define how the validator selects a miner to query, how often, etc.
             # Broadcast a query to all miners on the network.
-            responses = dendrite.query(
-                # Send the query to all miners in the network.
-                metagraph.axons,
-                # Construct a dummy query.
-                template.protocol.Dummy(dummy_input=step),  # Construct a dummy query.
-                # All responses have the deserialize function called on them before returning.
-                deserialize=True,
-            )
+            # responses = dendrite.query(
+            #     # Send the query to all miners in the network.
+            #     metagraph.axons,
+            #     # Construct a dummy query.
+            #     template.protocol.Dummy(dummy_input=step),  # Construct a dummy query.
+            #     # All responses have the deserialize function called on them before returning.
+            #     deserialize=True,
+            # )
             
             # dendrite.query(metagraph.axons, template.protocol.Dummy(dummy_input=step), timeout = 100)
             
-            import asyncio
+         
             loop = asyncio.get_event_loop()
             responses = loop.run_until_complete( dendrite(metagraph.axons, template.protocol.Dummy(dummy_input=step), timeout = 100))
             loop.close()
+
             breakpoint()
+            device = "cuda"
+            # Initialise rewards tensor
+            rewards: torch.FloatTensor = torch.ones(len(responses), dtype=torch.float32).to(
+                device
+            )
+            for masking_fn_i in masking_functions:
+                mask_i, mask_i_normalized = masking_fn_i.apply(responses, )
+                rewards *= mask_i_normalized.to(device)
+                # TODO add wandb tracking
+                # if not self.config.neuron.disable_log_rewards:
+                #     event[masking_fn_i.name] = mask_i.tolist()
+                #     event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
+                bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
 
-            async def run_forward():
-                corutines = [
-                    forward(self, query, uid) 
-                    for uid in uids
-                ]
-                return await asyncio.gather(*corutines)
-
-            responses = self.loop.run_until_complete(run_forward())
-
+            breakpoint()
+            for weight_i, reward_fn_i in zip([0.95], reward_functions):
+                reward_i, reward_i_normalized = reward_fn_i.apply(responses)
+                rewards += weight_i * reward_i_normalized.to(device)
+                # TODO add wandb tracking
+                # if not self.config.neuron.disable_log_rewards:
+                #     event[reward_fn_i.name] = reward_i.tolist()
+                #     event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
+                bt.logging.trace(str(reward_fn_i.name), reward_i_normalized.tolist())
+            breakpoint()
+            
             # Log the results for monitoring purposes.
             bt.logging.info(f"Received dummy responses: {responses}")
 
