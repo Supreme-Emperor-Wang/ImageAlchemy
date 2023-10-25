@@ -249,8 +249,8 @@ class neuron:
                     bt.logging.trace(self.weights)
 
                     uids, processed_weights = bt.utils.weight_utils.process_weights_for_netuid(
-                        uids = self.metagraph.uids,
-                        weights = self.weights,
+                        uids = self.metagraph.uids.to("cpu"),
+                        weights = self.weights.to("cpu"),
                         netuid = self.config.netuid,
                         subtensor = self.subtensor,
                     )
