@@ -132,9 +132,13 @@ class BaseMiner(ABC):
         #### Parse the config
         self.config = self.get_config()
 
+        if self.config.logging.debug:
+            output_log("Enabling debug mode...", type="debug")
+            bt.debug()
+
         #### Output the config
         output_log("Outputting miner config:", "c")
-        output_log(f"{self.config}")
+        output_log(f"{self.config}", color_key="na")
 
         #### Build args
         self.t2i_args, self.i2i_args = self.get_args()
@@ -184,13 +188,12 @@ class BaseMiner(ABC):
         self.axon = (
             bt.axon(
                 wallet=self.wallet,
-                config=self.config,
+                # config=self.config,
                 ip="127.0.0.1",
                 external_ip=bt.utils.networking.get_external_ip(),
                 port=self.config.axon.port,
             )
             .attach(
-                # forward_fn,
                 self.synapses.text_to_image.forward_fn,
                 self.synapses.text_to_image.blacklist_fn,
                 self.synapses.text_to_image.priority_fn,
@@ -203,7 +206,9 @@ class BaseMiner(ABC):
             .start()
         )
 
-        self.subtensor.serve_axon(axon=self.axon, netuid=self.config.axon.port)
+        output_log(f"Axon created: {self.axon}", "g", type="debug")
+
+        # self.subtensor.serve_axon(axon=self.axon, netuid=self.config.axon.port)
 
         #### Start the weight setting loop
         output_log("Starting weight setting loop.", "g", type="debug")

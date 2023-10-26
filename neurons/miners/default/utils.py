@@ -28,7 +28,10 @@ def output_log(message: str, color_key: str = "w", type: str = "info") -> None:
     if type == "debug":
         log = bt.logging.debug
 
-    log(f"{COLORS[color_key]}{message}{COLORS['w']}")
+    if color_key == "na":
+        log(f"{message}")
+    else:
+        log(f"{COLORS[color_key]}{message}{COLORS['w']}")
 
 
 def sh(message: str):
