@@ -100,12 +100,12 @@ class BaseMiner(ABC):
             if index is not None:
                 self.miner_index = index
                 output_log(
-                    f"Miner {self.wallet.config.hotkey} is registered on uid {self.metagraph.uids[self.miner_index]}.",
+                    f"Miner {self.config.wallet.hotkey} is registered on uid {self.metagraph.uids[self.miner_index]}.",
                     "g",
                 )
                 break
             output_log(
-                f"Miner {self.wallet.config.hotkey} is not registered. Sleeping for 30 seconds...",
+                f"Miner {self.config.wallet.hotkey} is not registered. Sleeping for 30 seconds...",
                 "r",
             )
             time.sleep(120)
@@ -202,6 +202,8 @@ class BaseMiner(ABC):
             )
             .start()
         )
+
+        self.subtensor.serve_axon(axon=self.axon, netuid=self.config.axon.port)
 
         #### Start the weight setting loop
         output_log("Starting weight setting loop.", "g", type="debug")
