@@ -132,9 +132,13 @@ class BaseMiner(ABC):
         #### Parse the config
         self.config = self.get_config()
 
+        if self.config.logging.debug:
+            output_log("Enabling debug mode...", type="debug")
+            bt.debug()
+
         #### Output the config
         output_log("Outputting miner config:", "c")
-        output_log(f"{self.config}")
+        output_log(f"{self.config}", color_key="na")
 
         #### Build args
         self.t2i_args, self.i2i_args = self.get_args()
