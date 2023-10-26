@@ -208,7 +208,7 @@ class BaseMiner(ABC):
 
         output_log(f"Axon created: {self.axon}", "g", type="debug")
 
-        # self.subtensor.serve_axon(axon=self.axon, netuid=self.config.axon.port)
+        self.subtensor.serve_axon(axon=self.axon, netuid=self.config.netuid)
 
         #### Start the weight setting loop
         output_log("Starting weight setting loop.", "g", type="debug")

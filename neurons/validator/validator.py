@@ -62,15 +62,17 @@ def get_random_uids(self, k: int, exclude: List[int] = None) -> torch.LongTensor
             avail_uids.append(uid)
             if uid_is_not_excluded:
                 candidate_uids.append(uid)
-    breakpoint()
+    # breakpoint()
     # Check if candidate_uids contain enough for querying, if not grab all avaliable uids
     available_uids = candidate_uids
     if len(candidate_uids) < k:
-        available_uids += random.sample(
-            [uid for uid in avail_uids if uid not in candidate_uids],
-            k - len(candidate_uids),
-        )
-    uids = torch.tensor(random.sample(available_uids, k))
+        # available_uids += random.sample(
+        #     [uid for uid in avail_uids if uid not in candidate_uids],
+        #     k - len(candidate_uids),
+        # )
+        uids = torch.tensor(available_uids)
+    else:
+        uids = torch.tensor(random.sample(available_uids, k))
     return uids
 
 class neuron:
@@ -144,18 +146,19 @@ class neuron:
         bt.logging.info(f"Running validator on uid: {self.my_subnet_uid}")
 
         # Init weights
-        self.weights = torch.ones_like(self.metagraph.uids , dtype = torch.float32 )
+        self.weights = torch.ones_like(self.metagraph.uids , dtype = torch.float32 ).to(self.device)
+        
         # Set current and last updated blocks
         self.current_block = self.subtensor.block
         self.last_updated_block = self.subtensor.block
-        # loop over all last_update, any that are within 600 blocks are set to 1 others are set to 0 
-        self.weights = self.weights * self.metagraph.last_update > self.current_block - 600
-        # all nodes with more than 1e3 total stake are set to 0 (sets validtors weights to 0)
-        self.weights = self.weights * (self.metagraph.total_stake < 1.024e3) 
-        # set all nodes without ips set to 0
-        self.weights = self.weights * torch.Tensor([self.metagraph.neurons[uid].axon_info.ip != '0.0.0.0' for uid in self.metagraph.uids]) * 0.5
-        # move weights to device
-        self.weights = self.weights.to(self.device)
+        # # loop over all last_update, any that are within 600 blocks are set to 1 others are set to 0 
+        # self.weights = self.weights * self.metagraph.last_update > self.current_block - 600
+        # # all nodes with more than 1e3 total stake are set to 0 (sets validtors weights to 0)
+        # self.weights = self.weights * (self.metagraph.total_stake < 1.024e3) 
+        # # set all nodes without ips set to 0
+        # self.weights = self.weights * torch.Tensor([self.metagraph.neurons[uid].axon_info.ip != '0.0.0.0' for uid in self.metagraph.uids]) * 0.5
+        # # move weights to device
+        # self.weights = self.weights.to(self.device)
 
         # Init reward function
         self.reward_functions = [
@@ -184,12 +187,12 @@ class neuron:
                 timeout = 100
 
                 # Get a random number of uids
-                # uids = get_random_uids(self, k=self.config.neuron.followup_sample_size).to(self.device)
-                # axons = [self.metagraph.axons[uid] for uid in uids]
+                uids = get_random_uids(self, k=self.config.neuron.followup_sample_size).to(self.device)
+                axons = [self.metagraph.axons[uid] for uid in uids]
                 
                 # Call the dentrite 
-                responses = self.loop.run_until_complete( self.dendrite(self.metagraph.axons, template.protocol.TextToImage(dummy_input=step), timeout = timeout))
-                breakpoint()
+                responses = self.loop.run_until_complete( self.dendrite(axons, template.protocol.TextToImage(dummy_input=step), timeout = timeout))
+                # breakpoint()
                 # Log the results for monitoring purposes.
                 bt.logging.info(f"Received response: {responses}")
 
@@ -217,17 +220,18 @@ class neuron:
                 
                 bt.logging.info(f"Rewards: {rewards}")
 
-                self.weights = self.weights + (self.config.alpha * rewards)
-
+                # breakpoint()
+                for i in range( len( rewards ) ):
+                    self.weights[uids[i]] = self.weights[uids[i]] + (self.config.neuron.alpha * rewards[i])
+                self.weights = torch.nn.functional.normalize( self.weights, p=1.0, dim=0)        
+                # Normalize weights.
+                bt.logging.trace("Weights:")
+                bt.logging.trace(self.weights)
+                
                 self.current_block = self.subtensor.block
                 if self.current_block - self.last_updated_block  >= 100:
+                    
                     bt.logging.trace(f"Setting weights")
-
-                    # Normalize weights.
-                    self.weights = self.weights / torch.sum( self.weights )
-                    bt.logging.trace("Weights:")
-                    bt.logging.trace(self.weights)
-
                     uids, processed_weights = bt.utils.weight_utils.process_weights_for_netuid(
                         uids = self.metagraph.uids.to("cpu"),
                         weights = self.weights.to("cpu"),
