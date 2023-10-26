@@ -79,12 +79,12 @@ class Synapses:
         def __init__(self, miner):
             self.miner = miner
 
-        def forward_fn(self, synapse: template.protocol.Dummy):
+        def forward_fn(self, synapse: template.protocol.TextToImage):
             shared_logic(self, synapse)
 
             return synapse
 
-        def blacklist_fn(self, synapse: template.protocol.Dummy) -> Tuple[bool, str]:
+        def blacklist_fn(self, synapse: template.protocol.TextToImage) -> Tuple[bool, str]:
             if synapse.dendrite.hotkey not in self.miner.metagraph.hotkeys:
                 #### Ignore requests from non-registered entities
                 bt.logging.trace(
@@ -103,7 +103,7 @@ class Synapses:
 
             return False, "Hotkey recognized."
 
-        def priority_fn(self, synapse: template.protocol.Dummy) -> float:
+        def priority_fn(self, synapse: template.protocol.TextToImage) -> float:
             #### Get index of requestor
             uid_index = self.miner.metagraph.hotkeys.index(synapse.dendrite.hotkey)
 
@@ -114,11 +114,11 @@ class Synapses:
         def __init__(self, miner):
             self.miner = miner
 
-        def forward_fn(self, synapse: template.protocol.Dummy):
+        def forward_fn(self, synapse: template.protocol.TextToImage):
             shared_logic(self, synapse, t2i=False)
             return synapse
 
-        def blacklist_fn(self, synapse: template.protocol.Dummy) -> Tuple[bool, str]:
+        def blacklist_fn(self, synapse: template.protocol.TextToImage) -> Tuple[bool, str]:
             if synapse.dendrite.hotkey not in self.miner.metagraph.hotkeys:
                 #### Ignore requests from non-registered entities
                 bt.logging.trace(
@@ -137,7 +137,7 @@ class Synapses:
 
             return False, "Hotkey recognized."
 
-        def priority_fn(self, synapse: template.protocol.Dummy) -> float:
+        def priority_fn(self, synapse: template.protocol.TextToImage) -> float:
             #### Get index of requestor
             uid_index = self.miner.metagraph.hotkeys.index(synapse.dendrite.hotkey)
 

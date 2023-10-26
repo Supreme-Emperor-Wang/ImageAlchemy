@@ -63,7 +63,7 @@ class BaseMiner(ABC):
         argp.add_argument("--miner.guidance_scale", type=float, default=7.5)
         argp.add_argument("--miner.steps", type=int, default=30)
         argp.add_argument("--miner.num_images", type=int, default=1)
-
+        # breakpoint()
         bt.subtensor.add_args(argp)
         bt.logging.add_args(argp)
         bt.wallet.add_args(argp)
@@ -180,13 +180,14 @@ class BaseMiner(ABC):
 
         #### Serve the axon
         output_log(f"Serving axon on port {self.config.axon.port}.", "g", type="debug")
-
+        # breakpoint()
         self.axon = (
             bt.axon(
                 wallet=self.wallet,
                 config=self.config,
                 ip="127.0.0.1",
                 external_ip=bt.utils.networking.get_external_ip(),
+                port=self.config.axon.port,
             )
             .attach(
                 # forward_fn,
