@@ -184,12 +184,12 @@ class BaseMiner(ABC):
         self.axon = (
             bt.axon(
                 wallet=self.wallet,
-                config=self.config,
+                # config=self.config,
                 ip="127.0.0.1",
                 external_ip=bt.utils.networking.get_external_ip(),
+                port=self.config.axon.port,
             )
             .attach(
-                # forward_fn,
                 self.synapses.text_to_image.forward_fn,
                 self.synapses.text_to_image.blacklist_fn,
                 self.synapses.text_to_image.priority_fn,
@@ -202,7 +202,9 @@ class BaseMiner(ABC):
             .start()
         )
 
-        self.subtensor.serve_axon(axon=self.axon, netuid=self.config.axon.port)
+        output_log(f"Axon created: {self.axon}", "g", type="debug")
+
+        # self.subtensor.serve_axon(axon=self.axon, netuid=self.config.axon.port)
 
         #### Start the weight setting loop
         output_log("Starting weight setting loop.", "g", type="debug")
