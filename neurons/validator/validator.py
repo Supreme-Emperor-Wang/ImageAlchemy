@@ -151,19 +151,11 @@ class neuron:
         # Set current and last updated blocks
         self.current_block = self.subtensor.block
         self.last_updated_block = self.subtensor.block
-        # # loop over all last_update, any that are within 600 blocks are set to 1 others are set to 0 
-        # self.weights = self.weights * self.metagraph.last_update > self.current_block - 600
-        # # all nodes with more than 1e3 total stake are set to 0 (sets validtors weights to 0)
-        # self.weights = self.weights * (self.metagraph.total_stake < 1.024e3) 
-        # # set all nodes without ips set to 0
-        # self.weights = self.weights * torch.Tensor([self.metagraph.neurons[uid].axon_info.ip != '0.0.0.0' for uid in self.metagraph.uids]) * 0.5
-        # # move weights to device
-        # self.weights = self.weights.to(self.device)
 
         # Init reward function
         self.reward_functions = [
             ImageRewardModel(),
-            # DiversityRewardModel()
+            DiversityRewardModel()
         ]
         
         # Init masking function
@@ -181,9 +173,6 @@ class neuron:
         step = 0
         while True:
             try:
-                # k = 12
-                # uids = get_random_uids(self, k=k).to(self.device)
-                device = "cuda"
                 timeout = 100
 
                 # Get a random number of uids
@@ -195,32 +184,30 @@ class neuron:
                 # breakpoint()
                 # Log the results for monitoring purposes.
                 bt.logging.info(f"Received response: {responses}")
-
+                
+                import torch 
                 # Initialise rewards tensor
                 rewards: torch.FloatTensor = torch.ones(len(responses), dtype=torch.float32).to(
-                    device
+                    self.device
                 )
                 for masking_fn_i in self.masking_functions:
                     mask_i, mask_i_normalized = masking_fn_i.apply(responses, )
-                    rewards *= mask_i_normalized.to(device)
+                    rewards *= mask_i_normalized.to(self.device)
                     # TODO add wandb tracking
                     # if not self.config.neuron.disable_log_rewards:
                     #     event[masking_fn_i.name] = mask_i.tolist()
                     #     event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
                     bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
 
-                for weight_i, reward_fn_i in zip([0.95], self.reward_functions):
+                for weight_i, reward_fn_i in zip([0.95, 0.05], self.reward_functions):
                     reward_i, reward_i_normalized = reward_fn_i.apply(responses)
-                    rewards += weight_i * reward_i_normalized.to(device)
+                    rewards += weight_i * reward_i_normalized.to(self.device)
                     # TODO add wandb tracking
                     # if not self.config.neuron.disable_log_rewards:
                     #     event[reward_fn_i.name] = reward_i.tolist()
                     #     event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
                     bt.logging.trace(str(reward_fn_i.name), reward_i_normalized.tolist())
                 
-                bt.logging.info(f"Rewards: {rewards}")
-
-                # breakpoint()
                 for i in range( len( rewards ) ):
                     self.weights[uids[i]] = self.weights[uids[i]] + (self.config.neuron.alpha * rewards[i])
                 self.weights = torch.nn.functional.normalize( self.weights, p=1.0, dim=0)        

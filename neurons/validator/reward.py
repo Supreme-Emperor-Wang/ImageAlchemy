@@ -13,16 +13,10 @@ import ImageReward as RM
 
 # TODO Edit to suit ImageNet
 class RewardModelType(Enum):
-    dpo = "dpo_reward_model"
-    rlhf = "rlhf_reward_model"
-    reciprocate = "reciprocate_reward_model"
-    dahoas = "dahoas_reward_model"
     diversity = "diversity_reward_model"
-    prompt = "prompt_reward_model"
+    image = "image_reward_model"
     blacklist = "blacklist_filter"
     nsfw = "nsfw_filter"
-    relevance = "relevance_filter"
-    task_validator = "task_validator_filter"
 
 def cosine_distance(image_embeds, text_embeds):
     normalized_image_embeds = nn.functional.normalize(image_embeds)
@@ -276,7 +270,7 @@ class BlacklistFilter(BaseRewardModel):
 class NSFWRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.blacklist.value
+        return RewardModelType.nsfw.value
 
     def __init__(self):
         super().__init__()
@@ -328,7 +322,7 @@ class NSFWRewardModel(BaseRewardModel):
 class ImageRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.blacklist.value
+        return RewardModelType.image.value
 
     def __init__(self):
         super().__init__()
@@ -360,8 +354,7 @@ class ImageRewardModel(BaseRewardModel):
             print("error in response:")
             print(response)
             return 0.0
-
-        
+     
     def get_rewards(
         self, responses
     ) -> torch.FloatTensor:
@@ -372,25 +365,80 @@ class ImageRewardModel(BaseRewardModel):
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards
+
+from transformers import AutoImageProcessor, AutoModel, AutoFeatureExtractor
+from sklearn.metrics.pairwise import cosine_similarity
+import torchvision.transforms as T
+import torchvision.transforms as transforms
+from datasets import Dataset
+
 
 class DiversityRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.blacklist.value
+        return RewardModelType.diversity.value
 
     def __init__(self):
         super().__init__()
+        self.model_ckpt = "nateraw/vit-base-beans"
+        self.extractor = AutoFeatureExtractor.from_pretrained(self.model_ckpt)
+        self.processor = AutoImageProcessor.from_pretrained(self.model_ckpt)
+        self.model = AutoModel.from_pretrained(self.model_ckpt)
+        self.hidden_dim = self.model.config.hidden_size            
+        self.transformation_chain = T.Compose(
+            [
+                # We first resize the input image to 256x256 and then we take center crop.
+                T.Resize(int((256 / 224) * self.extractor.size["height"])),
+                T.CenterCrop(self.extractor.size["height"]),
+                T.ToTensor(),
+                T.Normalize(mean=self.extractor.image_mean, std=self.extractor.image_std),
+            ]
+        )
+        # TODO take device argument in
+        self.device = "cuda"
+        
+    def extract_embeddings(self, model: torch.nn.Module):
+        """Utility to compute embeddings."""
+        device = model.device
 
-    def reward(self, images) -> float:
-        ...
+        def pp(batch):
+            images = batch["image"]
+            # `transformation_chain` is a compostion of preprocessing
+            # transformations we apply to the input images to prepare them
+            # for the model. For more details, check out the accompanying Colab Notebook.
+            image_batch_transformed = torch.stack(
+                [self.transformation_chain(image) for image in images]
+            )
+            new_batch = {"pixel_values": image_batch_transformed.to(device)}
+            with torch.no_grad():
+                embeddings = model(**new_batch).last_hidden_state[:, 0].cpu()
+            return {"embeddings": embeddings}
+
+        return pp
 
     def get_rewards(
         self, responses
     ) -> torch.FloatTensor:
-        return torch.tensor(
-            [self.reward(response) for response in responses],
-            dtype=torch.float32,
-        )
+        # return torch.tensor(
+        #     [self.reward(response) for response in responses],
+        #     dtype=torch.float32,
+        # )
+        extract_fn = self.extract_embeddings(self.model.to(self.device))
+        images = [T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])) for response in responses]
+        ds = Dataset.from_dict({"image":images})
+        embeddings = ds.map(extract_fn, batched=True, batch_size=24)
+        embeddings = embeddings['embeddings']
+        simmilarity_matrix = cosine_similarity(embeddings)
+
+        similarity_scores = torch.zeros(len(responses), dtype=torch.float32)
+        for i in range(0, len(simmilarity_matrix)):
+            for j in range(0, len(simmilarity_matrix)):
+                if int(simmilarity_matrix[i][j]) == 1:
+                    simmilarity_matrix[i][j] = 0
+            similarity_scores[i] = 1 - max(simmilarity_matrix[i])
+        
+        return similarity_scores
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards
+
