@@ -36,11 +36,15 @@ def do_logs(self, synapse, t2i):
     """
     time_elapsed = datetime.now() - self.miner.stats.start_time
     
-    if t2i:
+     if synapse.generation_type == "text_to_image":
         num_images = self.miner.t2i_args["num_images_per_prompt"]
-    else:
+    elif synapse.generation_type == "image_to_image":
         num_images = self.miner.i2i_args["num_images_per_prompt"]
-    
+    else:
+        bt.logging.debug(
+            f"Generation type should be one of either text_to_image or image_to_image."
+        )
+
     output_log(
         f"{sh('Info')} -> Date {datetime.strftime(self.miner.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.miner.stats.total_requests/(time_elapsed.total_seconds()/60):.2f} | Model {self.miner.config.miner.model} | Seed {self.miner.config.miner.seed}."
     )
@@ -79,12 +83,12 @@ class Synapses:
         def __init__(self, miner):
             self.miner = miner
 
-        def forward_fn(self, synapse: template.protocol.TextToImage):
+        def forward_fn(self, synapse: template.protocol.ImageGeneration):
             shared_logic(self, synapse)
 
             return synapse
 
-        def blacklist_fn(self, synapse: template.protocol.TextToImage) -> Tuple[bool, str]:
+        def blacklist_fn(self, synapse: template.protocol.ImageGeneration) -> Tuple[bool, str]:
             if synapse.dendrite.hotkey not in self.miner.metagraph.hotkeys:
                 #### Ignore requests from non-registered entities
                 bt.logging.trace(
@@ -103,7 +107,7 @@ class Synapses:
 
             return False, "Hotkey recognized."
 
-        def priority_fn(self, synapse: template.protocol.TextToImage) -> float:
+        def priority_fn(self, synapse: template.protocol.ImageGeneration) -> float:
             #### Get index of requestor
             uid_index = self.miner.metagraph.hotkeys.index(synapse.dendrite.hotkey)
 
@@ -114,11 +118,11 @@ class Synapses:
         def __init__(self, miner):
             self.miner = miner
 
-        def forward_fn(self, synapse: template.protocol.TextToImage):
+        def forward_fn(self, synapse: template.protocol.ImageGeneration):
             shared_logic(self, synapse, t2i=False)
             return synapse
 
-        def blacklist_fn(self, synapse: template.protocol.TextToImage) -> Tuple[bool, str]:
+        def blacklist_fn(self, synapse: template.protocol.ImageGeneration) -> Tuple[bool, str]:
             if synapse.dendrite.hotkey not in self.miner.metagraph.hotkeys:
                 #### Ignore requests from non-registered entities
                 bt.logging.trace(
@@ -137,7 +141,7 @@ class Synapses:
 
             return False, "Hotkey recognized."
 
-        def priority_fn(self, synapse: template.protocol.TextToImage) -> float:
+        def priority_fn(self, synapse: template.protocol.ImageGeneration) -> float:
             #### Get index of requestor
             uid_index = self.miner.metagraph.hotkeys.index(synapse.dendrite.hotkey)
 

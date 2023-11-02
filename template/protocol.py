@@ -41,7 +41,7 @@ import pydantic
 #   assert dummy_output == 2
 
 
-class TextToImage(bt.Synapse):
+class ImageGeneration(bt.Synapse):
     """
     A simple dummy protocol representation which uses bt.Synapse as its base.
     This protocol helps in handling dummy request and response communication between
@@ -53,16 +53,9 @@ class TextToImage(bt.Synapse):
     """
 
     # Required request input, filled by sending dendrite caller.
-    dummy_input: int
-
-    # Optional request output, filled by recieving axon.
-    dummy_output: typing.Optional[int] = None
-
     prompt: str = pydantic.Field( "Bird in the sky" , allow_mutation = False)
-
     images: list[ bt.Tensor ] = []
-
     num_images_per_prompt: int = pydantic.Field( 1 , allow_mutation = False)
-
     height: int = pydantic.Field( 1024 , allow_mutation = False)
     width: int = pydantic.Field( 1024 , allow_mutation = False)
+    generation_type: str = pydantic.Field( "text_to_image" , allow_mutation = False)

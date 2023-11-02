@@ -54,7 +54,7 @@ def get_random_uids(self, k: int, exclude: List[int] = None) -> torch.LongTensor
 
     for uid in range(self.metagraph.n.item()):
         uid_is_available = check_uid_availability(
-            self.metagraph, uid, self.config.neuron.vpermit_tao_limit
+            self.metagraph, uid, 9000
         )
         uid_is_not_excluded = exclude is None or uid not in exclude
 
@@ -180,27 +180,33 @@ class neuron:
                 axons = [self.metagraph.axons[uid] for uid in uids]
                 
                 # Call the dentrite 
-                responses = self.loop.run_until_complete( self.dendrite(axons, template.protocol.TextToImage(dummy_input=step), timeout = timeout))
+                if step % 2 == 0:
+                    responses = self.loop.run_until_complete( self.dendrite(axons, template.protocol.ImageGeneration(generation_type="image_to_image"), timeout = timeout))
+                else:
+                    responses = self.loop.run_until_complete( self.dendrite(axons, template.protocol.ImageGeneration(generation_type="text_to_image"), timeout = timeout))
+                
                 # breakpoint()
                 # Log the results for monitoring purposes.
                 bt.logging.info(f"Received response: {responses}")
                 
-                import torch 
+                # breakpoint()
                 # Initialise rewards tensor
                 rewards: torch.FloatTensor = torch.ones(len(responses), dtype=torch.float32).to(
                     self.device
                 )
+                # breakpoint()
                 for masking_fn_i in self.masking_functions:
-                    mask_i, mask_i_normalized = masking_fn_i.apply(responses, )
+                    mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards )
                     rewards *= mask_i_normalized.to(self.device)
                     # TODO add wandb tracking
                     # if not self.config.neuron.disable_log_rewards:
                     #     event[masking_fn_i.name] = mask_i.tolist()
                     #     event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
                     bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
-
+                # breakpoint()
                 for weight_i, reward_fn_i in zip([0.95, 0.05], self.reward_functions):
-                    reward_i, reward_i_normalized = reward_fn_i.apply(responses)
+                    # breakpoint()
+                    reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
                     rewards += weight_i * reward_i_normalized.to(self.device)
                     # TODO add wandb tracking
                     # if not self.config.neuron.disable_log_rewards:

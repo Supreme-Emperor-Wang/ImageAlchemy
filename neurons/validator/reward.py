@@ -11,17 +11,23 @@ import torchvision.transforms as transforms
 from utils import compare_to_set, calculate_mean_dissimilarity
 import ImageReward as RM
 
-# TODO Edit to suit ImageNet
-class RewardModelType(Enum):
-    diversity = "diversity_reward_model"
-    image = "image_reward_model"
-    blacklist = "blacklist_filter"
-    nsfw = "nsfw_filter"
+from transformers import AutoImageProcessor, AutoModel, AutoFeatureExtractor
+from sklearn.metrics.pairwise import cosine_similarity
+import torchvision.transforms as T
+import torchvision.transforms as transforms
+from datasets import Dataset
+
 
 def cosine_distance(image_embeds, text_embeds):
     normalized_image_embeds = nn.functional.normalize(image_embeds)
     normalized_text_embeds = nn.functional.normalize(text_embeds)
     return torch.mm(normalized_image_embeds, normalized_text_embeds.t())
+
+class RewardModelType(Enum):
+    diversity = "diversity_reward_model"
+    image = "image_reward_model"
+    blacklist = "blacklist_filter"
+    nsfw = "nsfw_filter"
 
 class StableDiffusionSafetyChecker(PreTrainedModel):
     config_class = CLIPConfig
@@ -115,7 +121,7 @@ class BaseRewardModel:
 
     @abstractmethod
     def get_rewards(
-        self, responses: List,
+        self, responses: List, rewards
     ) -> torch.FloatTensor:
         ...
 
@@ -179,7 +185,7 @@ class BaseRewardModel:
         return rewards
 
     def apply(
-        self, responses: List[bt.Synapse]
+        self, responses: List[bt.Synapse], rewards,
     ) -> torch.FloatTensor:
         """Applies the reward model across each call. Unsuccessful responses are zeroed."""
         # Get indices of correctly responding calls.
@@ -194,9 +200,9 @@ class BaseRewardModel:
         successful_generations: List[str] = [
             responses[idx] for idx in successful_generations_indices
         ]
-
+        # breakpoint()
         # Reward each completion.
-        successful_rewards = self.get_rewards(successful_generations,)
+        successful_rewards = self.get_rewards(successful_generations,rewards)
 
         # Softmax rewards across samples.
         successful_rewards_normalized = self.normalize_rewards(successful_rewards)
@@ -257,10 +263,10 @@ class BlacklistFilter(BaseRewardModel):
         return 1.0
 
     def get_rewards(
-        self, responses
+        self, responses, rewards
     ) -> torch.FloatTensor:
         return torch.tensor(
-            [self.reward(response) for response in responses],
+            [self.reward(response) if reward != 0.0 else 0.0 for response, reward in zip(responses,rewards)],
             dtype=torch.float32,
         )
 
@@ -309,10 +315,10 @@ class NSFWRewardModel(BaseRewardModel):
         return 1.0
 
     def get_rewards(
-        self, responses
+        self, responses, rewards
     ) -> torch.FloatTensor:
         return torch.tensor(
-            [self.reward(response) for response in responses],
+            [self.reward(response) if reward != 0.0 else 0.0 for response, reward in zip(responses,rewards)],
             dtype=torch.float32,
         )
 
@@ -356,22 +362,15 @@ class ImageRewardModel(BaseRewardModel):
             return 0.0
      
     def get_rewards(
-        self, responses
+        self, responses, rewards
     ) -> torch.FloatTensor:
         return torch.tensor(
-            [self.reward(response) for response in responses],
+            [self.reward(response) if reward != 0.0 else 0.0 for response, reward in zip(responses,rewards)],
             dtype=torch.float32,
         )
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards
-
-from transformers import AutoImageProcessor, AutoModel, AutoFeatureExtractor
-from sklearn.metrics.pairwise import cosine_similarity
-import torchvision.transforms as T
-import torchvision.transforms as transforms
-from datasets import Dataset
-
 
 class DiversityRewardModel(BaseRewardModel):
     @property
@@ -417,27 +416,39 @@ class DiversityRewardModel(BaseRewardModel):
         return pp
 
     def get_rewards(
-        self, responses
+        self, responses, rewards
     ) -> torch.FloatTensor:
         # return torch.tensor(
         #     [self.reward(response) for response in responses],
         #     dtype=torch.float32,
         # )
         extract_fn = self.extract_embeddings(self.model.to(self.device))
-        images = [T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])) for response in responses]
-        ds = Dataset.from_dict({"image":images})
-        embeddings = ds.map(extract_fn, batched=True, batch_size=24)
-        embeddings = embeddings['embeddings']
-        simmilarity_matrix = cosine_similarity(embeddings)
 
-        similarity_scores = torch.zeros(len(responses), dtype=torch.float32)
-        for i in range(0, len(simmilarity_matrix)):
-            for j in range(0, len(simmilarity_matrix)):
-                if int(simmilarity_matrix[i][j]) == 1:
-                    simmilarity_matrix[i][j] = 0
-            similarity_scores[i] = 1 - max(simmilarity_matrix[i])
+        images = [T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])) for response, reward in zip(responses,rewards) if reward != 0.0]
+        ignored_indices = [index for index, reward in enumerate(rewards) if reward == 0.0]
         
-        return similarity_scores
+        if len(images) > 1:
+            ds = Dataset.from_dict({"image":images})
+            embeddings = ds.map(extract_fn, batched=True, batch_size=24)
+            embeddings = embeddings['embeddings']
+            simmilarity_matrix = cosine_similarity(embeddings)
+
+            dissimilarity_scores = torch.zeros(len(responses), dtype=torch.float32)
+            for i in range(0, len(simmilarity_matrix)):
+                for j in range(0, len(simmilarity_matrix)):
+                    if i == j:
+                        simmilarity_matrix[i][j] = 0
+                dissimilarity_scores[i] = 1 - max(simmilarity_matrix[i])
+        else:
+            dissimilarity_scores = torch.tensor([1.0])
+        
+        if ignored_indices:
+            i = 0
+            while i < len(rewards):
+                if i in ignored_indices:
+                    dissimilarity_scores = torch.cat([dissimilarity_scores[:i], 0, dissimilarity_scores[i:]])
+
+        return dissimilarity_scores
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards
