@@ -446,7 +446,7 @@ class DiversityRewardModel(BaseRewardModel):
             i = 0
             while i < len(rewards):
                 if i in ignored_indices:
-                    dissimilarity_scores = torch.cat([dissimilarity_scores[:i], 0, dissimilarity_scores[i:]])
+                    dissimilarity_scores = torch.cat([dissimilarity_scores[:i], torch.tensor([0]), dissimilarity_scores[i:]])
 
         return dissimilarity_scores
 

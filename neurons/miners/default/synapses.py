@@ -36,7 +36,7 @@ def do_logs(self, synapse, t2i):
     """
     time_elapsed = datetime.now() - self.miner.stats.start_time
     
-     if synapse.generation_type == "text_to_image":
+    if synapse.generation_type == "text_to_image":
         num_images = self.miner.t2i_args["num_images_per_prompt"]
     elif synapse.generation_type == "image_to_image":
         num_images = self.miner.i2i_args["num_images_per_prompt"]

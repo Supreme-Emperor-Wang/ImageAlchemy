@@ -54,7 +54,7 @@ def get_random_uids(self, k: int, exclude: List[int] = None) -> torch.LongTensor
 
     for uid in range(self.metagraph.n.item()):
         uid_is_available = check_uid_availability(
-            self.metagraph, uid, 9000
+            self.metagraph, uid, 500
         )
         uid_is_not_excluded = exclude is None or uid not in exclude
 
@@ -178,7 +178,7 @@ class neuron:
                 # Get a random number of uids
                 uids = get_random_uids(self, k=self.config.neuron.followup_sample_size).to(self.device)
                 axons = [self.metagraph.axons[uid] for uid in uids]
-                
+                # breakpoint()
                 # Call the dentrite 
                 if step % 2 == 0:
                     responses = self.loop.run_until_complete( self.dendrite(axons, template.protocol.ImageGeneration(generation_type="image_to_image"), timeout = timeout))
