@@ -21,7 +21,7 @@ import torch
 import argparse
 import bittensor as bt
 from loguru import logger
-# from prompting.validators.reward import DefaultRewardFrameworkConfig
+from reward import DefaultRewardFrameworkConfig
 
 
 def check_config(cls, config: "bt.Config"):
@@ -81,6 +81,12 @@ def add_args(cls, parser):
         type=str,
         help="Device to run the validator on.",
         default="cuda" if torch.cuda.is_available() else "cpu",
+    )
+    parser.add_argument(
+        "--neuron.disable_manual_validator",
+        action="store_true",
+        help="Disable the capability to manually validate outputs",
+        default=False,
     )
     parser.add_argument(
         "--neuron.disable_log_rewards",
@@ -265,37 +271,25 @@ def add_args(cls, parser):
         help="Dont apply the task validator reward model",
         default=False,
     )
-
-    # parser.add_argument(
-    #     "--reward.reciprocate_weight",
-    #     type=float,
-    #     help="Weight for the reciprocate reward model",
-    #     default=DefaultRewardFrameworkConfig.reciprocate_model_weight,
-    # )
-    # parser.add_argument(
-    #     "--reward.dpo_weight",
-    #     type=float,
-    #     help="Weight for the dpo reward model",
-    #     default=DefaultRewardFrameworkConfig.dpo_model_weight,
-    # )
-    # parser.add_argument(
-    #     "--reward.rlhf_weight",
-    #     type=float,
-    #     help="Weight for the rlhf reward model",
-    #     default=DefaultRewardFrameworkConfig.rlhf_model_weight,
-    # )
-    # parser.add_argument(
-    #     "--reward.dahoas_weight",
-    #     type=float,
-    #     help="Weight for the dahoas reward model",
-    #     default=DefaultRewardFrameworkConfig.dahoas_model_weight,
-    # )
-    # parser.add_argument(
-    #     "--reward.prompt_based_weight",
-    #     type=float,
-    #     help="Weight for the prompt-based reward model",
-    #     default=DefaultRewardFrameworkConfig.prompt_model_weight,
-    # )
+    
+    parser.add_argument(
+        "--reward.diversity_model_weight",
+        type=float,
+        help="Weight for the diversity reward model",
+        default=DefaultRewardFrameworkConfig.diversity_model_weight,
+    )
+    parser.add_argument(
+        "--reward.image_model_weight",
+        type=float,
+        help="Weight for the image reward model",
+        default=DefaultRewardFrameworkConfig.image_model_weight,
+    )
+    parser.add_argument(
+        "--reward.human_model_weight",
+        type=float,
+        help="Weight for the human reward model",
+        default=DefaultRewardFrameworkConfig.human_model_weight,
+    )
 
     parser.add_argument(
         "--neuron.mock_dendrite_pool",

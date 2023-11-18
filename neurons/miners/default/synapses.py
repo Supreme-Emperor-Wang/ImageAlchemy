@@ -7,6 +7,7 @@ import template
 import copy
 import torchvision.transforms as transforms
 from PIL import Image
+import wandb
 
 transform = transforms.Compose([
     transforms.PILToTensor()
@@ -72,6 +73,7 @@ def shared_logic(self, synapse, t2i=True):
     else:
         images = generate(self.miner.i2i_model, self.miner.i2i_args, synapse)
 
+    # self.miner.wandb.log({"images":[wandb.Image( transform(image) ) for image in images][0]})
     synapse.images = [bt.Tensor.serialize( transform(image) ) for image in images]
     
     output_log(f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.")

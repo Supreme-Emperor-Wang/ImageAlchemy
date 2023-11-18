@@ -161,11 +161,12 @@ class BaseMiner(ABC):
 
         ### Defaults
         self.stats = self.get_defaults()
-        self.wandb = None
 
         ### Start the wandb logging thread if both project and entity have been provided
         if all([self.config.wandb.project, self.config.wandb.entity]):
-            self.wandb = WandbUtils(self)
+            print("wandb on!")
+            # breakpoint()
+            self.wandb = WandbUtils(self.metagraph, self.config, self.wallet)
 
         #### Load the model
         self.t2i_model, self.i2i_model = self.load_models()
@@ -282,6 +283,9 @@ class BaseMiner(ABC):
 
                     #### Set weights (WIP)
                     output_log("Settings weights.")
+
+                    #### Log to Wanbd
+                    self.wandb._log() 
 
                     weights = [0.0] * len(self.metagraph.uids)
                     weights[self.miner_index] = 1.0

@@ -47,14 +47,18 @@ class WandbTimer(Timer):
 
 
 class WandbUtils:
-    def __init__(self, miner):
-        self.miner = miner
+    def __init__(self, metagraph, config, wallet):
+        # breakpoint()
+        self.metagraph = metagraph
+        self.config = config
+        self.wallet = wallet
         self.wandb = None
+        self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         output_log(
-            f"Wandb starting run with project {self.miner.config.wandb.project} and entity {self.miner.config.wandb.entity}."
+            f"Wandb starting run with project {self.config.wandb.project} and entity {self.config.wandb.entity}."
         )
-        self.timer = WandbTimer(600, self._log, [self])
-        self.timer.start()
+        # self.timer = WandbTimer(600, self._log, [self])
+        # self.timer.start()
 
     def _start_run(self):
         if self.wandb:
@@ -63,16 +67,16 @@ class WandbUtils:
         #### Start new run
 
         config = {}
-        config.update(self.args)
-        config["model"] = self.miner.config.model
+        config.update(self.config)
+        config["model"] = self.config.model
         self.wandb = wandb.init(
-            project=self.wandb.project, entity=self.wandb.entity, config=config
+            project=self.config.wandb.project, entity=self.config.wandb.entity, config=config
         )
-
         #### Take the first two random words plus the name of the wallet, hotkey name and uid
+        # breakpoint()
         self.wandb.name = (
-            self.wandb.name.split("-")[:2]
-            + f"-{self.wallet.name}-{self.wallet.hotkey_str}-{self.args.uid}"
+            "-".join(self.wandb.name.split("-")[:2])
+            + f"-{self.wallet.name}-{self.wallet.hotkey_str}-{self.uid}"
         )
         output_log(f"Started new run: {self.wandb.name}", "c")
 
@@ -84,11 +88,15 @@ class WandbUtils:
             self._start_run()
             return
         #### Log incentive, trust, emissions, total requests, timeouts
-        info = self.miner.get_miner_info()
+        # info = self.miner.get_miner_info()
+        info = {}
         info.update(
             {
-                "total_requests": self.miner.stats.total_requests,
-                "timeouts": self.miner.stats.timeouts,
+                # "total_requests": self.miner.stats.total_requests,
+                # "timeouts": self.miner.stats.timeouts,
+                "incentive":self.metagraph.I[self.uid] * 100_000,
+                "trust":self.metagraph.T[self.uid] * 100,
+                "consensus":self.metagraph.C[self.uid] * 100_000
             }
         )
         self.wandb.log(info)

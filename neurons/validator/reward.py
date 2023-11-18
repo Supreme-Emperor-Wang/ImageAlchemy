@@ -26,8 +26,19 @@ def cosine_distance(image_embeds, text_embeds):
 class RewardModelType(Enum):
     diversity = "diversity_reward_model"
     image = "image_reward_model"
+    human = "human_reward_model"
     blacklist = "blacklist_filter"
     nsfw = "nsfw_filter"
+
+@dataclass(frozen=True)
+class DefaultRewardFrameworkConfig:
+    """Reward framework default configuration.
+    Note: All the weights should add up to 1.0.
+    """
+
+    diversity_model_weight: float = 0.05
+    image_model_weight: float = 0.45
+    human_model_weight: float = 0.5
 
 class StableDiffusionSafetyChecker(PreTrainedModel):
     config_class = CLIPConfig
@@ -200,7 +211,6 @@ class BaseRewardModel:
         successful_generations: List[str] = [
             responses[idx] for idx in successful_generations_indices
         ]
-        # breakpoint()
         # Reward each completion.
         successful_rewards = self.get_rewards(successful_generations,rewards)
 
