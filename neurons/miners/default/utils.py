@@ -47,8 +47,9 @@ class WandbTimer(Timer):
 
 
 class WandbUtils:
-    def __init__(self, metagraph, config, wallet):
+    def __init__(self, miner, metagraph, config, wallet):
         # breakpoint()
+        self.miner = miner
         self.metagraph = metagraph
         self.config = config
         self.wallet = wallet
@@ -88,15 +89,15 @@ class WandbUtils:
             self._start_run()
             return
         #### Log incentive, trust, emissions, total requests, timeouts
-        # info = self.miner.get_miner_info()
-        info = {}
+        info = self.miner.get_miner_info()
+        # info = {}
         info.update(
             {
-                # "total_requests": self.miner.stats.total_requests,
-                # "timeouts": self.miner.stats.timeouts,
-                "incentive":self.metagraph.I[self.uid] * 100_000,
-                "trust":self.metagraph.T[self.uid] * 100,
-                "consensus":self.metagraph.C[self.uid] * 100_000
+                "total_requests": self.miner.stats.total_requests,
+                "timeouts": self.miner.stats.timeouts,
+                # "incentive":self.metagraph.I[self.uid] * 100_000,
+                # "trust":self.metagraph.T[self.uid] * 100,
+                # "consensus":self.metagraph.C[self.uid] * 100_000
             }
         )
         self.wandb.log(info)

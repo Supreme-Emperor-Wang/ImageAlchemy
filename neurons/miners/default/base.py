@@ -166,7 +166,7 @@ class BaseMiner(ABC):
         if all([self.config.wandb.project, self.config.wandb.entity]):
             print("wandb on!")
             # breakpoint()
-            self.wandb = WandbUtils(self.metagraph, self.config, self.wallet)
+            self.wandb = WandbUtils(self, self.metagraph, self.config, self.wallet)
 
         #### Load the model
         self.t2i_model, self.i2i_model = self.load_models()
