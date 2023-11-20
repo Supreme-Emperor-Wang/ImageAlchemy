@@ -192,13 +192,13 @@ def add_args(cls, parser):
         "--wandb.project_name",
         type=str,
         help="The name of the project where you are sending the new run.",
-        default="openvalidators",
+        default="tensorvision",
     )
     parser.add_argument(
         "--wandb.entity",
         type=str,
         help="An entity is a username or team name where youre sending runs.",
-        default="opentensor-dev",
+        default="tensoralchemy",
     )
     parser.add_argument(
         "--wandb.offline",

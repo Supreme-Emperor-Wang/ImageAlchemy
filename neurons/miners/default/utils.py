@@ -90,7 +90,6 @@ class WandbUtils:
             return
         #### Log incentive, trust, emissions, total requests, timeouts
         info = self.miner.get_miner_info()
-        # info = {}
         info.update(
             {
                 "total_requests": self.miner.stats.total_requests,

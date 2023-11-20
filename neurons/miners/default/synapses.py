@@ -61,10 +61,12 @@ def do_logs(self, synapse, t2i):
     output_log(f"{sh('Generating')} -> {num_images} images.")
 
 
-def shared_logic(self, synapse, t2i=True):
+def shared_logic(self, synapse, t2i=True, timeout = 10):
     """
     Forward logic shared between both text-to-image and image-to-image
     """
+    # Increment total requests state by 1
+    self.miner.stats.total_requests += 1
     do_logs(self, synapse, t2i)
 
     start_time = time.perf_counter()
@@ -72,6 +74,9 @@ def shared_logic(self, synapse, t2i=True):
         images = generate(self.miner.t2i_model, self.miner.t2i_args, synapse)
     else:
         images = generate(self.miner.i2i_model, self.miner.i2i_args, synapse)
+    
+    if (time.perf_counter() - start_time) > timeout:
+        self.miner.stats.total_requests += 1 
 
     # self.miner.wandb.log({"images":[wandb.Image( transform(image) ) for image in images][0]})
     synapse.images = [bt.Tensor.serialize( transform(image) ) for image in images]
