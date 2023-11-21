@@ -286,7 +286,7 @@ class neuron:
                         bt.logging.success("Successfully set weights.")
                     else:
                         bt.logging.error("Failed to set weights.")
-                
+                # breakpoint()
                 # Log the step event.
                 event.update(
                     {
@@ -295,7 +295,7 @@ class neuron:
                         "prompt": prompt,
                         "uids": uids.tolist(),
                         "hotkeys": [self.metagraph.axons[uid].hotkey for uid in uids],
-                        "images": [wandb.Image(bt.Tensor.deserialize(r.images[0])[0], caption=prompt) for r in responses],
+                        "images": [wandb.Image(bt.Tensor.deserialize(r.images[0])[0], caption=prompt) if r.images != [] else wandb.Image(torch.full([3, 1024, 1024], 255, dtype=torch.float), caption=prompt) for r in responses],
                         "rewards": rewards.tolist(),
                     }
                 )

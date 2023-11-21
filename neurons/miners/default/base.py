@@ -63,7 +63,7 @@ class BaseMiner(ABC):
         argp.add_argument("--miner.guidance_scale", type=float, default=7.5)
         argp.add_argument("--miner.steps", type=int, default=30)
         argp.add_argument("--miner.num_images", type=int, default=1)
-        # breakpoint()
+
         bt.subtensor.add_args(argp)
         bt.logging.add_args(argp)
         bt.wallet.add_args(argp)
@@ -143,6 +143,9 @@ class BaseMiner(ABC):
         #### Build args
         self.t2i_args, self.i2i_args = self.get_args()
 
+        #### Initialise event dict
+        self.event = {}
+
         #### Initialize the synapse classes
         self.synapses = Synapses(self)
 
@@ -165,7 +168,6 @@ class BaseMiner(ABC):
         ### Start the wandb logging thread if both project and entity have been provided
         if all([self.config.wandb.project, self.config.wandb.entity]):
             print("wandb on!")
-            # breakpoint()
             self.wandb = WandbUtils(self, self.metagraph, self.config, self.wallet)
 
         #### Load the model
@@ -185,7 +187,6 @@ class BaseMiner(ABC):
 
         #### Serve the axon
         output_log(f"Serving axon on port {self.config.axon.port}.", "g", type="debug")
-        # breakpoint()
         self.axon = (
             bt.axon(
                 wallet=self.wallet,
@@ -265,6 +266,9 @@ class BaseMiner(ABC):
                 self.metagraph.sync(lite=True)
                 continue
 
+            #### Log to Wanbd
+            self.wandb._log() 
+
             #### Output current statistics and set weights
             try:
                 if step % 5 == 0:
@@ -283,9 +287,6 @@ class BaseMiner(ABC):
 
                     #### Set weights (WIP)
                     output_log("Settings weights.")
-
-                    #### Log to Wanbd
-                    self.wandb._log() 
 
                     weights = [0.0] * len(self.metagraph.uids)
                     weights[self.miner_index] = 1.0

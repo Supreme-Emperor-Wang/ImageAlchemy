@@ -452,7 +452,7 @@ class DiversityRewardModel(BaseRewardModel):
         else:
             dissimilarity_scores = torch.tensor([1.0])
         
-        if ignored_indices:
+        if ignored_indices and (len(images) > 1):
             i = 0
             while i < len(rewards):
                 if i in ignored_indices:

@@ -8,6 +8,7 @@ import copy
 import torchvision.transforms as transforms
 from PIL import Image
 import wandb
+import torch
 
 transform = transforms.Compose([
     transforms.PILToTensor()
@@ -80,19 +81,23 @@ def shared_logic(self, synapse, t2i=True, timeout = 10):
 
     # self.miner.wandb.log({"images":[wandb.Image( transform(image) ) for image in images][0]})
     synapse.images = [bt.Tensor.serialize( transform(image) ) for image in images]
-    
+    self.event.update(
+        {
+            "images": [wandb.Image(bt.Tensor.deserialize(image), caption=synapse.prompt) if image != [] else wandb.Image(torch.full([3, 1024, 1024], 255, dtype=torch.float), caption=synapse.prompt) for image in synapse.images],
+        }
+    )
     output_log(f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.")
 
 
 
 class Synapses:
     class TextToImage:
-        def __init__(self, miner):
+        def __init__(self, miner, event):
             self.miner = miner
+            self.event = event
 
         def forward_fn(self, synapse: template.protocol.ImageGeneration):
             shared_logic(self, synapse)
-
             return synapse
 
         def blacklist_fn(self, synapse: template.protocol.ImageGeneration) -> Tuple[bool, str]:
@@ -109,7 +114,7 @@ class Synapses:
             if not self.miner.metagraph.validator_permit[uid_index]:
                 return True, "No validator permit."
 
-            if self.miner.metagraph.S[uid_index] < 1024:
+            if self.miner.metagraph.S[uid_index] < 512:
                 return True, "Insufficient stake."
 
             return False, "Hotkey recognized."
@@ -122,8 +127,9 @@ class Synapses:
             return float(self.miner.metagraph.S[uid_index])
 
     class ImageToImage:
-        def __init__(self, miner):
+        def __init__(self, miner, event):
             self.miner = miner
+            self.event = event
 
         def forward_fn(self, synapse: template.protocol.ImageGeneration):
             shared_logic(self, synapse, t2i=False)
@@ -143,7 +149,7 @@ class Synapses:
             if not self.miner.metagraph.validator_permit[uid_index]:
                 return True, "No validator permit."
 
-            if self.miner.metagraph.S[uid_index] < 1024:
+            if self.miner.metagraph.S[uid_index] < 512:
                 return True, "Insufficient stake."
 
             return False, "Hotkey recognized."
@@ -157,5 +163,6 @@ class Synapses:
 
     def __init__(self, miner):
         self.miner = miner
-        self.text_to_image = self.TextToImage(self.miner)
-        self.image_to_image = self.ImageToImage(self.miner)
+        self.event = miner.event
+        self.text_to_image = self.TextToImage(self.miner, self.event)
+        self.image_to_image = self.ImageToImage(self.miner, self.event)

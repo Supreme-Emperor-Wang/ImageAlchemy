@@ -89,14 +89,12 @@ class WandbUtils:
             self._start_run()
             return
         #### Log incentive, trust, emissions, total requests, timeouts
-        info = self.miner.get_miner_info()
-        info.update(
+        breakpoint()
+        self.event.update(self.miner.get_miner_info())
+        self.event.update(
             {
                 "total_requests": self.miner.stats.total_requests,
                 "timeouts": self.miner.stats.timeouts,
-                # "incentive":self.metagraph.I[self.uid] * 100_000,
-                # "trust":self.metagraph.T[self.uid] * 100,
-                # "consensus":self.metagraph.C[self.uid] * 100_000
             }
         )
-        self.wandb.log(info)
+        self.wandb.log(self.event)
