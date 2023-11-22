@@ -84,7 +84,7 @@ def get_random_uids(self, k: int, exclude: List[int] = None) -> torch.LongTensor
 
     for uid in range(self.metagraph.n.item()):
         uid_is_available = check_uid_availability(
-            self.metagraph, uid, 500
+            self.metagraph, uid, 400
         )
         uid_is_not_excluded = exclude is None or uid not in exclude
 

@@ -167,9 +167,9 @@ class BaseMiner(ABC):
 
         ### Start the wandb logging thread if both project and entity have been provided
         if all([self.config.wandb.project, self.config.wandb.entity]):
-            print("wandb on!")
-            self.wandb = WandbUtils(self, self.metagraph, self.config, self.wallet)
-
+            self.wandb = WandbUtils(self, self.metagraph, self.config, self.wallet, self.event)
+            self.wandb._start_run()
+            
         #### Load the model
         self.t2i_model, self.i2i_model = self.load_models()
 
@@ -266,8 +266,8 @@ class BaseMiner(ABC):
                 self.metagraph.sync(lite=True)
                 continue
 
-            #### Log to Wanbd
-            self.wandb._log() 
+            # #### Log to Wanbd
+            # self.wandb._log() 
 
             #### Output current statistics and set weights
             try:

@@ -9,7 +9,6 @@ class Images:
     def __init__(self, images):
         self.images = images
 
-
 #### Colors to use in the logs
 COLORS = {
     "r": "\033[1;31;40m",
@@ -47,7 +46,7 @@ class WandbTimer(Timer):
 
 
 class WandbUtils:
-    def __init__(self, miner, metagraph, config, wallet):
+    def __init__(self, miner, metagraph, config, wallet, event):
         # breakpoint()
         self.miner = miner
         self.metagraph = metagraph
@@ -55,6 +54,7 @@ class WandbUtils:
         self.wallet = wallet
         self.wandb = None
         self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
+        self.event = event
         output_log(
             f"Wandb starting run with project {self.config.wandb.project} and entity {self.config.wandb.entity}."
         )
@@ -73,8 +73,8 @@ class WandbUtils:
         self.wandb = wandb.init(
             project=self.config.wandb.project, entity=self.config.wandb.entity, config=config
         )
+        
         #### Take the first two random words plus the name of the wallet, hotkey name and uid
-        # breakpoint()
         self.wandb.name = (
             "-".join(self.wandb.name.split("-")[:2])
             + f"-{self.wallet.name}-{self.wallet.hotkey_str}-{self.uid}"
@@ -89,7 +89,6 @@ class WandbUtils:
             self._start_run()
             return
         #### Log incentive, trust, emissions, total requests, timeouts
-        breakpoint()
         self.event.update(self.miner.get_miner_info())
         self.event.update(
             {

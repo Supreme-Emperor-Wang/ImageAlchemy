@@ -79,13 +79,17 @@ def shared_logic(self, synapse, t2i=True, timeout = 10):
     if (time.perf_counter() - start_time) > timeout:
         self.miner.stats.total_requests += 1 
 
-    # self.miner.wandb.log({"images":[wandb.Image( transform(image) ) for image in images][0]})
     synapse.images = [bt.Tensor.serialize( transform(image) ) for image in images]
     self.event.update(
         {
             "images": [wandb.Image(bt.Tensor.deserialize(image), caption=synapse.prompt) if image != [] else wandb.Image(torch.full([3, 1024, 1024], 255, dtype=torch.float), caption=synapse.prompt) for image in synapse.images],
         }
     )
+
+    #### Log to Wanbd
+    self.miner.wandb._log() 
+
+    #### Log to console 
     output_log(f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.")
 
 
@@ -114,7 +118,7 @@ class Synapses:
             if not self.miner.metagraph.validator_permit[uid_index]:
                 return True, "No validator permit."
 
-            if self.miner.metagraph.S[uid_index] < 512:
+            if self.miner.metagraph.S[uid_index] < 400:
                 return True, "Insufficient stake."
 
             return False, "Hotkey recognized."
@@ -149,7 +153,7 @@ class Synapses:
             if not self.miner.metagraph.validator_permit[uid_index]:
                 return True, "No validator permit."
 
-            if self.miner.metagraph.S[uid_index] < 512:
+            if self.miner.metagraph.S[uid_index] < 400:
                 return True, "Insufficient stake."
 
             return False, "Hotkey recognized."

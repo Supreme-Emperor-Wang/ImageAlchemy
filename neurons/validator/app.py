@@ -91,43 +91,43 @@ if "vote_10" not in st.session_state:
 
 def input_callback():
     if st.session_state.vote_1:
-        with open('/home/ubuntu/TV/neurons/validator/images/vote.txt', 'w') as f:
+        with open('neurons/validator/images/vote.txt', 'w') as f:
             f.write("1")
             st.session_state.vote_1 = False
     elif st.session_state.vote_2:
-        with open('/home/ubuntu/TV/neurons/validator/images/vote.txt', 'w') as f:
+        with open('neurons/validator/images/vote.txt', 'w') as f:
             f.write("2")
             st.session_state.vote_2 = False
     elif st.session_state.vote_3:
-        with open('/home/ubuntu/TV/neurons/validator/images/vote.txt', 'w') as f:
+        with open('neurons/validator/images/vote.txt', 'w') as f:
             f.write("3")
             st.session_state.vote_3 = False
     elif st.session_state.vote_4:
-        with open('/home/ubuntu/TV/neurons/validator/images/vote.txt', 'w') as f:
+        with open('neurons/validator/images/vote.txt', 'w') as f:
             f.write("4")
             st.session_state.vote_4 = False
     elif st.session_state.vote_5:
-        with open('/home/ubuntu/TV/neurons/validator/images/vote.txt', 'w') as f:
+        with open('neurons/validator/images/vote.txt', 'w') as f:
             f.write("5")
             st.session_state.vote_5 = False
     elif st.session_state.vote_6:
-        with open('/home/ubuntu/TV/neurons/validator/images/vote.txt', 'w') as f:
+        with open('neurons/validator/images/vote.txt', 'w') as f:
             f.write("6")
             st.session_state.vote_6 = False
     elif st.session_state.vote_7:
-        with open('/home/ubuntu/TV/neurons/validator/images/vote.txt', 'w') as f:
+        with open('neurons/validator/images/vote.txt', 'w') as f:
             f.write("7")
             st.session_state.vote_7 = False
     elif st.session_state.vote_8:
-        with open('/home/ubuntu/TV/neurons/validator/images/vote.txt', 'w') as f:
+        with open('neurons/validator/images/vote.txt', 'w') as f:
             f.write("8")
             st.session_state.vote_8 = False
     elif st.session_state.vote_9:
-        with open('/home/ubuntu/TV/neurons/validator/images/vote.txt', 'w') as f:
+        with open('neurons/validator/images/vote.txt', 'w') as f:
             f.write("9")
             st.session_state.vote_9 = False
     elif st.session_state.vote_10:
-        with open('/home/ubuntu/TV/neurons/validator/images/vote.txt', 'w') as f:
+        with open('neurons/validator/images/vote.txt', 'w') as f:
             f.write("10")
             st.session_state.vote_10 = False
 
@@ -157,51 +157,22 @@ with col5:
     placeholder_10 = st.empty()
     vote_10 = st.checkbox("UID 9")
 
+image_list = [placeholder_1, placeholder_2, placeholder_3, placeholder_4, placeholder_5, placeholder_6, placeholder_7, placeholder_8, placeholder_9, placeholder_10]
 while True:
-    images = [image for image in listdir(directory) if '.png' in image]
+    images = [image for image in listdir(directory) if ('.png' in image) and ('black.png' not in image)]
+
     if images:
 
-        try:
+        for i in range(0, 10):  
+            if len(images) > i:
+                image_list[i].image(f'{directory}/{images[i]}', caption=f'UID {i}', width=150)
+            else: 
+                image_list[i].image(f'{directory}/black.png', caption=f'UID {i}', width=150)
             
-            Title.text("PROMPT:\n" + open(f"""{directory}/prompt.txt""","r").read())
-            placeholder_1.image(f'{directory}/{images[0]}', caption='UID 0', width=150)
-            placeholder_2.image(f'{directory}/{images[1]}', caption='UID 1', width=150)
-            placeholder_3.image(f'{directory}/{images[0]}', caption='UID 2', width=150)
-            placeholder_4.image(f'{directory}/{images[1]}', caption='UID 3', width=150)
-            placeholder_5.image(f'{directory}/{images[0]}', caption='UID 4', width=150)
-            placeholder_6.image(f'{directory}/{images[1]}', caption='UID 5', width=150)
-            placeholder_7.image(f'{directory}/{images[0]}', caption='UID 6', width=150)
-            placeholder_8.image(f'{directory}/{images[1]}', caption='UID 7', width=150)
-            placeholder_9.image(f'{directory}/{images[0]}', caption='UID 8', width=150)
-            placeholder_10.image(f'{directory}/{images[1]}', caption='UID 9', width=150)
-    
-        except:
-
-            placeholder_1.text("AWAITING NEW ...")
-            placeholder_2.text("AWAITING NEW ...")
-            placeholder_3.text("AWAITING NEW ...")
-            placeholder_4.text("AWAITING NEW ...")
-            placeholder_5.text("AWAITING NEW ...")
-            placeholder_6.text("AWAITING NEW ...")
-            placeholder_7.text("AWAITING NEW ...")
-            placeholder_8.text("AWAITING NEW ...")
-            placeholder_9.text("AWAITING NEW ...")
-            placeholder_10.text("AWAITING NEW ...")
-
-            # vote_1.value = False
     else:      
-
-
-        placeholder_1.text("AWAITING NEW ...")
-        placeholder_2.text("AWAITING NEW ...")
-        placeholder_3.text("AWAITING NEW ...")
-        placeholder_4.text("AWAITING NEW ...")
-        placeholder_5.text("AWAITING NEW ...")
-        placeholder_6.text("AWAITING NEW ...")
-        placeholder_7.text("AWAITING NEW ...")
-        placeholder_8.text("AWAITING NEW ...")
-        placeholder_9.text("AWAITING NEW ...")
-        placeholder_10.text("AWAITING NEW ...")
+      
+        for i in range(0, 10):  
+            image_list[i].text("AWAITING NEW ...")
 
         # vote_1.value = False
 
@@ -264,7 +235,7 @@ while True:
 # from os import listdir
 
 # from PIL import Image
-# directory = r"/home/ubuntu/TV/neurons/validator/images"
+# directory = r"~/TV/neurons/validator/images"
 # files = listdir(directory)
 # images = files
 # # breakpoint()

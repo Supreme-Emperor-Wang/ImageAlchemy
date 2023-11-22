@@ -205,11 +205,11 @@ class neuron:
                 for r in responses:
                     for image in r.images:
                         # bt.Tensor.deserialize(image).save("img1.png")
-                        T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(f"/home/ubuntu/TV/neurons/validator/images/{i}.png")
+                        T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(f"neurons/validator/images/{i}.png")
                         i = i + 1
                 
                 bt.logging.info(f"Saving prompt")
-                with open('/home/ubuntu/TV/neurons/validator/images/prompt.txt', 'w') as f:
+                with open('neurons/validator/images/prompt.txt', 'w') as f:
                     f.write(prompt)
                 
                 # Initialise rewards tensor
@@ -235,27 +235,36 @@ class neuron:
                 if not self.config.neuron.disable_manual_validator:
 
                     bt.logging.info(f"Waiting for manual vote")
-                    time.sleep(10)
+                    start_time = time.perf_counter()
+                    # time.sleep(10)
+                    # breakpoint()
                     
-                    if os.path.exists("neurons/validator/images/vote.txt"):
+                    while (time.perf_counter() - start_time) < 10 :
                         
-                        reward_i = open("neurons/validator/images/vote.txt","r").read()
-                        bt.logging.info("Received manual vote")
-                        bt.logging.info("MANUAL VOTE = " + reward_i)
-    
-                        reward_i_normalized : torch.FloatTensor = torch.zeros(len(rewards), dtype=torch.float32).to(self.device)
-                        reward_i_normalized[int(reward_i)-1] = 1.0
-                       
-                        rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
+                        if os.path.exists("neurons/validator/images/vote.txt"):  
 
-                        if not self.config.neuron.disable_log_rewards:
-                            event["human_reward_model"] = reward_i_normalized.tolist()
-                            event["human_reward_model_normalized"] = reward_i_normalized.tolist()
+                            reward_i = open("neurons/validator/images/vote.txt","r").read()
+                            bt.logging.info("Received manual vote")
+                            bt.logging.info("MANUAL VOTE = " + reward_i)
+        
+                            reward_i_normalized : torch.FloatTensor = torch.zeros(len(rewards), dtype=torch.float32).to(self.device)
+                            reward_i_normalized[int(reward_i)-1] = 1.0
+                        
+                            rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
+
+                            if not self.config.neuron.disable_log_rewards:
+                                event["human_reward_model"] = reward_i_normalized.tolist()
+                                event["human_reward_model_normalized"] = reward_i_normalized.tolist()
+                    
+                            break
                     else:
+
                         bt.logging.info("No manual vote received")
 
                     shutil.rmtree("neurons/validator/images")
                     os.mkdir("neurons/validator/images")
+                    T.transforms.ToPILImage()(torch.full([3, 1024, 1024], 255, dtype=torch.float)).save(f"neurons/validator/images/{i}.png")
+
 
                 for i in range( len( rewards ) ):
                     self.weights[uids[i]] = self.weights[uids[i]] + (self.config.neuron.alpha * rewards[i])
@@ -286,7 +295,7 @@ class neuron:
                         bt.logging.success("Successfully set weights.")
                     else:
                         bt.logging.error("Failed to set weights.")
-                # breakpoint()
+
                 # Log the step event.
                 event.update(
                     {
@@ -309,7 +318,6 @@ class neuron:
                     wandb_event = EventSchema.from_dict(
                         event, self.config.neuron.disable_log_rewards
                     )
-                    # breakpoint()
                     self.wandb.log(asdict(wandb_event))
 
                 # End the current step and prepare for the next iteration.
