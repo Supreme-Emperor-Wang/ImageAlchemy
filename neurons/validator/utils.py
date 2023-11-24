@@ -3,12 +3,16 @@ import torch.nn as nn
 import torch
 
 # Utils for checkpointing and saving the model.
+import asyncio
 import torch
 import wandb
 import copy
 import bittensor as bt
 import random
 from typing import List
+from template.protocol import IsAlive
+import traceback
+
 # import prompting.validators as validators
 # from prompting.validators.misc import ttl_get_block
 
@@ -37,6 +41,10 @@ from math import floor
 from typing import Callable, Any
 from functools import lru_cache, update_wrapper
 
+def _ttl_hash_gen(seconds: int):
+    start_time = time.time()
+    while True:
+        yield floor((time.time() - start_time) / seconds)
 
 # LRU Cache with TTL
 def ttl_cache(maxsize: int = 128, typed: bool = False, ttl: int = -1):
@@ -58,18 +66,56 @@ def ttl_cache(maxsize: int = 128, typed: bool = False, ttl: int = -1):
     return wrapper
 
 
-def _ttl_hash_gen(seconds: int):
-    start_time = time.time()
-    while True:
-        yield floor((time.time() - start_time) / seconds)
-
-
 # 12 seconds updating block.
 @ttl_cache(maxsize=1, ttl=12)
 def ttl_get_block(self) -> int:
     return self.subtensor.get_current_block()
 
-def get_random_uids(self, k: int, exclude: List[int] = None) -> torch.LongTensor:
+
+def check_uid(dendrite, axon, uid):
+    
+    try:
+        loop = asyncio.get_event_loop()
+        response = loop.run_until_complete(dendrite(axon, IsAlive(), deserialize=False, timeout=2.3))
+        if response.is_success:
+            bt.logging.debug(f"UID {uid} is active")
+            # loop.close()
+            return True
+        else:
+            bt.logging.debug(f"UID {uid} is not active")
+            # loop.close()
+            return False
+    except Exception as e:
+        bt.logging.error(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
+        # loop.close()
+        return False
+
+def check_uid_availability(
+    dendrite, metagraph: "bt.metagraph.Metagraph", uid: int, vpermit_tao_limit: int
+) -> bool:
+    """Check if uid is available. The UID should be available if it is serving and has less than vpermit_tao_limit stake
+    Args:
+        metagraph (:obj: bt.metagraph.Metagraph): Metagraph object
+        uid (int): uid to be checked
+        vpermit_tao_limit (int): Validator permit tao limit
+    Returns:
+        bool: True if uid is available, False otherwise
+    """
+    # Filter non serving axons.
+    if not metagraph.axons[uid].is_serving:
+        return False
+    # Filter validator permit > 1024 stake.
+    if metagraph.validator_permit[uid]:
+        if metagraph.S[uid] > vpermit_tao_limit:
+            return False
+    # Filter for miners that are processing other responses
+    if not check_uid(dendrite, metagraph.axons[uid], uid):
+        return False
+    # Available otherwise.
+    return True
+
+
+def get_random_uids(self, dendrite, k: int, exclude: List[int] = None) -> torch.LongTensor:
     """Returns k available random uids from the metagraph.
     Args:
         k (int): Number of uids to return.
@@ -83,8 +129,9 @@ def get_random_uids(self, k: int, exclude: List[int] = None) -> torch.LongTensor
     avail_uids = []
 
     for uid in range(self.metagraph.n.item()):
+        # breakpoint()
         uid_is_available = check_uid_availability(
-            self.metagraph, uid, 400
+            dendrite, self.metagraph, uid, 400
         )
         uid_is_not_excluded = exclude is None or uid not in exclude
 
@@ -198,27 +245,6 @@ def cosine_distance(image_embeds, text_embeds):
     normalized_image_embeds = nn.functional.normalize(image_embeds)
     normalized_text_embeds = nn.functional.normalize(text_embeds)
     return torch.mm(normalized_image_embeds, normalized_text_embeds.t())
-
-def check_uid_availability(
-    metagraph: "bt.metagraph.Metagraph", uid: int, vpermit_tao_limit: int
-) -> bool:
-    """Check if uid is available. The UID should be available if it is serving and has less than vpermit_tao_limit stake
-    Args:
-        metagraph (:obj: bt.metagraph.Metagraph): Metagraph object
-        uid (int): uid to be checked
-        vpermit_tao_limit (int): Validator permit tao limit
-    Returns:
-        bool: True if uid is available, False otherwise
-    """
-    # Filter non serving axons.
-    if not metagraph.axons[uid].is_serving:
-        return False
-    # Filter validator permit > 1024 stake.
-    if metagraph.validator_permit[uid]:
-        if metagraph.S[uid] > vpermit_tao_limit:
-            return False
-    # Available otherwise.
-    return True
 
 
 def should_reinit_wandb(self):
@@ -370,29 +396,6 @@ def resync_linear_layer(
         reinitialized_weights = weights.squeeze(0)
         # Copy the reinitialized weights back to the selected index of the linear layer
         linear_layer.weight[index].data.copy_(reinitialized_weights)
-
-
-def check_uid_availability(
-    metagraph: "bt.metagraph.Metagraph", uid: int, vpermit_tao_limit: int
-) -> bool:
-    """Check if uid is available. The UID should be available if it is serving and has less than vpermit_tao_limit stake
-    Args:
-        metagraph (:obj: bt.metagraph.Metagraph): Metagraph object
-        uid (int): uid to be checked
-        vpermit_tao_limit (int): Validator permit tao limit
-    Returns:
-        bool: True if uid is available, False otherwise
-    """
-    # Filter non serving axons.
-    if not metagraph.axons[uid].is_serving:
-        return False
-    # Filter validator permit > 1024 stake.
-    if metagraph.validator_permit[uid]:
-        if metagraph.S[uid] > vpermit_tao_limit:
-            return False
-    # Available otherwise.
-    return True
-
 
 def save_state(self):
     r"""Save hotkeys, gating model, neuron model and moving average scores to filesystem."""

@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from synapses import Synapses, generate
 from utils import output_log, WandbUtils
 from dataclasses import dataclass
-
+from template.protocol import IsAlive
 
 @dataclass
 class Stats:
@@ -127,6 +127,11 @@ class BaseMiner(ABC):
             "incentive": incentive,
             "emissions": emissions,
         }
+    
+    def is_alive(self, synapse: IsAlive) -> IsAlive:
+        bt.logging.info("answered to be active")
+        synapse.completion = "True"
+        return synapse
 
     def __init__(self):
         #### Parse the config
@@ -204,6 +209,9 @@ class BaseMiner(ABC):
                 self.synapses.image_to_image.forward_fn,
                 self.synapses.image_to_image.blacklist_fn,
                 self.synapses.image_to_image.priority_fn,
+            )
+            .attach(
+                self.is_alive,
             )
             .start()
         )

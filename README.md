@@ -6,6 +6,14 @@
 
 ---
 
+## Installation
+
+Download the repository, navigate to the folder and then install the necessary requirements with the following chained command.
+
+```git clone https://github.com/Supreme-Emperor-Wang/TensorVision && cd TensorVision && pip install -r requirements.txt &&pip install -e .```
+
+---
+
 ## Running A Miner
 
 ```bash
@@ -26,7 +34,7 @@ python -m neurons/miners/default/main.py
 
 ```bash
 # To run the miner
-cd neurons
+cd TensorVision
 python -m nneurons/validator/validator.py
     --netuid <your netuid>  # The subnet id you want to connect to
     --subtensor.network <your chain url>  # blockchain endpoint you want to connect

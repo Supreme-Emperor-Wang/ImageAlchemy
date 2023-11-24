@@ -159,16 +159,21 @@ with col5:
 
 image_list = [placeholder_1, placeholder_2, placeholder_3, placeholder_4, placeholder_5, placeholder_6, placeholder_7, placeholder_8, placeholder_9, placeholder_10]
 while True:
-    images = [image for image in listdir(directory) if ('.png' in image) and ('black.png' not in image)]
+    images = [image for image in listdir(directory) if ('.png' in image) and (image != 'black.png')]
 
     if images:
-
-        for i in range(0, 10):  
-            if len(images) > i:
-                image_list[i].image(f'{directory}/{images[i]}', caption=f'UID {i}', width=150)
-            else: 
-                image_list[i].image(f'{directory}/black.png', caption=f'UID {i}', width=150)
-            
+        try:
+            # print("images")
+            # print(images)
+            for i in range(0, 10):  
+                if len(images) > i:
+                    image_list[i].image(f'{directory}/{images[i]}', caption=f'UID {i}', width=150)
+                else: 
+                    image_list[i].image(f'{directory}/black.png', caption=f'UID {i}', width=150)
+        except:
+            for i in range(0, 10):  
+                image_list[i].text("AWAITING NEW ...")
+ 
     else:      
       
         for i in range(0, 10):  

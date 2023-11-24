@@ -40,12 +40,14 @@ from event import EventSchema
 from dataclasses import asdict
 from loguru import logger
 from typing import List
+import torchvision.transforms as T
 import asyncio
 from config import add_args, check_config, config
 import copy
 import wandb
 from datasets import load_dataset
 from transformers import pipeline
+from template.protocol import IsAlive
 
 class neuron:
     @classmethod
@@ -172,7 +174,7 @@ class neuron:
         if not self.config.neuron.disable_log_rewards:
             bt.logging.debug("loading", "streamlit validator")
             process = subprocess.Popen(["streamlit", "run", os.path.join(os.getcwd(), "neurons", "validator", "app.py")])
-            
+
     def run(self):
         # Step 11: The Main Validation Loop
         bt.logging.info("Starting validator loop.")
@@ -182,11 +184,11 @@ class neuron:
                 timeout = 100
 
                 # Get a random number of uids
-                uids = get_random_uids(self, k=self.config.neuron.followup_sample_size).to(self.device)
+                uids = get_random_uids(self, self.dendrite, k=self.config.neuron.followup_sample_size).to(self.device)
                 axons = [self.metagraph.axons[uid] for uid in uids]
                 prompt = generate_random_prompt(self)
 
-                # Call the dentrite 
+                # Call the dendrite 
                 if step % 2 == 0:
                     responses = self.loop.run_until_complete( self.dendrite(axons, template.protocol.ImageGeneration(generation_type="image_to_image", prompt = prompt), timeout = timeout))
                     event = {"task_type": "image_to_image"}
@@ -200,11 +202,9 @@ class neuron:
 
                 # Save images
                 bt.logging.info(f"Saving images")
-                import torchvision.transforms as T
                 i = 0
                 for r in responses:
                     for image in r.images:
-                        # bt.Tensor.deserialize(image).save("img1.png")
                         T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(f"neurons/validator/images/{i}.png")
                         i = i + 1
                 
@@ -236,17 +236,18 @@ class neuron:
 
                     bt.logging.info(f"Waiting for manual vote")
                     start_time = time.perf_counter()
-                    # time.sleep(10)
-                    # breakpoint()
                     
                     while (time.perf_counter() - start_time) < 10 :
                         
                         if os.path.exists("neurons/validator/images/vote.txt"):  
 
+                            # loop until vote is successfully saved
+                            while open("neurons/validator/images/vote.txt","r").read() == "":
+                                continue
+
                             reward_i = open("neurons/validator/images/vote.txt","r").read()
                             bt.logging.info("Received manual vote")
                             bt.logging.info("MANUAL VOTE = " + reward_i)
-        
                             reward_i_normalized : torch.FloatTensor = torch.zeros(len(rewards), dtype=torch.float32).to(self.device)
                             reward_i_normalized[int(reward_i)-1] = 1.0
                         
@@ -261,10 +262,8 @@ class neuron:
 
                         bt.logging.info("No manual vote received")
 
-                    shutil.rmtree("neurons/validator/images")
-                    os.mkdir("neurons/validator/images")
-                    T.transforms.ToPILImage()(torch.full([3, 1024, 1024], 255, dtype=torch.float)).save(f"neurons/validator/images/{i}.png")
-
+                    # Delete contents of images folder except for black image
+                    for file in os.listdir("neurons/validator/images"): os.remove(f"neurons/validator/images/{file}") if file != "black.png" else "_"
 
                 for i in range( len( rewards ) ):
                     self.weights[uids[i]] = self.weights[uids[i]] + (self.config.neuron.alpha * rewards[i])
