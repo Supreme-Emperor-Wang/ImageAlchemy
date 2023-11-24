@@ -1,12 +1,20 @@
-from datetime import datetime
-import traceback, torch, time, random, os, argparse
-from typing import Dict
-import bittensor as bt
+import argparse
+import os
+import random
+import time
+import traceback
 from abc import ABC, abstractmethod
-from synapses import Synapses, generate
-from utils import output_log, WandbUtils
 from dataclasses import dataclass
-from template.protocol import IsAlive
+from datetime import datetime
+from typing import Dict
+
+import torch
+from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
+from template.protocol import ImageGeneration, IsAlive
+from utils import WandbUtils, generate, output_log, shared_logic
+
+import bittensor as bt
+
 
 @dataclass
 class Stats:
@@ -17,7 +25,7 @@ class Stats:
     response_times: list
 
 
-class BaseMiner(ABC):
+class ImageMiner(ABC):
     def get_defaults(self):
         now = datetime.now()
         stats = Stats(
@@ -63,6 +71,11 @@ class BaseMiner(ABC):
         argp.add_argument("--miner.guidance_scale", type=float, default=7.5)
         argp.add_argument("--miner.steps", type=int, default=30)
         argp.add_argument("--miner.num_images", type=int, default=1)
+        argp.add_argument(
+            "--miner.model",
+            type=str,
+            default="stabilityai/stable-diffusion-xl-base-1.0",
+        )
 
         bt.subtensor.add_args(argp)
         bt.logging.add_args(argp)
@@ -86,9 +99,100 @@ class BaseMiner(ABC):
 
         return config
 
-    @abstractmethod
+    def __init__(self):
+        #### Parse the config
+        self.config = self.get_config()
+
+        if self.config.logging.debug:
+            output_log("Enabling debug mode...", type="debug")
+            bt.debug()
+
+        #### Output the config
+        output_log("Outputting miner config:", "c")
+        output_log(f"{self.config}", color_key="na")
+
+        #### Build args
+        self.t2i_args, self.i2i_args = self.get_args()
+
+        #### Initialise event dict
+        self.event = {}
+
+        #### Establish subtensor connection
+        output_log("Establishing subtensor connection.", "g", type="debug")
+        self.subtensor = bt.subtensor(config=self.config)
+
+        #### Create the metagraph
+        self.metagraph = self.subtensor.metagraph(netuid=self.config.netuid)
+
+        #### Configure the wallet
+        self.wallet = bt.wallet(config=self.config)
+
+        #### Wait until the miner is registered
+        self.loop_until_registered()
+
+        ### Defaults
+        self.stats = self.get_defaults()
+
+        ### Start the wandb logging thread if both project and entity have been provided
+        if all([self.config.wandb.project, self.config.wandb.entity]):
+            self.wandb = WandbUtils(
+                self, self.metagraph, self.config, self.wallet, self.event
+            )
+            self.wandb._start_run()
+
+        #### Load the model
+        self.t2i_model, self.i2i_model = self.load_models()
+
+        #### Optimize model
+        if self.config.miner.optimize:
+            self.t2i_model.unet = torch.compile(
+                self.t2i_model.unet, mode="reduce-overhead", fullgraph=True
+            )
+
+            #### Warm up model
+            output_log("Warming up model with compile...")
+            generate(self.t2i_model, self.t2i_args)
+
+        #### Load the safety checker (WIP)
+
+        #### Serve the axon
+        output_log(f"Serving axon on port {self.config.axon.port}.", "g", type="debug")
+        self.axon = (
+            bt.axon(
+                wallet=self.wallet,
+                external_ip=bt.utils.networking.get_external_ip(),
+                port=self.config.axon.port,
+            )
+            .attach(
+                self.generate_image,
+            )
+            .attach(
+                self.is_alive,
+            )
+            .start()
+        )
+        output_log(f"Axon created: {self.axon}", "g", type="debug")
+
+        self.subtensor.serve_axon(axon=self.axon, netuid=self.config.netuid)
+        # self.axon.serve(netuid=self.config.netuid, subtensor=self.subtensor)
+
+        #### Start the weight setting loop
+        output_log("Starting weight setting loop.", "g", type="debug")
+        self.loop()
+
     def load_models(self):
-        ...
+        ### Load the text-to-image model
+        t2i_model = AutoPipelineForText2Image.from_pretrained(
+            self.config.miner.model,
+            torch_dtype=torch.float16,
+            use_safetensors=True,
+            variant="fp16",
+        ).to(self.config.miner.device)
+
+        ### Load the image to image model using the same pipeline (efficient)
+        i2i_model = AutoPipelineForImage2Image.from_pipe(t2i_model).to("cuda")
+        # breakpoint()
+        return t2i_model, i2i_model
 
     def add_args(cls, argp: argparse.ArgumentParser):
         pass
@@ -127,102 +231,21 @@ class BaseMiner(ABC):
             "incentive": incentive,
             "emissions": emissions,
         }
-    
+
     def is_alive(self, synapse: IsAlive) -> IsAlive:
         bt.logging.info("answered to be active")
         synapse.completion = "True"
         return synapse
 
-    def __init__(self):
-        #### Parse the config
-        self.config = self.get_config()
+    def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
+        shared_logic(self, synapse)
+        # breakpoint()
+        return synapse
 
-        if self.config.logging.debug:
-            output_log("Enabling debug mode...", type="debug")
-            bt.debug()
-
-        #### Output the config
-        output_log("Outputting miner config:", "c")
-        output_log(f"{self.config}", color_key="na")
-
-        #### Build args
-        self.t2i_args, self.i2i_args = self.get_args()
-
-        #### Initialise event dict
-        self.event = {}
-
-        #### Initialize the synapse classes
-        self.synapses = Synapses(self)
-
-        #### Establish subtensor connection
-        output_log("Establishing subtensor connection.", "g", type="debug")
-        self.subtensor = bt.subtensor(config=self.config)
-
-        #### Create the metagraph
-        self.metagraph = self.subtensor.metagraph(netuid=self.config.netuid)
-
-        #### Configure the wallet
-        self.wallet = bt.wallet(config=self.config)
-
-        #### Wait until the miner is registered
-        self.loop_until_registered()
-
-        ### Defaults
-        self.stats = self.get_defaults()
-
-        ### Start the wandb logging thread if both project and entity have been provided
-        if all([self.config.wandb.project, self.config.wandb.entity]):
-            self.wandb = WandbUtils(self, self.metagraph, self.config, self.wallet, self.event)
-            self.wandb._start_run()
-            
-        #### Load the model
-        self.t2i_model, self.i2i_model = self.load_models()
-
-        #### Optimize model
-        if self.config.miner.optimize:
-            self.t2i_model.unet = torch.compile(
-                self.t2i_model.unet, mode="reduce-overhead", fullgraph=True
-            )
-
-            #### Warm up model
-            output_log("Warming up model with compile...")
-            generate(self.t2i_model, self.t2i_args)
-
-        #### Load the safety checker (WIP)
-
-        #### Serve the axon
-        output_log(f"Serving axon on port {self.config.axon.port}.", "g", type="debug")
-        self.axon = (
-            bt.axon(
-                wallet=self.wallet,
-                # config=self.config,
-                ip="127.0.0.1",
-                external_ip=bt.utils.networking.get_external_ip(),
-                port=self.config.axon.port,
-            )
-            .attach(
-                self.synapses.text_to_image.forward_fn,
-                self.synapses.text_to_image.blacklist_fn,
-                self.synapses.text_to_image.priority_fn,
-            )
-            .attach(
-                self.synapses.image_to_image.forward_fn,
-                self.synapses.image_to_image.blacklist_fn,
-                self.synapses.image_to_image.priority_fn,
-            )
-            .attach(
-                self.is_alive,
-            )
-            .start()
-        )
-
-        output_log(f"Axon created: {self.axon}", "g", type="debug")
-
-        self.subtensor.serve_axon(axon=self.axon, netuid=self.config.netuid)
-
-        #### Start the weight setting loop
-        output_log("Starting weight setting loop.", "g", type="debug")
-        self.loop()
+    # def image_to_iamge(self, synapse: ImageGeneration) -> ImageGeneration:
+    #     shared_logic(self, synapse)
+    #     # breakpoint()
+    #     return synapse
 
     def get_miner_index(self):
         """
@@ -274,9 +297,6 @@ class BaseMiner(ABC):
                 self.metagraph.sync(lite=True)
                 continue
 
-            # #### Log to Wanbd
-            # self.wandb._log() 
-
             #### Output current statistics and set weights
             try:
                 if step % 5 == 0:
@@ -323,3 +343,9 @@ class BaseMiner(ABC):
                 continue
 
             time.sleep(30)
+
+
+if __name__ == "__main__":
+    with ImageMiner():
+        while True:
+            time.sleep(1)

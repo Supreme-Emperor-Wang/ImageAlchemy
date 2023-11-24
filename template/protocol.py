@@ -18,11 +18,14 @@
 # DEALINGS IN THE SOFTWARE.
 
 import typing
-import bittensor as bt
+
 import pydantic
 
-class IsAlive( bt.Synapse ):   
-    answer: typing.Optional[ str ] = None
+import bittensor as bt
+
+
+class IsAlive(bt.Synapse):
+    answer: typing.Optional[str] = None
     completion: str = pydantic.Field(
         "",
         title="Completion",

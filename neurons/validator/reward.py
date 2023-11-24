@@ -1,27 +1,29 @@
-import torch
-from typing import List
-from torch import nn
 from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-import bittensor as bt
-from transformers import CLIPConfig, CLIPImageProcessor, CLIPVisionModel, PreTrainedModel
-import numpy as np
-import torchvision.transforms as transforms
-from utils import compare_to_set, calculate_mean_dissimilarity
+from typing import List
+
 import ImageReward as RM
-
-from transformers import AutoImageProcessor, AutoModel, AutoFeatureExtractor
-from sklearn.metrics.pairwise import cosine_similarity
-import torchvision.transforms as T
+import numpy as np
+import torch
 import torchvision.transforms as transforms
+import torchvision.transforms as T
 from datasets import Dataset
+from sklearn.metrics.pairwise import cosine_similarity
+from torch import nn
+from transformers import (
+    AutoFeatureExtractor,
+    AutoImageProcessor,
+    AutoModel,
+    CLIPConfig,
+    CLIPImageProcessor,
+    CLIPVisionModel,
+    PreTrainedModel,
+)
+from utils import calculate_mean_dissimilarity, cosine_distance
 
+import bittensor as bt
 
-def cosine_distance(image_embeds, text_embeds):
-    normalized_image_embeds = nn.functional.normalize(image_embeds)
-    normalized_text_embeds = nn.functional.normalize(text_embeds)
-    return torch.mm(normalized_image_embeds, normalized_text_embeds.t())
 
 class RewardModelType(Enum):
     diversity = "diversity_reward_model"
@@ -29,6 +31,7 @@ class RewardModelType(Enum):
     human = "human_reward_model"
     blacklist = "blacklist_filter"
     nsfw = "nsfw_filter"
+
 
 @dataclass(frozen=True)
 class DefaultRewardFrameworkConfig:
@@ -40,6 +43,7 @@ class DefaultRewardFrameworkConfig:
     image_model_weight: float = 0.45
     human_model_weight: float = 0.5
 
+
 class StableDiffusionSafetyChecker(PreTrainedModel):
     config_class = CLIPConfig
 
@@ -49,16 +53,22 @@ class StableDiffusionSafetyChecker(PreTrainedModel):
         super().__init__(config)
 
         self.vision_model = CLIPVisionModel(config.vision_config)
-        self.visual_projection = nn.Linear(config.vision_config.hidden_size, config.projection_dim, bias=False)
+        self.visual_projection = nn.Linear(
+            config.vision_config.hidden_size, config.projection_dim, bias=False
+        )
 
-        self.concept_embeds = nn.Parameter(torch.ones(17, config.projection_dim), requires_grad=False)
-        self.special_care_embeds = nn.Parameter(torch.ones(3, config.projection_dim), requires_grad=False)
+        self.concept_embeds = nn.Parameter(
+            torch.ones(17, config.projection_dim), requires_grad=False
+        )
+        self.special_care_embeds = nn.Parameter(
+            torch.ones(3, config.projection_dim), requires_grad=False
+        )
 
         self.concept_embeds_weights = nn.Parameter(torch.ones(17), requires_grad=False)
-        self.special_care_embeds_weights = nn.Parameter(torch.ones(3), requires_grad=False)
-        self.transform = transforms.Compose([
-            transforms.PILToTensor()
-        ])
+        self.special_care_embeds_weights = nn.Parameter(
+            torch.ones(3), requires_grad=False
+        )
+        self.transform = transforms.Compose([transforms.PILToTensor()])
 
     @torch.no_grad()
     def forward(self, clip_input, images):
@@ -66,38 +76,62 @@ class StableDiffusionSafetyChecker(PreTrainedModel):
         image_embeds = self.visual_projection(pooled_output)
 
         # we always cast to float32 as this does not cause significant overhead and is compatible with bfloat16
-        special_cos_dist = cosine_distance(image_embeds, self.special_care_embeds).cpu().float().numpy()
-        cos_dist = cosine_distance(image_embeds, self.concept_embeds).cpu().float().numpy()
+        special_cos_dist = (
+            cosine_distance(image_embeds, self.special_care_embeds)
+            .cpu()
+            .float()
+            .numpy()
+        )
+        cos_dist = (
+            cosine_distance(image_embeds, self.concept_embeds).cpu().float().numpy()
+        )
 
         result = []
         batch_size = image_embeds.shape[0]
         for i in range(batch_size):
-            result_img = {"special_scores": {}, "special_care": [], "concept_scores": {}, "bad_concepts": [], "bad_score": 0.0}
+            result_img = {
+                "special_scores": {},
+                "special_care": [],
+                "concept_scores": {},
+                "bad_concepts": [],
+                "bad_score": 0.0,
+            }
 
             # increase this value to create a stronger `nfsw` filter
             # at the cost of increasing the possibility of filtering benign images
-            adjustment = 1.0 # multiplier
-
+            adjustment = 1.0  # multiplier
 
             for concept_idx in range(len(special_cos_dist[0])):
                 concept_cos = special_cos_dist[i][concept_idx]
                 concept_threshold = self.special_care_embeds_weights[concept_idx].item()
-                result_img["special_scores"][concept_idx] = round(concept_cos - (concept_threshold * adjustment), 3)
+                result_img["special_scores"][concept_idx] = round(
+                    concept_cos - (concept_threshold * adjustment), 3
+                )
                 if result_img["special_scores"][concept_idx] > 0:
-                    result_img["special_care"].append({concept_idx, result_img["special_scores"][concept_idx]})
+                    result_img["special_care"].append(
+                        {concept_idx, result_img["special_scores"][concept_idx]}
+                    )
 
             for concept_idx in range(len(cos_dist[0])):
                 concept_cos = cos_dist[i][concept_idx]
                 concept_threshold = self.concept_embeds_weights[concept_idx].item()
-                result_img["concept_scores"][concept_idx] = round(concept_cos - (concept_threshold * adjustment), 3)
+                result_img["concept_scores"][concept_idx] = round(
+                    concept_cos - (concept_threshold * adjustment), 3
+                )
                 if result_img["concept_scores"][concept_idx] > 0:
-                    print('bad concept', concept_idx, result_img["concept_scores"][concept_idx])
+                    print(
+                        "bad concept",
+                        concept_idx,
+                        result_img["concept_scores"][concept_idx],
+                    )
                     result_img["bad_concepts"].append(concept_idx)
-                    result_img['bad_score'] += result_img["concept_scores"][concept_idx]
+                    result_img["bad_score"] += result_img["concept_scores"][concept_idx]
 
             result.append(result_img)
 
-        has_nsfw_concepts = [len(res["bad_concepts"]) > 0 and res['bad_score'] > 0.01 for res in result]
+        has_nsfw_concepts = [
+            len(res["bad_concepts"]) > 0 and res["bad_score"] > 0.01 for res in result
+        ]
 
         for idx, has_nsfw_concept in enumerate(has_nsfw_concepts):
             if has_nsfw_concept:
@@ -106,7 +140,9 @@ class StableDiffusionSafetyChecker(PreTrainedModel):
                 else:
                     # images[idx] is a PIL image, so we can't use .shape, convert using transform
                     try:
-                        images[idx] = np.zeros(transform(images[idx]).shape)  # black image
+                        images[idx] = np.zeros(
+                            transform(images[idx]).shape
+                        )  # black image
                     except:
                         images[idx] = np.zeros((512, 512, 3))
 
@@ -117,6 +153,7 @@ class StableDiffusionSafetyChecker(PreTrainedModel):
             )
 
         return images, has_nsfw_concepts
+
 
 class BaseRewardModel:
     @property
@@ -131,9 +168,7 @@ class BaseRewardModel:
         return str(self.name)
 
     @abstractmethod
-    def get_rewards(
-        self, responses: List, rewards
-    ) -> torch.FloatTensor:
+    def get_rewards(self, responses: List, rewards) -> torch.FloatTensor:
         ...
 
     def __init__(self) -> None:
@@ -196,7 +231,9 @@ class BaseRewardModel:
         return rewards
 
     def apply(
-        self, responses: List[bt.Synapse], rewards,
+        self,
+        responses: List[bt.Synapse],
+        rewards,
     ) -> torch.FloatTensor:
         """Applies the reward model across each call. Unsuccessful responses are zeroed."""
         # Get indices of correctly responding calls.
@@ -212,7 +249,7 @@ class BaseRewardModel:
             responses[idx] for idx in successful_generations_indices
         ]
         # Reward each completion.
-        successful_rewards = self.get_rewards(successful_generations,rewards)
+        successful_rewards = self.get_rewards(successful_generations, rewards)
 
         # Softmax rewards across samples.
         successful_rewards_normalized = self.normalize_rewards(successful_rewards)
@@ -233,6 +270,7 @@ class BaseRewardModel:
         # Return the filled rewards.
         return filled_rewards, filled_rewards_normalized
 
+
 class BlacklistFilter(BaseRewardModel):
     @property
     def name(self) -> str:
@@ -244,7 +282,6 @@ class BlacklistFilter(BaseRewardModel):
         self.answer_blacklist = []
 
     def reward(self, response) -> float:
-        
         # TODO maybe delete this if not needed
         # Check the number of returned images in the response
         if len(response.images) != response.num_images_per_prompt:
@@ -257,7 +294,7 @@ class BlacklistFilter(BaseRewardModel):
                 img = bt.Tensor.deserialize(image)
             except:
                 return 0.0
-            
+
             # Check if the image is black image
             if img.sum() == 0:
                 return 0.0
@@ -267,22 +304,27 @@ class BlacklistFilter(BaseRewardModel):
                 return 0.0
 
             # check image size
-            if not ((image.shape[1] == response.height) and (image.shape[2] == response.width)):
+            if not (
+                (image.shape[1] == response.height)
+                and (image.shape[2] == response.width)
+            ):
                 return 0.0
-        
+
         return 1.0
 
-    def get_rewards(
-        self, responses, rewards
-    ) -> torch.FloatTensor:
+    def get_rewards(self, responses, rewards) -> torch.FloatTensor:
         return torch.tensor(
-            [self.reward(response) if reward != 0.0 else 0.0 for response, reward in zip(responses,rewards)],
+            [
+                self.reward(response) if reward != 0.0 else 0.0
+                for response, reward in zip(responses, rewards)
+            ],
             dtype=torch.float32,
         )
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards
-    
+
+
 class NSFWRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
@@ -292,21 +334,28 @@ class NSFWRewardModel(BaseRewardModel):
         super().__init__()
         self.device = "cuda"
         # torch.device(self.config.device if torch.cuda.is_available() else "cpu")
-        self.safetychecker = StableDiffusionSafetyChecker.from_pretrained('CompVis/stable-diffusion-safety-checker').to(self.device)
+        self.safetychecker = StableDiffusionSafetyChecker.from_pretrained(
+            "CompVis/stable-diffusion-safety-checker"
+        ).to(self.device)
         self.processor = CLIPImageProcessor()
 
     def reward(self, response) -> float:
-        
         # delete all none images
         for j, image in enumerate(response.images):
             if image is None:
                 return 0.0
 
         if len(response.images) == 0:
-           return 0.0
+            return 0.0
         try:
-            clip_input = self.processor([bt.Tensor.deserialize(image) for image in response.images], return_tensors="pt").to(self.device)
-            images, has_nsfw_concept = self.safetychecker.forward(images=response.images, clip_input=clip_input.pixel_values.to(self.device))
+            clip_input = self.processor(
+                [bt.Tensor.deserialize(image) for image in response.images],
+                return_tensors="pt",
+            ).to(self.device)
+            images, has_nsfw_concept = self.safetychecker.forward(
+                images=response.images,
+                clip_input=clip_input.pixel_values.to(self.device),
+            )
 
             any_nsfw = any(has_nsfw_concept)
             if any_nsfw:
@@ -321,19 +370,21 @@ class NSFWRewardModel(BaseRewardModel):
             print(response.images)
             bt.logging.trace(f"Error in NSFW detection: {e}")
             return 1.0
-        
+
         return 1.0
 
-    def get_rewards(
-        self, responses, rewards
-    ) -> torch.FloatTensor:
+    def get_rewards(self, responses, rewards) -> torch.FloatTensor:
         return torch.tensor(
-            [self.reward(response) if reward != 0.0 else 0.0 for response, reward in zip(responses,rewards)],
+            [
+                self.reward(response) if reward != 0.0 else 0.0
+                for response, reward in zip(responses, rewards)
+            ],
             dtype=torch.float32,
         )
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards
+
 
 class ImageRewardModel(BaseRewardModel):
     @property
@@ -346,41 +397,44 @@ class ImageRewardModel(BaseRewardModel):
         self.scoring_model = RM.load("ImageReward-v1.0", device=self.device)
 
     def reward(self, response) -> float:
-        
         # # if theres no images, skip this response.
         # if len(response.images) == 0:
         #     top_images.append(None)
         #     continue
 
-        img_scores = torch.zeros( len(response.images), dtype = torch.float32 )
+        img_scores = torch.zeros(len(response.images), dtype=torch.float32)
         try:
             with torch.no_grad():
+                images = [
+                    transforms.ToPILImage()(bt.Tensor.deserialize(image))
+                    for image in response.images
+                ]
 
-                images = [transforms.ToPILImage()(bt.Tensor.deserialize(image)) for image in response.images]
-                
                 _, scores = self.scoring_model.inference_rank(response.prompt, images)
-                
-                image_scores = torch.tensor(scores) 
-                mean_image_scores = torch.mean(image_scores)    
-                
+
+                image_scores = torch.tensor(scores)
+                mean_image_scores = torch.mean(image_scores)
+
                 return mean_image_scores
-            
+
         except Exception as e:
             print(e)
             print("error in response:")
             print(response)
             return 0.0
-     
-    def get_rewards(
-        self, responses, rewards
-    ) -> torch.FloatTensor:
+
+    def get_rewards(self, responses, rewards) -> torch.FloatTensor:
         return torch.tensor(
-            [self.reward(response) if reward != 0.0 else 0.0 for response, reward in zip(responses,rewards)],
+            [
+                self.reward(response) if reward != 0.0 else 0.0
+                for response, reward in zip(responses, rewards)
+            ],
             dtype=torch.float32,
         )
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards
+
 
 class DiversityRewardModel(BaseRewardModel):
     @property
@@ -393,19 +447,21 @@ class DiversityRewardModel(BaseRewardModel):
         self.extractor = AutoFeatureExtractor.from_pretrained(self.model_ckpt)
         self.processor = AutoImageProcessor.from_pretrained(self.model_ckpt)
         self.model = AutoModel.from_pretrained(self.model_ckpt)
-        self.hidden_dim = self.model.config.hidden_size            
+        self.hidden_dim = self.model.config.hidden_size
         self.transformation_chain = T.Compose(
             [
                 # We first resize the input image to 256x256 and then we take center crop.
                 T.Resize(int((256 / 224) * self.extractor.size["height"])),
                 T.CenterCrop(self.extractor.size["height"]),
                 T.ToTensor(),
-                T.Normalize(mean=self.extractor.image_mean, std=self.extractor.image_std),
+                T.Normalize(
+                    mean=self.extractor.image_mean, std=self.extractor.image_std
+                ),
             ]
         )
         # TODO take device argument in
         self.device = "cuda"
-        
+
     def extract_embeddings(self, model: torch.nn.Module):
         """Utility to compute embeddings."""
         device = model.device
@@ -425,22 +481,26 @@ class DiversityRewardModel(BaseRewardModel):
 
         return pp
 
-    def get_rewards(
-        self, responses, rewards
-    ) -> torch.FloatTensor:
+    def get_rewards(self, responses, rewards) -> torch.FloatTensor:
         # return torch.tensor(
         #     [self.reward(response) for response in responses],
         #     dtype=torch.float32,
         # )
         extract_fn = self.extract_embeddings(self.model.to(self.device))
 
-        images = [T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])) for response, reward in zip(responses,rewards) if reward != 0.0]
-        ignored_indices = [index for index, reward in enumerate(rewards) if reward == 0.0]
-        
+        images = [
+            T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0]))
+            for response, reward in zip(responses, rewards)
+            if reward != 0.0
+        ]
+        ignored_indices = [
+            index for index, reward in enumerate(rewards) if reward == 0.0
+        ]
+
         if len(images) > 1:
-            ds = Dataset.from_dict({"image":images})
+            ds = Dataset.from_dict({"image": images})
             embeddings = ds.map(extract_fn, batched=True, batch_size=24)
-            embeddings = embeddings['embeddings']
+            embeddings = embeddings["embeddings"]
             simmilarity_matrix = cosine_similarity(embeddings)
 
             dissimilarity_scores = torch.zeros(len(responses), dtype=torch.float32)
@@ -451,15 +511,20 @@ class DiversityRewardModel(BaseRewardModel):
                 dissimilarity_scores[i] = 1 - max(simmilarity_matrix[i])
         else:
             dissimilarity_scores = torch.tensor([1.0])
-        
+
         if ignored_indices and (len(images) > 1):
             i = 0
             while i < len(rewards):
                 if i in ignored_indices:
-                    dissimilarity_scores = torch.cat([dissimilarity_scores[:i], torch.tensor([0]), dissimilarity_scores[i:]])
+                    dissimilarity_scores = torch.cat(
+                        [
+                            dissimilarity_scores[:i],
+                            torch.tensor([0]),
+                            dissimilarity_scores[i:],
+                        ]
+                    )
 
         return dissimilarity_scores
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards
-
