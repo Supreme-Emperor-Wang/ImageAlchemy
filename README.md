@@ -4,6 +4,7 @@
 [![Discord Chat](https://img.shields.io/discord/308323056592486420.svg)](https://discord.gg/bittensor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
 
+</div>
 ---
 
 ## Installation
@@ -34,7 +35,7 @@ python -m neurons/miners/default/main.py
 
 ```bash
 # To run the miner
-cd TensorVision
+cd ImageAlchemy
 python -m nneurons/validator/validator.py
     --netuid <your netuid>  # The subnet id you want to connect to
     --subtensor.network <your chain url>  # blockchain endpoint you want to connect

@@ -1,7 +1,6 @@
 import copy
 import time
 from datetime import datetime
-from threading import Timer
 from typing import Dict, List
 
 import torch
@@ -47,80 +46,6 @@ def sh(message: str):
     return f"{message: <12}"
 
 
-#### Wandb functions
-class WandbTimer(Timer):
-    def run(self):
-        self.function(*self.args, **self.kwargs)
-        while not self.finished.wait(self.interval):
-            self.function(*self.args, **self.kwargs)
-
-
-class WandbUtils:
-    def __init__(self, miner, metagraph, config, wallet, event):
-        # breakpoint()
-        self.miner = miner
-        self.metagraph = metagraph
-        self.config = config
-        self.wallet = wallet
-        self.wandb = None
-        self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
-        self.event = event
-        output_log(
-            f"Wandb starting run with project {self.config.wandb.project} and entity {self.config.wandb.entity}."
-        )
-        # self.timer = WandbTimer(600, self._log, [self])
-        # self.timer.start()
-
-    def _start_run(self):
-        if self.wandb:
-            self._stop_run()
-
-        #### Start new run
-
-        config = {}
-        config.update(self.config)
-        config["model"] = self.config.model
-        self.wandb = wandb.init(
-            project=self.config.wandb.project,
-            entity=self.config.wandb.entity,
-            config=config,
-        )
-
-        #### Take the first two random words plus the name of the wallet, hotkey name and uid
-        self.wandb.name = (
-            "-".join(self.wandb.name.split("-")[:2])
-            + f"-{self.wallet.name}-{self.wallet.hotkey_str}-{self.uid}"
-        )
-        output_log(f"Started new run: {self.wandb.name}", "c")
-
-    def _stop_run(self):
-        self.wandb.finish()
-
-    def _log(self):
-        if not self.wandb:
-            self._start_run()
-            return
-        # breakpoint()
-        #### Log incentive, trust, emissions, total requests, timeouts
-        self.event.update(self.miner.get_miner_info())
-        self.event.update(
-            {
-                "total_requests": self.miner.stats.total_requests,
-                "timeouts": self.miner.stats.timeouts,
-            }
-        )
-        self.wandb.log(self.event)
-
-
-def generate(model, args: Dict, synapse) -> List:
-    local_args = copy.copy(args)
-    local_args["prompt"] = synapse.prompt
-    local_args["target_size"] = (synapse.height, synapse.width)
-    # breakpoint()
-    images = model(**local_args).images
-    return images
-
-
 def get_caller_stake(self, synapse):
     """
     Look up the stake of the requesting validator.
@@ -161,26 +86,33 @@ def do_logs(self, synapse):
     output_log(f"{sh('Generating')} -> {num_images} images.")
 
 
-def shared_logic(self, synapse, timeout=10):
+def generate(self, synapse, timeout=10):
     """
-    Forward logic shared between both text-to-image and image-to-image
+    Image generation logic shared between both text-to-image and image-to-image
     """
     # Increment total requests state by 1
 
     self.stats.total_requests += 1
-    # breakpoint()
     do_logs(self, synapse)
-    # breakpoint()
     start_time = time.perf_counter()
+
+    # Set up arguments
     if synapse.generation_type == "text_to_image":
-        images = generate(self.t2i_model, self.t2i_args, synapse)
+        local_args = copy.copy(self.t2i_args)
+        model = self.t2i_model
     elif synapse.generation_type == "image_to_image":
-        images = generate(self.i2i_model, self.i2i_args, synapse)
+        local_args = copy.copy(self.i2i_args)
+        local_args["image"] = bt.Tensor.deserialize(synapse.prompt_image)
+        model = self.i2i_model
     else:
         bt.logging.debug(
             f"Generation type should be one of either text_to_image or image_to_image."
         )
-    # breakpoint()
+
+    local_args["prompt"] = synapse.prompt
+    local_args["target_size"] = (synapse.height, synapse.width)
+    images = model(**local_args).images 
+
     if (time.perf_counter() - start_time) > timeout:
         self.stats.total_requests += 1
 

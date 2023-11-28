@@ -76,6 +76,8 @@ def input_callback():
             st.session_state.vote_10 = False
 
 
+Title = st.empty()
+
 with col1:
     placeholder_1 = st.empty()
     vote_1 = st.checkbox("UID 0", key="vote_1", on_change=input_callback)
@@ -123,6 +125,8 @@ while True:
 
     if images:
         try:
+            prompt = open(f"{directory}/prompt.txt", "r").read()
+            Title.text("Prompt: " + f"{prompt}")
             for i in range(0, 10):
                 if len(images) > i:
                     image_list[i].image(
