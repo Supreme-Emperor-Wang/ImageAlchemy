@@ -1,16 +1,18 @@
 import argparse
 import os
 import random
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Dict
 
 import torch
 from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
-from typing import Dict
+from utils import output_log
 
 import bittensor as bt
-from utils import output_log
+
 
 @dataclass
 class Stats:

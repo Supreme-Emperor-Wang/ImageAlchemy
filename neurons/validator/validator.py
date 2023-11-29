@@ -32,15 +32,14 @@ import subprocess
 import time
 import traceback
 from dataclasses import asdict
+from traceback import print_exception
 from typing import List
 
 # import this repo
-import template
 import torch
-import torchvision.transforms as T
 from datasets import load_dataset
-from event import EventSchema
-from loguru import logger
+from forward import run_step
+from openai import OpenAI
 from reward import (
     BlacklistFilter,
     DiversityRewardModel,
@@ -49,12 +48,19 @@ from reward import (
 )
 from template.protocol import IsAlive
 from transformers import pipeline
-from utils import generate_random_prompt, generate_random_prompt_gpt, get_random_uids, init_wandb, ttl_get_block, generate_followup_prompt_gpt
+from utils import (
+    generate_followup_prompt_gpt,
+    generate_random_prompt,
+    generate_random_prompt_gpt,
+    get_random_uids,
+    init_wandb,
+    ttl_get_block,
+)
+from weights import set_weights, should_set_weights
 
 import bittensor as bt
-import wandb
 from config import add_args, check_config, config
-from openai import OpenAI
+
 
 class neuron:
     @classmethod
@@ -99,10 +105,10 @@ class neuron:
         self.prompt_generation_pipeline = pipeline(
             "text-generation", model="succinctly/text2image-prompt-generator"
         )
-        openai_api_key = os.environ.get('OPENAI_API_KEY')
+        openai_api_key = os.environ.get("OPENAI_API_KEY")
         if not openai_api_key:
-                raise ValueError("Please set the OPENAI_API_KEY environment variable.")
-        self.openai_client = OpenAI(api_key = openai_api_key)
+            raise ValueError("Please set the OPENAI_API_KEY environment variable.")
+        self.openai_client = OpenAI(api_key=openai_api_key)
 
         # Init subtensor
         bt.logging.debug("loading", "subtensor")
@@ -145,6 +151,11 @@ class neuron:
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
         bt.logging.debug(str(self.metagraph))
 
+        # Init Weights.
+        bt.logging.debug("loading", "moving_averaged_scores")
+        self.moving_averaged_scores = torch.zeros((self.metagraph.n)).to(self.device)
+        bt.logging.debug(str(self.moving_averaged_scores))
+
         # Each validator gets a unique identity (UID) in the network for differentiation.
         self.my_subnet_uid = self.metagraph.hotkeys.index(
             self.wallet.hotkey.ss58_address
@@ -156,9 +167,9 @@ class neuron:
             self.device
         )
 
-        # Set current and last updated blocks
-        self.current_block = self.subtensor.block
-        self.last_updated_block = self.subtensor.block
+        # Init bloack and step
+        self.prev_block = ttl_get_block(self)
+        self.step = 0
 
         # Init reward function
         self.reward_functions = [ImageRewardModel(), DiversityRewardModel()]
@@ -204,314 +215,40 @@ class neuron:
         step = 0
         while True:
             try:
-                timeout = 100
-
                 # Get a random number of uids
                 uids = get_random_uids(
                     self, self.dendrite, k=self.config.neuron.followup_sample_size
                 ).to(self.device)
                 axons = [self.metagraph.axons[uid] for uid in uids]
+
+                # Text to Image Run
                 prompt = generate_random_prompt_gpt(self)
-
-                responses = self.loop.run_until_complete(
-                    self.dendrite(
-                        axons,
-                        template.protocol.ImageGeneration(
-                            generation_type="text_to_image", prompt=prompt
-                        ),
-                        timeout=timeout,
-                    )
+                t2i_event = run_step(
+                    self, prompt, axons, uids, task_type="text_to_image"
                 )
-                event = {"task_type": "text_to_image"}
 
-                start_time = time.time()
-
-                # Log the results for monitoring purposes.
-                bt.logging.info(f"Received response: {responses}")
-
-                # Save images
-                bt.logging.info(f"Saving images")
-                i = 0
-                for r in responses:
-                    for image in r.images:
-                        T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(
-                            f"neurons/validator/images/{i}.png"
-                        )
-                        i = i + 1
-
-                bt.logging.info(f"Saving prompt")
-                with open("neurons/validator/images/prompt.txt", "w") as f:
-                    f.write(prompt)
-
-                # Initialise rewards tensor
-                rewards: torch.FloatTensor = torch.ones(
-                    len(responses), dtype=torch.float32
-                ).to(self.device)
-                for masking_fn_i in self.masking_functions:
-                    mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
-                    rewards *= mask_i_normalized.to(self.device)
-                    if not self.config.neuron.disable_log_rewards:
-                        event[masking_fn_i.name] = mask_i.tolist()
-                        event[
-                            masking_fn_i.name + "_normalized"
-                        ] = mask_i_normalized.tolist()
-                    bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
-
-                for weight_i, reward_fn_i in zip(
-                    self.reward_weights, self.reward_functions
-                ):
-                    reward_i, reward_i_normalized = reward_fn_i.apply(
-                        responses, rewards
-                    )
-                    rewards += weight_i * reward_i_normalized.to(self.device)
-                    if not self.config.neuron.disable_log_rewards:
-                        event[reward_fn_i.name] = reward_i.tolist()
-                        event[
-                            reward_fn_i.name + "_normalized"
-                        ] = reward_i_normalized.tolist()
-                    bt.logging.trace(
-                        str(reward_fn_i.name), reward_i_normalized.tolist()
-                    )
-
-                if not self.config.neuron.disable_manual_validator:
-                    bt.logging.info(f"Waiting for manual vote")
-                    start_time = time.perf_counter()
-
-                    while (time.perf_counter() - start_time) < 10:
-                        if os.path.exists("neurons/validator/images/vote.txt"):
-                            # loop until vote is successfully saved
-                            while (
-                                open("neurons/validator/images/vote.txt", "r").read()
-                                == ""
-                            ):
-                                continue
-
-                            reward_i = open(
-                                "neurons/validator/images/vote.txt", "r"
-                            ).read()
-                            bt.logging.info("Received manual vote")
-                            bt.logging.info("MANUAL VOTE = " + reward_i)
-                            reward_i_normalized: torch.FloatTensor = torch.zeros(
-                                len(rewards), dtype=torch.float32
-                            ).to(self.device)
-                            reward_i_normalized[int(reward_i) - 1] = 1.0
-
-                            rewards += self.reward_weights[-1] * reward_i_normalized.to(
-                                self.device
-                            )
-
-                            if not self.config.neuron.disable_log_rewards:
-                                event[
-                                    "human_reward_model"
-                                ] = reward_i_normalized.tolist()
-                                event[
-                                    "human_reward_model_normalized"
-                                ] = reward_i_normalized.tolist()
-
-                            break
-                    else:
-                        bt.logging.info("No manual vote received")
-
-                    # Delete contents of images folder except for black image
-                    for file in os.listdir("neurons/validator/images"):
-                        os.remove(
-                            f"neurons/validator/images/{file}"
-                        ) if file != "black.png" else "_"
-
-                # TODO Image to Image
-                followup_prompt = generate_random_prompt_gpt(self)
-                followup_image = [response.images for response in responses][int(rewards.argmax())][0]
-                responses = self.loop.run_until_complete(
-                    self.dendrite(
-                        axons,
-                        template.protocol.ImageGeneration(
-                            generation_type="image_to_image", prompt=prompt, prompt_image=followup_image
-                        ),
-                        timeout=timeout,
-                    )
+                # Image to Image Run
+                followup_prompt = generate_followup_prompt_gpt(self, prompt)
+                # breakpoint()
+                followup_image = [image for image in t2i_event["images"]][
+                    torch.tensor(t2i_event["rewards"]).argmax()
+                ]
+                _ = self.run_step(
+                    self, followup_prompt, axons, uids, "image_to_image", followup_image
                 )
-                event = {"task_type": "image_to_image"}
 
-                start_time = time.time()
-
-                # Log the results for monitoring purposes.
-                bt.logging.info(f"Received response: {responses}")
-
-                # Save images
-                bt.logging.info(f"Saving images")
-                i = 0
-                for r in responses:
-                    for image in r.images:
-                        T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(
-                            f"neurons/validator/images/{i}.png"
-                        )
-                        i = i + 1
-
-                bt.logging.info(f"Saving prompt")
-                with open("neurons/validator/images/prompt.txt", "w") as f:
-                    f.write(prompt)
-
-                # Initialise rewards tensor
-                rewards: torch.FloatTensor = torch.ones(
-                    len(responses), dtype=torch.float32
-                ).to(self.device)
-                for masking_fn_i in self.masking_functions:
-                    mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
-                    rewards *= mask_i_normalized.to(self.device)
-                    if not self.config.neuron.disable_log_rewards:
-                        event[masking_fn_i.name] = mask_i.tolist()
-                        event[
-                            masking_fn_i.name + "_normalized"
-                        ] = mask_i_normalized.tolist()
-                    bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
-
-                for weight_i, reward_fn_i in zip(
-                    self.reward_weights, self.reward_functions
-                ):
-                    reward_i, reward_i_normalized = reward_fn_i.apply(
-                        responses, rewards
-                    )
-                    rewards += weight_i * reward_i_normalized.to(self.device)
-                    if not self.config.neuron.disable_log_rewards:
-                        event[reward_fn_i.name] = reward_i.tolist()
-                        event[
-                            reward_fn_i.name + "_normalized"
-                        ] = reward_i_normalized.tolist()
-                    bt.logging.trace(
-                        str(reward_fn_i.name), reward_i_normalized.tolist()
-                    )
-
-                if not self.config.neuron.disable_manual_validator:
-                    bt.logging.info(f"Waiting for manual vote")
-                    start_time = time.perf_counter()
-
-                    while (time.perf_counter() - start_time) < 10:
-                        if os.path.exists("neurons/validator/images/vote.txt"):
-                            # loop until vote is successfully saved
-                            while (
-                                open("neurons/validator/images/vote.txt", "r").read()
-                                == ""
-                            ):
-                                continue
-
-                            reward_i = open(
-                                "neurons/validator/images/vote.txt", "r"
-                            ).read()
-                            bt.logging.info("Received manual vote")
-                            bt.logging.info("MANUAL VOTE = " + reward_i)
-                            reward_i_normalized: torch.FloatTensor = torch.zeros(
-                                len(rewards), dtype=torch.float32
-                            ).to(self.device)
-                            reward_i_normalized[int(reward_i) - 1] = 1.0
-
-                            rewards += self.reward_weights[-1] * reward_i_normalized.to(
-                                self.device
-                            )
-
-                            if not self.config.neuron.disable_log_rewards:
-                                event[
-                                    "human_reward_model"
-                                ] = reward_i_normalized.tolist()
-                                event[
-                                    "human_reward_model_normalized"
-                                ] = reward_i_normalized.tolist()
-
-                            break
-                    else:
-                        bt.logging.info("No manual vote received")
-
-                    # Delete contents of images folder except for black image
-                    for file in os.listdir("neurons/validator/images"):
-                        os.remove(
-                            f"neurons/validator/images/{file}"
-                        ) if file != "black.png" else "_"
-
-                # TODO Add Moving Average Score
-                for i in range(len(rewards)):
-                    self.weights[uids[i]] = self.weights[uids[i]] + (
-                        self.config.neuron.alpha * rewards[i]
-                    )
-                self.weights = torch.nn.functional.normalize(self.weights, p=1.0, dim=0)
-                # Normalize weights.
-                bt.logging.trace("Weights:")
-                bt.logging.trace(self.weights)
-
-                self.current_block = self.subtensor.block
-                if self.current_block - self.last_updated_block >= 100:
-                    bt.logging.trace(f"Setting weights")
-                    (
-                        uids,
-                        processed_weights,
-                    ) = bt.utils.weight_utils.process_weights_for_netuid(
-                        uids=self.metagraph.uids.to("cpu"),
-                        weights=self.weights.to("cpu"),
-                        netuid=self.config.netuid,
-                        subtensor=self.subtensor,
-                    )
-                    result = self.subtensor.set_weights(
-                        wallet=self.wallet,
-                        netuid=self.config.netuid,
-                        weights=processed_weights,
-                        uids=uids,
-                    )
-                    self.last_updated_block = self.current_block
-
-                    if result:
-                        bt.logging.success("Successfully set weights.")
-                    else:
-                        bt.logging.error("Failed to set weights.")
-
-                try:
-                    # Log the step event.
-                    event.update(
-                        {
-                            "block": ttl_get_block(self),
-                            "step_length": time.time() - start_time,
-                            "prompt": prompt,
-                            "uids": uids.tolist(),
-                            "hotkeys": [
-                                self.metagraph.axons[uid].hotkey for uid in uids
-                            ],
-                            "images": [
-                                wandb.Image(
-                                    bt.Tensor.deserialize(r.images[0])[0],
-                                    caption=prompt,
-                                )
-                                if r.images != []
-                                else wandb.Image(
-                                    torch.full([3, 1024, 1024], 255, dtype=torch.float),
-                                    caption=prompt,
-                                )
-                                for r in responses
-                            ],
-                            "rewards": rewards.tolist(),
-                        }
-                    )
-                except:
-                    breakpoint()
-
-                bt.logging.debug("event:", str(event))
-                if not self.config.neuron.dont_save_events:
-                    logger.log("EVENTS", "events", **event)
-
-                # Log the event to wandb.
-                if not self.config.wandb.off:
-                    wandb_event = EventSchema.from_dict(
-                        event, self.config.neuron.disable_log_rewards
-                    )
-                    self.wandb.log(asdict(wandb_event))
+                # Set the weights on chain.
+                if should_set_weights(self):
+                    set_weights(self)
 
                 # End the current step and prepare for the next iteration.
-                step += 1
-                # Resync our local state with the latest state from the blockchain.
-                self.metagraph = self.subtensor.metagraph(self.config.netuid)
-                # Sleep for a duration equivalent to the block time (i.e., time between successive blocks).
-                time.sleep(bt.__blocktime__)
+                self.prev_block = ttl_get_block(self)
+                self.step += 1
 
             # If we encounter an unexpected error, log it for debugging.
-            except RuntimeError as e:
-                bt.logging.error(e)
-                traceback.print_exc()
+            except Exception as err:
+                bt.logging.error("Error in training loop", str(err))
+                bt.logging.debug(print_exception(type(err), err, err.__traceback__))
 
             # If the user interrupts the program, gracefully exit.
             except KeyboardInterrupt:

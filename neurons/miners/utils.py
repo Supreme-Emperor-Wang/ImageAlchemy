@@ -95,7 +95,7 @@ def generate(self, synapse, timeout=10):
     self.stats.total_requests += 1
     do_logs(self, synapse)
     start_time = time.perf_counter()
-
+    # breakpoint()
     # Set up arguments
     if synapse.generation_type == "text_to_image":
         local_args = copy.copy(self.t2i_args)
@@ -111,7 +111,7 @@ def generate(self, synapse, timeout=10):
 
     local_args["prompt"] = synapse.prompt
     local_args["target_size"] = (synapse.height, synapse.width)
-    images = model(**local_args).images 
+    images = model(**local_args).images
 
     if (time.perf_counter() - start_time) > timeout:
         self.stats.total_requests += 1

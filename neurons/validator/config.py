@@ -16,12 +16,14 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import os
-import torch
 import argparse
-import bittensor as bt
+import os
+
+import torch
 from loguru import logger
 from reward import DefaultRewardFrameworkConfig
+
+import bittensor as bt
 
 
 def check_config(cls, config: "bt.Config"):
@@ -108,7 +110,7 @@ def add_args(cls, parser):
         default=False,
     )
     parser.add_argument(
-        "--neuron.alpha",
+        "--neuron.moving_average_alpha",
         type=float,
         help="Moving average alpha parameter, how much to add of the new observation.",
         default=0.05,
@@ -144,10 +146,10 @@ def add_args(cls, parser):
     )
 
     parser.add_argument(
-        "--neuron.epoch_length_override",
+        "--neuron.epoch_length",
         type=int,
         help="Override the default epoch length (how often we set weights).",
-        default=0,
+        default=5,
     )
     parser.add_argument(
         "--neuron.checkpoint_block_length",
@@ -183,6 +185,13 @@ def add_args(cls, parser):
         #   be blacklisted by the firewall of serving peers on the network.
         help="Set this flag to not attempt to serve an Axon.",
         default=False,
+    )
+
+    parser.add_argument(
+        "--neuron.timeout",
+        type=float,
+        help="Follow up query timeout.",
+        default=10,
     )
 
     parser.add_argument(
@@ -271,7 +280,7 @@ def add_args(cls, parser):
         help="Dont apply the task validator reward model",
         default=False,
     )
-    
+
     parser.add_argument(
         "--reward.diversity_model_weight",
         type=float,
