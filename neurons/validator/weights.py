@@ -28,7 +28,6 @@ import wandb
 
 def should_set_weights(self) -> bool:
     # Check if enough epoch blocks have elapsed since the last epoch.
-    breakpoint()
     if self.config.neuron.disable_set_weights:
         return False
 

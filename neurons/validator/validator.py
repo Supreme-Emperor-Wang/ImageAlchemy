@@ -233,7 +233,7 @@ class neuron:
                 followup_image = [image for image in t2i_event["images"]][
                     torch.tensor(t2i_event["rewards"]).argmax()
                 ]
-                _ = self.run_step(
+                _ = run_step(
                     self, followup_prompt, axons, uids, "image_to_image", followup_image
                 )
 

@@ -1,3 +1,4 @@
+import os
 import time
 from dataclasses import asdict
 
@@ -11,16 +12,17 @@ from utils import ttl_get_block
 import bittensor as bt
 import wandb
 
+transform = T.Compose([T.PILToTensor()])
+
 
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
-    # breakpoint()
     responses = self.loop.run_until_complete(
         self.dendrite(
             axons,
             template.protocol.ImageGeneration(
                 generation_type=task_type,
                 prompt=prompt,
-                prompt_image=bt.Tensor.serialize(image),
+                prompt_image=image,
             )
             if image is not None
             else template.protocol.ImageGeneration(
@@ -33,7 +35,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     event = {"task_type": task_type}
 
     start_time = time.time()
-    # breakpoint()
 
     # Log the results for monitoring purposes.
     bt.logging.info(f"Received response: {responses}")
@@ -116,10 +117,12 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     # Update moving_averaged_scores with rewards produced by this step.
     # shape: [ metagraph.n ]
+    breakpoint()
     alpha: float = self.config.neuron.moving_average_alpha
     self.moving_averaged_scores: torch.FloatTensor = alpha * scattered_rewards + (
         1 - alpha
     ) * self.moving_averaged_scores.to(self.device)
+    breakpoint()
 
     try:
         # Log the step event.
@@ -130,18 +133,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 "prompt": prompt,
                 "uids": uids.tolist(),
                 "hotkeys": [self.metagraph.axons[uid].hotkey for uid in uids],
-                "images": [
-                    wandb.Image(
-                        bt.Tensor.deserialize(r.images[0])[0],
-                        caption=prompt,
-                    )
-                    if r.images != []
-                    else wandb.Image(
-                        torch.full([3, 1024, 1024], 255, dtype=torch.float),
-                        caption=prompt,
-                    )
-                    for r in responses
-                ],
+                "images": [r.images[0] if r.images != [] else [] for r in responses],
                 "rewards": rewards.tolist(),
             }
         )
@@ -154,8 +146,19 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     # Log the event to wandb.
     if not self.config.wandb.off:
+        # breakpoint()
+        wandb_event = event.copy()
+        wandb_event["images"] = [
+            wandb.Image(bt.Tensor.deserialize(image))
+            if image != []
+            else wandb.Image(
+                torch.full([3, 1024, 1024], 255, dtype=torch.float),
+                caption=prompt,
+            )
+            for image in wandb_event["images"]
+        ]
         wandb_event = EventSchema.from_dict(
-            event, self.config.neuron.disable_log_rewards
+            wandb_event, self.config.neuron.disable_log_rewards
         )
         self.wandb.log(asdict(wandb_event))
 

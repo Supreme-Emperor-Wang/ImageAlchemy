@@ -16,15 +16,19 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import bittensor as bt
 from dataclasses import dataclass
-from typing import List, Optional, Any
+from typing import Any, List, Optional
+
 from reward import RewardModelType
+
+import bittensor as bt
 import wandb
+
 
 @dataclass
 class EventSchema:
-    images: List # List of completions received for a given prompt
+    images: List
+    # wandb_images: List
     # completion_times: List[float]  # List of completion times for a given prompt
     # completion_status_messages: List[
     #     str
@@ -37,7 +41,7 @@ class EventSchema:
     block: float  # Current block at given step
     # gating_loss: float  # Gating model loss for given step
     uids: List[int]  # Queried uids
-    hotkeys: List[str] 
+    hotkeys: List[str]
     prompt: str  # Prompt text string
     step_length: float  # Elapsed time between the beginning of a run step to the end of a run step
     # best: str  # Best completion for given prompt
@@ -49,12 +53,8 @@ class EventSchema:
     diversity_reward_model: Optional[
         List[float]
     ]  # Output vector of the diversity reward model
-    image_reward_model: Optional[
-        List[float]
-    ]  # Output vector of the image reward model
-    human_reward_model: Optional[
-        List[float]
-    ] 
+    image_reward_model: Optional[List[float]]  # Output vector of the image reward model
+    human_reward_model: Optional[List[float]]
 
     # image_uid1: Any
     # image_uid2: Any
@@ -96,6 +96,7 @@ class EventSchema:
             prompt=event_dict["prompt"],
             step_length=event_dict["step_length"],
             images=event_dict["images"],
+            # wandb_images=event_dict["wandb_images"],
             rewards=event_dict["rewards"],
             **rewards,
             # **images,
