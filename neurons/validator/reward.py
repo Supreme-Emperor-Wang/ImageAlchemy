@@ -496,7 +496,7 @@ class DiversityRewardModel(BaseRewardModel):
         ignored_indices = [
             index for index, reward in enumerate(rewards) if reward == 0.0
         ]
-
+        # breakpoint()
         if len(images) > 1:
             ds = Dataset.from_dict({"image": images})
             embeddings = ds.map(extract_fn, batched=True, batch_size=24)
@@ -511,7 +511,7 @@ class DiversityRewardModel(BaseRewardModel):
                 dissimilarity_scores[i] = 1 - max(simmilarity_matrix[i])
         else:
             dissimilarity_scores = torch.tensor([1.0])
-
+        # breakpoint()
         if ignored_indices and (len(images) > 1):
             i = 0
             while i < len(rewards):
@@ -523,7 +523,7 @@ class DiversityRewardModel(BaseRewardModel):
                             dissimilarity_scores[i:],
                         ]
                     )
-
+                i += 1
         return dissimilarity_scores
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:

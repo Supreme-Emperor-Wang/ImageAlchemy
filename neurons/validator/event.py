@@ -36,7 +36,6 @@ class EventSchema:
     # completion_status_codes: List[
     #     str
     # ]  # List of completion status codes for a given prompt
-    # name: str  # Prompt type, e.g. 'followup', 'answer'
     task_type: str  # Task type, e.g. 'summary', 'question'
     block: float  # Current block at given step
     # gating_loss: float  # Gating model loss for given step
@@ -56,30 +55,12 @@ class EventSchema:
     image_reward_model: Optional[List[float]]  # Output vector of the image reward model
     human_reward_model: Optional[List[float]]
 
-    # image_uid1: Any
-    # image_uid2: Any
-    # images_list: List
-
     # Weights data
     set_weights: Optional[List[List[float]]]
 
     @staticmethod
     def from_dict(event_dict: dict, disable_log_rewards: bool) -> "EventSchema":
         """Converts a dictionary to an EventSchema object."""
-        # breakpoint()
-        # # Logs warning that expected data was not set properly
-        # if not disable_log_rewards and any(value is None for value in rewards.values()):
-        #     for key, value in rewards.items():
-        #         if value is None:
-        #             bt.logging.warning(
-        #                 f"EventSchema.from_dict: {key} is None, data will not be logged"
-        #            )
-        # images = {
-        #     # "image_uid1":[wandb.Image(image) for image in event_dict["images"][0]][0],
-        #     # "image_uid2":[wandb.Image(image) for image in event_dict["images"][1]][0],
-        #     "images_list":[wandb.Image(image[0]) for image in event_dict["images"]]
-        # }
-
         rewards = {
             "blacklist_filter": event_dict.get(RewardModelType.blacklist.value),
             "nsfw_filter": event_dict.get(RewardModelType.nsfw.value),
@@ -87,7 +68,6 @@ class EventSchema:
             "image_reward_model": event_dict.get(RewardModelType.image.value),
             "human_reward_model": event_dict.get(RewardModelType.human.value),
         }
-        # breakpoint()
         return EventSchema(
             task_type=event_dict["task_type"],
             block=event_dict["block"],
@@ -96,9 +76,7 @@ class EventSchema:
             prompt=event_dict["prompt"],
             step_length=event_dict["step_length"],
             images=event_dict["images"],
-            # wandb_images=event_dict["wandb_images"],
             rewards=event_dict["rewards"],
             **rewards,
-            # **images,
             set_weights=None,
         )

@@ -117,12 +117,10 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     # Update moving_averaged_scores with rewards produced by this step.
     # shape: [ metagraph.n ]
-    breakpoint()
     alpha: float = self.config.neuron.moving_average_alpha
     self.moving_averaged_scores: torch.FloatTensor = alpha * scattered_rewards + (
         1 - alpha
     ) * self.moving_averaged_scores.to(self.device)
-    breakpoint()
 
     try:
         # Log the step event.
@@ -149,7 +147,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         # breakpoint()
         wandb_event = event.copy()
         wandb_event["images"] = [
-            wandb.Image(bt.Tensor.deserialize(image))
+            wandb.Image(bt.Tensor.deserialize(image), caption=prompt)
             if image != []
             else wandb.Image(
                 torch.full([3, 1024, 1024], 255, dtype=torch.float),

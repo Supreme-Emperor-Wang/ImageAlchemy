@@ -223,16 +223,19 @@ class neuron:
 
                 # Text to Image Run
                 prompt = generate_random_prompt_gpt(self)
+                if prompt is None:
+                    prompt = generate_random_prompt(self)
                 t2i_event = run_step(
                     self, prompt, axons, uids, task_type="text_to_image"
                 )
 
                 # Image to Image Run
                 followup_prompt = generate_followup_prompt_gpt(self, prompt)
-                # breakpoint()
                 followup_image = [image for image in t2i_event["images"]][
                     torch.tensor(t2i_event["rewards"]).argmax()
                 ]
+                if followup_prompt is None:
+                    followup_prompt = prompt
                 _ = run_step(
                     self, followup_prompt, axons, uids, "image_to_image", followup_image
                 )

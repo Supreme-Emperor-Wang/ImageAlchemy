@@ -227,58 +227,67 @@ def generate_random_prompt(self):
 
     return new_prompt
 
+
 def generate_random_prompt_gpt(self):
+    for attempt in range(2):
+        bt.logging.debug("calling openai")
+        try:
+            response = self.openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an image prompt generator. Your purpose is to generate creative one sentence prompts that can be fed into Dalle-3.",
+                    },
+                ],
+                temperature=1,
+                max_tokens=256,
+                top_p=1,
+                frequency_penalty=0,
+                presence_penalty=0,
+            )
+            new_prompt = response.choices[0].message.content
+            bt.logging.trace(f"follow_up prompt is {new_prompt}")
+            return new_prompt
 
-    response = self.openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-            "role": "system",
-            "content": "You are an image prompt generator. Your purpose is to generate creative one sentence prompts that can be fed into Dalle-3."
-            },
-        ],
-        temperature=1,
-        max_tokens=256,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0
-    )
+        except Exception as e:
+            bt.logging.info(f"Error when calling OpenAI: {e}")
+            time.sleep(0.5)
 
-    new_prompt = response.choices[0].message.content
-
-    return new_prompt
+    return None
 
 
 def generate_followup_prompt_gpt(self, prompt):
-
-    messages=[
+    messages = [
+        {"role": "system", "content": "You are an image prompt generator."},
+        {"role": "assistant", "content": f"{prompt}"},
         {
-        "role": "system",
-        "content": "You are an image prompt generator."
-        },
-        {
-        "role": "assistant",
-        "content": f"{prompt}"
-        },
-        {
-        "role": "user",
-        "content": "An image has now been generated from your first prompt. What is a second instruction that can be applied to this generated image?"
+            "role": "user",
+            "content": "An image has now been generated from your first prompt. What is a second instruction that can be applied to this generated image?",
         },
     ]
 
-    response = self.openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=messages,
-        temperature=1,
-        max_tokens=256,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0
-    )
+    for attempt in range(2):
+        bt.logging.debug("calling openai")
+        try:
+            response = self.openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                temperature=1,
+                max_tokens=256,
+                top_p=1,
+                frequency_penalty=0,
+                presence_penalty=0,
+            )
+            new_prompt = response.choices[0].message.content
+            bt.logging.trace(f"follow_up prompt is {new_prompt}")
+            return new_prompt
 
-    new_prompt = response.choices[0].message.content
+        except Exception as e:
+            bt.logging.info(f"Error when calling OpenAI: {e}")
+            time.sleep(0.5)
 
-    return new_prompt
+    return None
 
 
 def init_wandb(self, reinit=False):
