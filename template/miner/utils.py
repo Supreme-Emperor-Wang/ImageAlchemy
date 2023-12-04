@@ -132,6 +132,6 @@ def generate(self, synapse, timeout=10):
     )
     #### Log to Wanbd
     self.wandb._log()
-
+    # breakpoint()
     #### Log to console
     output_log(f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.")

@@ -38,9 +38,9 @@ from typing import List
 # import this repo
 import torch
 from datasets import load_dataset
-from forward import run_step
+from template.validator.forward import run_step
 from openai import OpenAI
-from reward import (
+from template.validator.reward import (
     BlacklistFilter,
     DiversityRewardModel,
     ImageRewardModel,
@@ -48,7 +48,7 @@ from reward import (
 )
 from template.protocol import IsAlive
 from transformers import pipeline
-from utils import (
+from template.validator.utils import (
     generate_followup_prompt_gpt,
     generate_random_prompt,
     generate_random_prompt_gpt,
@@ -56,10 +56,10 @@ from utils import (
     init_wandb,
     ttl_get_block,
 )
-from weights import set_weights, should_set_weights
+from template.validator.weights import set_weights, should_set_weights
 
 import bittensor as bt
-from config import add_args, check_config, config
+from template.validator.config import add_args, check_config, config
 
 
 class neuron:
@@ -205,7 +205,7 @@ class neuron:
                 [
                     "streamlit",
                     "run",
-                    os.path.join(os.getcwd(), "neurons", "validator", "app.py"),
+                    os.path.join(os.getcwd(), "prompting", "validator", "app.py"),
                 ]
             )
 
@@ -243,9 +243,9 @@ class neuron:
                 # Set the weights on chain.
                 if should_set_weights(self):
                     set_weights(self)
+                    self.prev_block = ttl_get_block(self)
 
                 # End the current step and prepare for the next iteration.
-                self.prev_block = ttl_get_block(self)
                 self.step += 1
 
             # If we encounter an unexpected error, log it for debugging.

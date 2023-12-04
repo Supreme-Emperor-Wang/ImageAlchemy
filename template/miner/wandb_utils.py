@@ -1,6 +1,6 @@
 from threading import Timer
 
-from utils import output_log
+from .utils import output_log
 
 import wandb
 

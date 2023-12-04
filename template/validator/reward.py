@@ -20,7 +20,7 @@ from transformers import (
     CLIPVisionModel,
     PreTrainedModel,
 )
-from utils import calculate_mean_dissimilarity, cosine_distance
+from .utils import calculate_mean_dissimilarity, cosine_distance
 
 import bittensor as bt
 
@@ -99,7 +99,7 @@ class StableDiffusionSafetyChecker(PreTrainedModel):
 
             # increase this value to create a stronger `nfsw` filter
             # at the cost of increasing the possibility of filtering benign images
-            adjustment = 1.0  # multiplier
+            adjustment = 1.0
 
             for concept_idx in range(len(special_cos_dist[0])):
                 concept_cos = special_cos_dist[i][concept_idx]

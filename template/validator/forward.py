@@ -5,9 +5,9 @@ from dataclasses import asdict
 import template
 import torch
 import torchvision.transforms as T
-from event import EventSchema
+from .event import EventSchema
 from loguru import logger
-from utils import ttl_get_block
+from .utils import ttl_get_block
 
 import bittensor as bt
 import wandb

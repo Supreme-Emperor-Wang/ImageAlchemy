@@ -19,7 +19,7 @@
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
-from reward import RewardModelType
+from .reward import RewardModelType
 
 import bittensor as bt
 import wandb

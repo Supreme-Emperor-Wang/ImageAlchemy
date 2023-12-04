@@ -19,7 +19,7 @@
 # Utils for weights setting on chain.
 
 import torch
-from utils import ttl_get_block
+from .utils import ttl_get_block
 
 import bittensor as bt
 import validators as validators
@@ -30,10 +30,9 @@ def should_set_weights(self) -> bool:
     # Check if enough epoch blocks have elapsed since the last epoch.
     if self.config.neuron.disable_set_weights:
         return False
-
     return (
-        ttl_get_block(self) % self.config.neuron.epoch_length
-        < self.prev_block % self.config.neuron.epoch_length
+        (ttl_get_block(self) % self.prev_block)
+        >= self.config.neuron.epoch_length
     )
 
 
@@ -59,6 +58,7 @@ def set_weights(self):
     bt.logging.trace("processed_weights", processed_weights)
     bt.logging.trace("processed_weight_uids", processed_weight_uids)
     # Set the weights on chain via our subtensor connection.
+    breakpoint()
     self.subtensor.set_weights(
         wallet=self.wallet,
         netuid=self.config.netuid,
@@ -67,3 +67,4 @@ def set_weights(self):
         wait_for_finalization=False,
         version_key=validators.__spec_version__,
     )
+    breakpoint()

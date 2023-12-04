@@ -9,7 +9,7 @@ from typing import Dict
 
 import torch
 from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
-from utils import output_log
+from .utils import output_log
 
 import bittensor as bt
 

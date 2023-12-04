@@ -2,10 +2,10 @@ import time
 import traceback
 
 import torch
-from base import BaseMiner, Stats
+from template.miner.base import BaseMiner, Stats
 from template.protocol import ImageGeneration, IsAlive
-from utils import generate, output_log
-from wandb_utils import WandbUtils
+from template.miner.utils import generate, output_log
+from template.miner.wandb_utils import WandbUtils
 
 import bittensor as bt
 
@@ -99,6 +99,7 @@ class StableMiner(BaseMiner):
 
     def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
         generate(self, synapse)
+        # breakpoint()
         return synapse
 
     def loop(self):
