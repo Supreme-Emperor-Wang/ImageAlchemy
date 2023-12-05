@@ -5,13 +5,31 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
 
 </div>
----
 
 ## Installation
 
 Download the repository, navigate to the folder and then install the necessary requirements with the following chained command.
 
-```git clone https://github.com/Supreme-Emperor-Wang/TensorVision && cd TensorVision && pip install -r requirements.txt &&pip install -e .```
+```bash
+git clone https://github.com/Supreme-Emperor-Wang/ImageAlchemy &&\
+cd ImageAlchemy &&\
+pip install -r requirements.txt &&\
+pip install -e .
+```
+
+---
+
+## Converting a CivitAI model to a HF compatible model
+
+ImageAlchemy utilizes the highly versatile [Diffusers](https://github.com/huggingface/diffusers) library which can't load fine-tuned SD & SDXL models from websites such as [civita](https://civitai.com/models/) out of the box. To convert any model on this website to a HF compatible model run:
+
+```bash
+python scripts/civitai_conversion.py
+    --civitai_link https://civitai.com/api/download/models/147497 # Download link for the civitai model
+    --is_sdxl # Flag for SD XL models
+```
+
+By default the outputs of this script are saved in ```~/civitai/models```.
 
 ---
 
@@ -29,6 +47,7 @@ python -m neurons/miner.py
     --wandb.entity <your wanbd entity> 
     --wandb.project <your wadnb project>
 ```
+
 ---
 
 ## Running A Validator
@@ -43,22 +62,6 @@ python -m neurons/validator.py
     --wallet.hotkey <your miner hotkey> # hotkey name of your wallet
     --logging.debug # Run in debug mode, alternatively --logging.trace for trace mode
 ```
----
-
-## Installation
-
-### Before you proceed
-Before you proceed with the installation of the subnet, note the following: 
-
-- Following these instructions you can run your subnet locally for your development and testing, or on Bittensor testnet. We do **recommend** that you first run your subnet locally and finish your development and testing before running the subnet on Bittensor testnet. 
-- You can also run your subnet either as a subnet owner, or as a validator or as a miner. 
-- **IMPORTANT:** Make sure you are aware of the minimum compute requirements for your subnet. See the [Minimum compute YAML configuration](./min_compute.yml).
-- Note that installation instructions differ based on your situation: For example, installing for local development and testing will require a few additional steps compared to installing for testnet. Similarly, installation instructions differ for a subnet owner vs a validator or a miner. 
-
-### Install
-
-- **Running locally**: Follow the step-by-step instructions described in this section: [Running Your Own Subtensor Chain Locally](./docs/running_on_staging.md).
-- **Running on Bittensor testnet**: Follow the step-by-step instructions described in this section: [Running on the Testing Network](./docs/running_on_testnet.md).
 
 ---
 
