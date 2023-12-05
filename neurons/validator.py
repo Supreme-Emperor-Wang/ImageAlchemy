@@ -38,16 +38,16 @@ from typing import List
 # import this repo
 import torch
 from datasets import load_dataset
-from template.validator.forward import run_step
 from openai import OpenAI
+from template.protocol import IsAlive
+from template.validator.config import add_args, check_config, config
+from template.validator.forward import run_step
 from template.validator.reward import (
     BlacklistFilter,
     DiversityRewardModel,
     ImageRewardModel,
     NSFWRewardModel,
 )
-from template.protocol import IsAlive
-from transformers import pipeline
 from template.validator.utils import (
     generate_followup_prompt_gpt,
     generate_random_prompt,
@@ -57,9 +57,9 @@ from template.validator.utils import (
     ttl_get_block,
 )
 from template.validator.weights import set_weights, should_set_weights
+from transformers import pipeline
 
 import bittensor as bt
-from template.validator.config import add_args, check_config, config
 
 
 class neuron:
@@ -205,7 +205,7 @@ class neuron:
                 [
                     "streamlit",
                     "run",
-                    os.path.join(os.getcwd(), "prompting", "validator", "app.py"),
+                    os.path.join(os.getcwd(), "template", "validator", "app.py"),
                 ]
             )
 

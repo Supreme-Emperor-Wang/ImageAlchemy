@@ -10,6 +10,7 @@ import torchvision.transforms as transforms
 import torchvision.transforms as T
 from datasets import Dataset
 from sklearn.metrics.pairwise import cosine_similarity
+from template.validator.utils import calculate_mean_dissimilarity, cosine_distance
 from torch import nn
 from transformers import (
     AutoFeatureExtractor,
@@ -20,7 +21,6 @@ from transformers import (
     CLIPVisionModel,
     PreTrainedModel,
 )
-from .utils import calculate_mean_dissimilarity, cosine_distance
 
 import bittensor as bt
 
@@ -496,7 +496,6 @@ class DiversityRewardModel(BaseRewardModel):
         ignored_indices = [
             index for index, reward in enumerate(rewards) if reward == 0.0
         ]
-        # breakpoint()
         if len(images) > 1:
             ds = Dataset.from_dict({"image": images})
             embeddings = ds.map(extract_fn, batched=True, batch_size=24)
@@ -511,7 +510,6 @@ class DiversityRewardModel(BaseRewardModel):
                 dissimilarity_scores[i] = 1 - max(simmilarity_matrix[i])
         else:
             dissimilarity_scores = torch.tensor([1.0])
-        # breakpoint()
         if ignored_indices and (len(images) > 1):
             i = 0
             while i < len(rewards):

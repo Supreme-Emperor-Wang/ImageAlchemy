@@ -20,7 +20,7 @@ Download the repository, navigate to the folder and then install the necessary r
 ```bash
 # To run the miner
 cd neurons
-python -m neurons/miners/default/main.py
+python -m neurons/miner.py
     --netuid <your netuid>  # The subnet id you want to connect to
     --subtensor.network <your chain url>  # blockchain endpoint you want to connect
     --wallet.name <your miner wallet> # name of your wallet
@@ -36,14 +36,12 @@ python -m neurons/miners/default/main.py
 ```bash
 # To run the miner
 cd ImageAlchemy
-python -m nneurons/validator/validator.py
+python -m neurons/validator.py
     --netuid <your netuid>  # The subnet id you want to connect to
     --subtensor.network <your chain url>  # blockchain endpoint you want to connect
     --wallet.name <your miner wallet> # name of your wallet
     --wallet.hotkey <your miner hotkey> # hotkey name of your wallet
     --logging.debug # Run in debug mode, alternatively --logging.trace for trace mode
-    --wandb.entity <your wanbd entity> 
-    --wandb.project <your wadnb project>
 ```
 ---
 

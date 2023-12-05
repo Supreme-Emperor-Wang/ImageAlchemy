@@ -1,8 +1,6 @@
 # Utils for checkpointing and saving the model.
 import asyncio
 import copy
-import hashlib as rpccheckhealth
-import math
 import random
 import time
 import traceback
@@ -132,7 +130,6 @@ def get_random_uids(
     avail_uids = []
 
     for uid in range(self.metagraph.n.item()):
-        # breakpoint()
         uid_is_available = check_uid_availability(dendrite, self.metagraph, uid, 400)
         uid_is_not_excluded = exclude is None or uid not in exclude
 
@@ -316,7 +313,6 @@ def init_wandb(self, reinit=False):
         for key in ("neuron", "reward", "netuid", "wandb")
     }
     wandb_config["neuron"].pop("full_path", None)
-
     self.wandb = wandb.init(
         anonymous="allow",
         reinit=reinit,

@@ -5,9 +5,9 @@ from dataclasses import asdict
 import template
 import torch
 import torchvision.transforms as T
-from .event import EventSchema
 from loguru import logger
-from .utils import ttl_get_block
+from template.validator.event import EventSchema
+from template.validator.utils import ttl_get_block
 
 import bittensor as bt
 import wandb
@@ -135,8 +135,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 "rewards": rewards.tolist(),
             }
         )
-    except:
-        breakpoint()
+
+    except Exception as err:
+        bt.logging.error("Error updating event dict", str(err))
 
     bt.logging.debug("event:", str(event))
     if not self.config.neuron.dont_save_events:
@@ -144,7 +145,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     # Log the event to wandb.
     if not self.config.wandb.off:
-        # breakpoint()
         wandb_event = event.copy()
         wandb_event["images"] = [
             wandb.Image(bt.Tensor.deserialize(image), caption=prompt)

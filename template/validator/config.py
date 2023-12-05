@@ -21,7 +21,7 @@ import os
 
 import torch
 from loguru import logger
-from .reward import DefaultRewardFrameworkConfig
+from template.validator.reward import DefaultRewardFrameworkConfig
 
 import bittensor as bt
 
@@ -201,7 +201,7 @@ def add_args(cls, parser):
         "--wandb.project_name",
         type=str,
         help="The name of the project where you are sending the new run.",
-        default="tensorvision",
+        default="ImageAlchemy",
     )
     parser.add_argument(
         "--wandb.entity",
