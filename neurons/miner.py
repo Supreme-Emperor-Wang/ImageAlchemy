@@ -17,8 +17,8 @@ class StableMiner(BaseMiner):
         self.config = self.get_config()
 
         if self.config.logging.debug:
-            output_log("Enabling debug mode...", type="debug")
             bt.debug()
+            output_log("Enabling debug mode...", type="debug")
 
         #### Output the config
         output_log("Outputting miner config:", "c")
@@ -66,6 +66,12 @@ class StableMiner(BaseMiner):
             output_log("Warming up model with compile...")
             generate(self.t2i_model, self.t2i_args)
 
+        ### Set up mapping for the different synapse types
+        self.mapping = {
+            "text_to_image": {"args": self.t2i_args, "model": self.t2i_model},
+            "image_to_image": {"args": self.i2i_args, "model": self.i2i_model},
+        }
+
         #### Load the safety checker (WIP)
 
         #### Serve the axon
@@ -97,7 +103,7 @@ class StableMiner(BaseMiner):
         self.loop()
 
     def is_alive(self, synapse: IsAlive) -> IsAlive:
-        bt.logging.info("answered to be active")
+        bt.logging.info("IsAlive")
         synapse.completion = "True"
         return synapse
 
@@ -111,14 +117,14 @@ class StableMiner(BaseMiner):
         ):
             # Ignore requests from unrecognized entities.
             bt.logging.trace(
-                f"Blacklisting unrecognized hotkey {synapse.dendrite.hotkey}"
+                f"Blacklisting unrecognized hotkey: {synapse.dendrite.hotkey}"
             )
             return True, "Unrecognized hotkey"
 
         bt.logging.trace(
             f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}"
         )
-        return False, "Hotkey recognized!"
+        return False, "Hotkey recognized"
 
     def loop(self):
         step = 0
@@ -139,14 +145,14 @@ class StableMiner(BaseMiner):
                 if step % 5 == 0:
                     #### Output metrics
                     log = (
-                        f"Step:{step} | "
-                        f"Block:{self.metagraph.block.item()} | "
-                        f"Stake:{self.metagraph.S[self.miner_index]} | "
-                        f"Rank:{self.metagraph.R[self.miner_index]} | "
-                        f"Trust:{self.metagraph.T[self.miner_index]} | "
-                        f"Consensus:{self.metagraph.C[self.miner_index] } | "
-                        f"Incentive:{self.metagraph.I[self.miner_index]} | "
-                        f"Emission:{self.metagraph.E[self.miner_index]}"
+                        f"Step: {step} | "
+                        f"Block: {self.metagraph.block.item()} | "
+                        f"Stake: {self.metagraph.S[self.miner_index]:.2f} | "
+                        f"Rank: {self.metagraph.R[self.miner_index]:.2f} | "
+                        f"Trust: {self.metagraph.T[self.miner_index]:.2f} | "
+                        f"Consensus: {self.metagraph.C[self.miner_index]:.2f} | "
+                        f"Incentive: {self.metagraph.I[self.miner_index]:.2f} | "
+                        f"Emission: {self.metagraph.E[self.miner_index]:.2f}"
                     )
                     output_log(log, "g")
 
