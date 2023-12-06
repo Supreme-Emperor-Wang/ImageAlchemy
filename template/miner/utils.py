@@ -134,4 +134,6 @@ def generate(self, synapse, timeout=10):
     self.wandb._log()
 
     #### Log to console
-    output_log(f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.")
+    output_log(
+        f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.", color_key="y"
+    )
