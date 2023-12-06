@@ -128,10 +128,16 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             {
                 "block": ttl_get_block(self),
                 "step_length": time.time() - start_time,
-                "prompt": prompt,
+                "prompt_t2i": prompt if task_type == "text_to_image" else None,
+                "prompt_i2i": prompt if task_type == "image_to_image" else None,
                 "uids": uids.tolist(),
                 "hotkeys": [self.metagraph.axons[uid].hotkey for uid in uids],
-                "images": [r.images[0] if r.images != [] else [] for r in responses],
+                "images": [
+                    response.images[0]
+                    if (response.images != []) and (reward != 0)
+                    else []
+                    for response, reward in zip(responses, rewards.tolist())
+                ],
                 "rewards": rewards.tolist(),
             }
         )
@@ -155,6 +161,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             )
             for image in wandb_event["images"]
         ]
+
         wandb_event = EventSchema.from_dict(
             wandb_event, self.config.neuron.disable_log_rewards
         )

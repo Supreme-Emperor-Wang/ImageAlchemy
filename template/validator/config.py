@@ -88,7 +88,7 @@ def add_args(cls, parser):
         "--neuron.disable_manual_validator",
         action="store_true",
         help="Disable the capability to manually validate outputs",
-        default=False,
+        default=True,
     )
     parser.add_argument(
         "--neuron.disable_log_rewards",

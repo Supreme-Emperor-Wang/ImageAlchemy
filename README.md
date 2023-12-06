@@ -55,7 +55,7 @@ python -m neurons/miner.py
 ```bash
 # To run the miner
 cd ImageAlchemy
-python -m neurons/validator.py
+OPENAI_API_KEY=YOUR_OPENAI_API_KEY python -m neurons/validator.py
     --netuid <your netuid>  # The subnet id you want to connect to
     --subtensor.network <your chain url>  # blockchain endpoint you want to connect
     --wallet.name <your miner wallet> # name of your wallet

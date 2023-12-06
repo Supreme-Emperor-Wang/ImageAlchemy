@@ -29,6 +29,8 @@ COLORS = {
     "w": "\033[1;37;40m",
 }
 
+WHITELISTED_HOTKEYS = ["x"]
+
 
 #### Utility function for coloring logs
 def output_log(message: str, color_key: str = "w", type: str = "info") -> None:

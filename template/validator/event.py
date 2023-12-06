@@ -21,46 +21,32 @@ from typing import Any, List, Optional
 
 from template.validator.reward import RewardModelType
 
-import bittensor as bt
-import wandb
-
 
 @dataclass
 class EventSchema:
     images: List
-    # wandb_images: List
-    # completion_times: List[float]  # List of completion times for a given prompt
-    # completion_status_messages: List[
-    #     str
-    # ]  # List of completion status messages for a given prompt
-    # completion_status_codes: List[
-    #     str
-    # ]  # List of completion status codes for a given prompt
-    task_type: str  # Task type, e.g. 'summary', 'question'
-    block: float  # Current block at given step
-    # gating_loss: float  # Gating model loss for given step
-    uids: List[int]  # Queried uids
+    task_type: str
+    block: float
+    uids: List[int]
     hotkeys: List[str]
-    prompt: str  # Prompt text string
-    step_length: float  # Elapsed time between the beginning of a run step to the end of a run step
-    # best: str  # Best completion for given prompt
+    prompt_t2i: str
+    prompt_i2i: str
+    step_length: float
 
     # Reward data
-    rewards: List[float]  # Reward vector for given step
-    blacklist_filter: Optional[List[float]]  # Output vector of the blacklist filter
-    nsfw_filter: Optional[List[float]]  # Output vector of the nsfw filter
-    diversity_reward_model: Optional[
-        List[float]
-    ]  # Output vector of the diversity reward model
-    image_reward_model: Optional[List[float]]  # Output vector of the image reward model
+    rewards: List[float]
+    blacklist_filter: Optional[List[float]]
+    nsfw_filter: Optional[List[float]]
+    diversity_reward_model: Optional[List[float]]
+    image_reward_model: Optional[List[float]]
     human_reward_model: Optional[List[float]]
 
-    # Weights data
     set_weights: Optional[List[List[float]]]
 
     @staticmethod
     def from_dict(event_dict: dict, disable_log_rewards: bool) -> "EventSchema":
         """Converts a dictionary to an EventSchema object."""
+
         rewards = {
             "blacklist_filter": event_dict.get(RewardModelType.blacklist.value),
             "nsfw_filter": event_dict.get(RewardModelType.nsfw.value),
@@ -68,12 +54,14 @@ class EventSchema:
             "image_reward_model": event_dict.get(RewardModelType.image.value),
             "human_reward_model": event_dict.get(RewardModelType.human.value),
         }
+
         return EventSchema(
             task_type=event_dict["task_type"],
             block=event_dict["block"],
             uids=event_dict["uids"],
             hotkeys=event_dict["hotkeys"],
-            prompt=event_dict["prompt"],
+            prompt_t2i=event_dict["prompt_t2i"],
+            prompt_i2i=event_dict["prompt_i2i"],
             step_length=event_dict["step_length"],
             images=event_dict["images"],
             rewards=event_dict["rewards"],

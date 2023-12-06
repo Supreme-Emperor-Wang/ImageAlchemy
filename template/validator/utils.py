@@ -8,6 +8,7 @@ from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List
 
+import pandas as pd
 import torch
 import torch.nn as nn
 from template.protocol import IsAlive
@@ -334,3 +335,35 @@ def reinit_wandb(self):
     """Reinitializes wandb, rolling over the run."""
     self.wandb.finish()
     init_wandb(self, reinit=True)
+
+
+def get_promptdb_backup(prompt_history=[]):
+    api = wandb.Api()
+    runs = api.runs(f"tensoralchemy/ImageAlchemy")
+    for run in runs:
+        if run.historyLineCount >= 100:
+            history = run.history()
+            if ("prompt_t2i" not in history.columns) or (
+                "prompt_i2i" not in history.columns
+            ):
+                continue
+            for i in range(0, len(history), 2):
+                if (
+                    pd.isna(history.loc[i, "prompt_t2i"])
+                    or (history.loc[i, "prompt_t2i"] is None)
+                    or (i == len(history))
+                    or (history.loc[i + 1, "prompt_i2i"] is None)
+                    or pd.isna(history.loc[i + 1, "prompt_i2i"])
+                ):
+                    continue
+                else:
+                    prompt_tuple = (
+                        history.loc[i, "prompt_t2i"],
+                        history.loc[i + 1, "prompt_i2i"],
+                    )
+                    if prompt_tuple in prompt_history:
+                        continue
+                    else:
+                        prompt_history.append(prompt_tuple)
+
+    return prompt_history

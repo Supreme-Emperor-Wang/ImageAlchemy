@@ -1,11 +1,12 @@
 import time
 import traceback
+import typing
 
 import torch
 from template.miner.base import BaseMiner, Stats
-from template.protocol import ImageGeneration, IsAlive
-from template.miner.utils import generate, output_log
+from template.miner.utils import WHITELISTED_HOTKEYS, generate, output_log
 from template.miner.wandb_utils import WandbUtils
+from template.protocol import ImageGeneration, IsAlive
 
 import bittensor as bt
 
@@ -81,6 +82,9 @@ class StableMiner(BaseMiner):
             .attach(
                 self.is_alive,
             )
+            .attach(
+                self.blacklist,
+            )
             .start()
         )
         output_log(f"Axon created: {self.axon}", "g", type="debug")
@@ -99,8 +103,22 @@ class StableMiner(BaseMiner):
 
     def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
         generate(self, synapse)
-        # breakpoint()
         return synapse
+
+    def blacklist(self, synapse: ImageGeneration) -> typing.Tuple[bool, str]:
+        if (synapse.dendrite.hotkey not in self.metagraph.hotkeys) and (
+            synapse.dendrite.hotkey not in WHITELISTED_HOTKEYS
+        ):
+            # Ignore requests from unrecognized entities.
+            bt.logging.trace(
+                f"Blacklisting unrecognized hotkey {synapse.dendrite.hotkey}"
+            )
+            return True, "Unrecognized hotkey"
+
+        bt.logging.trace(
+            f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}"
+        )
+        return False, "Hotkey recognized!"
 
     def loop(self):
         step = 0
@@ -132,22 +150,6 @@ class StableMiner(BaseMiner):
                     )
                     output_log(log, "g")
 
-                    #### Set weights (WIP)
-                    output_log("Settings weights.")
-
-                    weights = [0.0] * len(self.metagraph.uids)
-                    weights[self.miner_index] = 1.0
-
-                    uids = self.metagraph.uids
-
-                    self.subtensor.set_weights(
-                        wallet=self.wallet,
-                        netuid=self.config.netuid,
-                        weights=weights,
-                        uids=uids,
-                    )
-                    output_log("Weights set.")
-
                 step += 1
                 time.sleep(60)
 
@@ -160,8 +162,6 @@ class StableMiner(BaseMiner):
             except Exception as e:
                 bt.logging.error(traceback.format_exc())
                 continue
-
-            time.sleep(30)
 
 
 if __name__ == "__main__":

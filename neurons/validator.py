@@ -52,6 +52,7 @@ from template.validator.utils import (
     generate_followup_prompt_gpt,
     generate_random_prompt,
     generate_random_prompt_gpt,
+    get_promptdb_backup,
     get_random_uids,
     init_wandb,
     ttl_get_block,
@@ -110,6 +111,10 @@ class neuron:
             raise ValueError("Please set the OPENAI_API_KEY environment variable.")
         self.openai_client = OpenAI(api_key=openai_api_key)
 
+        # Init prompt backup db
+        self.prompt_history_db = get_promptdb_backup()
+        self.prompt_generation_failures = 0
+
         # Init subtensor
         bt.logging.debug("loading", "subtensor")
         self.subtensor = bt.subtensor(config=self.config)
@@ -167,7 +172,7 @@ class neuron:
             self.device
         )
 
-        # Init bloack and step
+        # Init prev_block and step
         self.prev_block = ttl_get_block(self)
         self.step = 0
 
@@ -199,7 +204,7 @@ class neuron:
             init_wandb(self)
 
         # Init manual validator
-        if not self.config.neuron.disable_log_rewards:
+        if not self.config.neuron.disable_manual_validator:
             bt.logging.debug("loading", "streamlit validator")
             process = subprocess.Popen(
                 [
@@ -221,16 +226,27 @@ class neuron:
                 ).to(self.device)
                 axons = [self.metagraph.axons[uid] for uid in uids]
 
-                # Text to Image Run
+                # Generate prompt + followup_prompt
                 prompt = generate_random_prompt_gpt(self)
-                if prompt is None:
-                    prompt = generate_random_prompt(self)
+                followup_prompt = generate_followup_prompt_gpt(self, prompt)
+                if (prompt is None) or (followup_prompt is None):
+                    if (self.prompt_generation_failures != 0) and (
+                        (self.prompt_generation_failures / len(self.prompt_history_db))
+                        > 0.2
+                    ):
+                        self.prompt_history_db = get_promptdb_backup(
+                            self.prompt_history_db
+                        )
+                    prompt, followup_prompt = random.choice(self.prompt_history_db)
+                    self.prompt_history_db.remove((prompt, followup_prompt))
+                    self.prompt_generation_failures += 1
+
+                # Text to Image Run
                 t2i_event = run_step(
                     self, prompt, axons, uids, task_type="text_to_image"
                 )
 
                 # Image to Image Run
-                followup_prompt = generate_followup_prompt_gpt(self, prompt)
                 followup_image = [image for image in t2i_event["images"]][
                     torch.tensor(t2i_event["rewards"]).argmax()
                 ]
