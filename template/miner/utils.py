@@ -58,67 +58,65 @@ def get_caller_stake(self, synapse):
     return None
 
 
-def do_logs(self, synapse):
+def do_logs(self, synapse, local_args):
     """
     Output logs for each request that comes through.
     """
     time_elapsed = datetime.now() - self.stats.start_time
-
-    if synapse.generation_type == "text_to_image":
-        num_images = self.t2i_args["num_images_per_prompt"]
-    elif synapse.generation_type == "image_to_image":
-        num_images = self.i2i_args["num_images_per_prompt"]
-    else:
-        bt.logging.debug(
-            f"Generation type should be one of either text_to_image or image_to_image."
-        )
+    num_images = local_args["num_images_per_prompt"]
 
     output_log(
-        f"{sh('Info')} -> Date {datetime.strftime(self.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.stats.total_requests/(time_elapsed.total_seconds()/60):.2f} | Model {self.config.miner.model} | Seed {self.config.miner.seed}."
+        f"{sh('Info')} -> Date {datetime.strftime(self.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.stats.total_requests/(time_elapsed.total_seconds()/60):.2f} | Model {self.config.miner.model} | Seed {self.config.miner.seed}.",
+        color_key="g",
     )
     output_log(
-        f"{sh('Stats')} -> Total requests {self.stats.total_requests} | Timeouts {self.stats.timeouts}."
+        f"{sh('Stats')} -> Type: {synapse.generation_type} | Total requests {self.stats.total_requests} | Timeouts {self.stats.timeouts}.",
+        color_key="y",
     )
     requester_stake = get_caller_stake(self, synapse)
     if not requester_stake:
         requester_stake = -1
     output_log(
-        f"{sh('Caller')} -> Stake {int(requester_stake):,} | Hotkey {synapse.dendrite.hotkey}"
+        f"{sh('Caller')} -> Stake {int(requester_stake):,} | Hotkey {synapse.dendrite.hotkey}",
+        color_key="c",
     )
-    output_log(f"{sh('Generating')} -> {num_images} images.")
+    output_log(f"{sh('Generating')} -> {num_images} image(s)")
+
+
+### mapping["text_to_image"]["args"]
 
 
 def generate(self, synapse, timeout=10):
     """
     Image generation logic shared between both text-to-image and image-to-image
     """
-    # Increment total requests state by 1
-
     self.stats.total_requests += 1
-    do_logs(self, synapse)
     start_time = time.perf_counter()
-    # breakpoint()
-    # Set up arguments
-    if synapse.generation_type == "text_to_image":
-        local_args = copy.copy(self.t2i_args)
-        model = self.t2i_model
-    elif synapse.generation_type == "image_to_image":
-        local_args = copy.copy(self.i2i_args)
+
+    ### Set up args
+    local_args = copy.copy(self.mapping[synapse.generation_type]["args"])
+    if synapse.generation_type == "image_to_image":
         local_args["image"] = bt.Tensor.deserialize(synapse.prompt_image)
-        model = self.i2i_model
-    else:
-        bt.logging.debug(
-            f"Generation type should be one of either text_to_image or image_to_image."
-        )
 
     local_args["prompt"] = synapse.prompt
     local_args["target_size"] = (synapse.height, synapse.width)
+
+    ### Output logs
+    do_logs(self, synapse, local_args)
+
+    ### Get the model
+    model = self.mapping[synapse.generation_type]["model"]
+
+    ### Generate images
     images = model(**local_args).images
 
-    if (time.perf_counter() - start_time) > timeout:
-        self.stats.total_requests += 1
+    if time.perf_counter() - start_time > timeout:
+        self.stats.timeouts += 1
 
+    ### Seralize the images
     synapse.images = [bt.Tensor.serialize(transform(image)) for image in images]
+
+    ### Store the images and prompts for uploading to wandb
     self.event.update(
         {
             "images": [
@@ -134,6 +132,6 @@ def generate(self, synapse, timeout=10):
     )
     #### Log to Wanbd
     self.wandb._log()
-    # breakpoint()
+
     #### Log to console
     output_log(f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.")
