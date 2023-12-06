@@ -112,7 +112,9 @@ class BaseMiner(ABC):
             variant="fp16",
         ).to("cuda")
         ### Load the image to image model using the same pipeline (efficient)
-        i2i_model = AutoPipelineForImage2Image.from_pipe(t2i_model).to("cuda")
+        i2i_model = AutoPipelineForImage2Image.from_pipe(t2i_model).to(
+            self.config.miner.device
+        )
         return t2i_model, i2i_model
 
     def add_args(cls, argp: argparse.ArgumentParser):
