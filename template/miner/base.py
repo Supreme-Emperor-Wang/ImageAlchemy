@@ -105,12 +105,7 @@ class BaseMiner(ABC):
             use_safetensors=True,
             variant="fp16",
         ).to(self.config.miner.device)
-        t2i_model = AutoPipelineForText2Image.from_pretrained(
-            "stabilityai/stable-diffusion-xl-base-1.0",
-            torch_dtype=torch.float16,
-            use_safetensors=True,
-            variant="fp16",
-        ).to("cuda")
+
         ### Load the image to image model using the same pipeline (efficient)
         i2i_model = AutoPipelineForImage2Image.from_pipe(t2i_model).to(
             self.config.miner.device
