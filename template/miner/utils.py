@@ -5,6 +5,7 @@ from typing import Dict, List
 
 import torch
 import torchvision.transforms as transforms
+import torchvision.transforms as T
 
 import bittensor as bt
 import wandb
@@ -29,7 +30,7 @@ COLORS = {
     "w": "\033[1;37;40m",
 }
 
-WHITELISTED_HOTKEYS = ["x"]
+WHITELISTED_HOTKEYS = ["5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta"]
 
 
 #### Utility function for coloring logs
@@ -96,9 +97,15 @@ def generate(self, synapse, timeout=10):
     ### Set up args
     local_args = copy.copy(self.mapping[synapse.generation_type]["args"])
     if synapse.generation_type == "image_to_image":
-        local_args["image"] = bt.Tensor.deserialize(synapse.prompt_image)
-
-    local_args["prompt"] = synapse.prompt
+        local_args["image"] = T.transforms.ToPILImage()(
+            bt.Tensor.deserialize(synapse.prompt_image)
+        )
+        del local_args["num_inference_steps"]
+        T.transforms.ToPILImage()(bt.Tensor.deserialize(synapse.prompt_image)).save(
+            "test.png"
+        )
+    bt.logging.info(synapse.generation_type)
+    local_args["prompt"] = [synapse.prompt]
     local_args["target_size"] = (synapse.height, synapse.width)
 
     ### Output logs
@@ -108,6 +115,15 @@ def generate(self, synapse, timeout=10):
     model = self.mapping[synapse.generation_type]["model"]
 
     ### Generate images
+    # breakpoint()
+    # local_args_2 = {'image':init_image, 'guidance_scale': 7.5, 'num_inference_steps': 1, 'num_images_per_prompt': 1, 'prompt': 'Add a gentle stream flowing near the base of the lone tree, reflecting the surrounding flowers.', 'target_size': (1024, 1024)}
+    # local_args_2 = {'image':local_args_2["image"], 'prompt': local_args_2["prompt"], 'target_size': (1024, 1024), 'guidance_scale': 7.5, 'num_inference_steps': 2}
+    # model(**local_args_2)
+    # model.num_inference_steps
+    # local_args_2["prompt"]
+    # model(**local_args_2)
+    # pipe(**local_args_2)
+    # 'generator': <torch._C.Generator object at 0x7ff7f1716c70>, 'image': <PIL.Image.Image image mode=RGB size=1024x1024 at 0x7FF7B45CE150>,
     images = model(**local_args).images
 
     if time.perf_counter() - start_time > timeout:
@@ -115,7 +131,7 @@ def generate(self, synapse, timeout=10):
 
     ### Seralize the images
     synapse.images = [bt.Tensor.serialize(transform(image)) for image in images]
-
+    images[0].save("test.png")
     ### Store the images and prompts for uploading to wandb
     self.event.update(
         {

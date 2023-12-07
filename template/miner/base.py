@@ -105,11 +105,13 @@ class BaseMiner(ABC):
             use_safetensors=True,
             variant="fp16",
         ).to(self.config.miner.device)
+        t2i_model.set_progress_bar_config(disable=True)
 
         ### Load the image to image model using the same pipeline (efficient)
         i2i_model = AutoPipelineForImage2Image.from_pipe(t2i_model).to(
             self.config.miner.device
         )
+        i2i_model.set_progress_bar_config(disable=True)
         return t2i_model, i2i_model
 
     def add_args(cls, argp: argparse.ArgumentParser):

@@ -347,7 +347,7 @@ def get_promptdb_backup(prompt_history=[]):
                 "prompt_i2i" not in history.columns
             ):
                 continue
-            for i in range(0, len(history), 2):
+            for i in range(0, len(history) - 1, 2):
                 if (
                     pd.isna(history.loc[i, "prompt_t2i"])
                     or (history.loc[i, "prompt_t2i"] is None)

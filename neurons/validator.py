@@ -32,6 +32,7 @@ import subprocess
 import time
 import traceback
 from dataclasses import asdict
+from time import sleep
 from traceback import print_exception
 from typing import List
 
@@ -215,11 +216,18 @@ class neuron:
             )
 
     def run(self):
-        # Step 11: The Main Validation Loop
+        # Main Validation Loop
         bt.logging.info("Starting validator loop.")
         step = 0
         while True:
             try:
+                # Reduce calls to miner to be approximately 1 per 5 minutes
+                while (ttl_get_block(self) - self.prev_block) < 25:
+                    sleep(10)
+                    bt.logging.info(
+                        "waiting for 5 minutes before queriying miners again"
+                    )
+
                 # Get a random number of uids
                 uids = get_random_uids(
                     self, self.dendrite, k=self.config.neuron.followup_sample_size
@@ -255,7 +263,6 @@ class neuron:
                 _ = run_step(
                     self, followup_prompt, axons, uids, "image_to_image", followup_image
                 )
-
                 # Set the weights on chain.
                 if should_set_weights(self):
                     set_weights(self)

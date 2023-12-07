@@ -72,8 +72,6 @@ class StableMiner(BaseMiner):
             "image_to_image": {"args": self.i2i_args, "model": self.i2i_model},
         }
 
-        #### Load the safety checker (WIP)
-
         #### Serve the axon
         output_log(f"Serving axon on port {self.config.axon.port}.", "g", type="debug")
         self.axon = (
@@ -96,10 +94,9 @@ class StableMiner(BaseMiner):
         output_log(f"Axon created: {self.axon}", "g", type="debug")
 
         self.subtensor.serve_axon(axon=self.axon, netuid=self.config.netuid)
-        # self.axon.serve(netuid=self.config.netuid, subtensor=self.subtensor)
 
-        #### Start the weight setting loop
-        output_log("Starting weight setting loop.", "g", type="debug")
+        #### Start the miner loop
+        output_log("Starting miner loop.", "g", type="debug")
         self.loop()
 
     def is_alive(self, synapse: IsAlive) -> IsAlive:
