@@ -13,7 +13,7 @@ async-timeout==4.0.3
 attrs==23.1.0
 backoff==2.2.1
 base58==2.1.1
-bittensor==6.0.1
+bittensor>=6.1.0
 -e git+https://KMFODA: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@github.com/Supreme-Emperor-Wang/TensorVision.git@783d662fec8b3a1486cd0958b3ad76687f00ddce#egg=bittensor_subnet_template
 black==23.7.0
 blinker==1.7.0
