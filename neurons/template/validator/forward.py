@@ -152,12 +152,19 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Log the event to wandb.
     if not self.config.wandb.off:
         wandb_event = event.copy()
+        
+        if self.config.wandb.compress:
+            file_type="jpg"
+        else:
+            file_type="png"
+
         wandb_event["images"] = [
-            wandb.Image(bt.Tensor.deserialize(image), caption=prompt)
+            wandb.Image(bt.Tensor.deserialize(image), caption=prompt, file_type=file_type)
             if image != []
             else wandb.Image(
                 torch.full([3, 1024, 1024], 255, dtype=torch.float),
                 caption=prompt,
+                file_type=file_type
             )
             for image in wandb_event["images"]
         ]

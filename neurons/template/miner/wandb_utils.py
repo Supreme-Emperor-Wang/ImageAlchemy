@@ -1,5 +1,7 @@
 from threading import Timer
+
 from template.miner.utils import output_log
+
 import wandb
 import torch
 import bittensor as bt
@@ -15,6 +17,7 @@ class WandbTimer(Timer):
 
 class WandbUtils:
     def __init__(self, miner, metagraph, config, wallet, event):
+        # breakpoint()
         self.miner = miner
         self.metagraph = metagraph
         self.config = config
@@ -37,9 +40,6 @@ class WandbUtils:
         config = {}
         config.update(self.config)
         config["model"] = self.config.model
-
-        wandb.login(self.config.wandb.api_key)
-
         self.wandb = wandb.init(
             project=self.config.wandb.project,
             entity=self.config.wandb.entity,
@@ -53,23 +53,31 @@ class WandbUtils:
         )
         output_log(f"Started new run: {self.wandb.name}", "c")
 
-    def _stop_run(self):
-        self.wandb.finish()
-
     def _add_images(self, synapse):
+
+        ### Store the images and prompts for uploading to wandb
+        if self.config.wandb.compress:
+            file_type="jpg"
+        else:
+            file_type="png"
+
         self.event.update(
             {
                 "images": [
-                    wandb.Image(bt.Tensor.deserialize(image), caption=synapse.prompt)
+                    wandb.Image(bt.Tensor.deserialize(image), caption=synapse.prompt, file_type=file_type)
                     if image != []
                     else wandb.Image(
                         torch.full([3, 1024, 1024], 255, dtype=torch.float),
                         caption=synapse.prompt,
+                        file_type=file_type
                     )
                     for image in synapse.images
                 ],
             }
         )
+
+    def _stop_run(self):
+        self.wandb.finish()
 
     def _log(self):
         if not self.wandb:

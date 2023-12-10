@@ -58,7 +58,7 @@ from template.validator.utils import (
     init_wandb,
     ttl_get_block,
 )
-from template.validator.weights import set_weights, should_set_weights
+from template.validator.weights import set_weights
 from transformers import pipeline
 
 import bittensor as bt
@@ -155,6 +155,9 @@ class neuron:
         )  # Make sure not to sync without passing subtensor
         self.metagraph.sync(subtensor=self.subtensor)  # Sync metagraph with subtensor.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+        self.uid = self.metagraph.hotkeys.index(
+            self.wallet.hotkey.ss58_address
+        )
         bt.logging.debug(str(self.metagraph))
 
         # Init Weights.
@@ -196,6 +199,9 @@ class neuron:
         # Init masking function
         self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]
 
+        # Init sync with the network. Updates the metagraph.
+        self.sync()
+
         #  Init the event loop
         self.loop = asyncio.get_event_loop()
 
@@ -222,7 +228,7 @@ class neuron:
         while True:
             try:
                 # Reduce calls to miner to be approximately 1 per 5 minutes
-                while (ttl_get_block(self) - self.prev_block) < 25:
+                while (ttl_get_block(self) - self.prev_block) < 1:
                     sleep(10)
                     bt.logging.info(
                         "waiting for 5 minutes before queriying miners again"
@@ -263,10 +269,9 @@ class neuron:
                 _ = run_step(
                     self, followup_prompt, axons, uids, "image_to_image", followup_image
                 )
-                # Set the weights on chain.
-                if should_set_weights(self):
-                    set_weights(self)
-                    self.prev_block = ttl_get_block(self)
+                
+                # Re-sync with the network. Updates the metagraph.
+                self.sync()
 
                 # End the current step and prepare for the next iteration.
                 self.step += 1
@@ -281,6 +286,82 @@ class neuron:
                 bt.logging.success("Keyboard interrupt detected. Exiting validator.")
                 exit()
 
+
+    def sync(self):
+        """
+        Wrapper for synchronizing the state of the network for the given miner or validator.
+        """
+        # Ensure miner or validator hotkey is still registered on the network.
+        self.check_registered()
+
+        if self.should_sync_metagraph():
+            self.resync_metagraph()
+
+        if self.should_set_weights():
+            set_weights(self)
+            self.prev_block = ttl_get_block(self)
+
+    def resync_metagraph(self):
+        """Resyncs the metagraph and updates the hotkeys and moving averages based on the new metagraph."""
+        bt.logging.info("resync_metagraph()")
+
+        # Copies state of metagraph before syncing.
+        previous_metagraph = copy.deepcopy(self.metagraph)
+
+        # Sync the metagraph.
+        self.metagraph.sync(subtensor=self.subtensor)
+
+        # Check if the metagraph axon info has changed.
+        if previous_metagraph.axons == self.metagraph.axons:
+            return
+
+        bt.logging.info(
+            "Metagraph updated, re-syncing hotkeys, dendrite pool and moving averages"
+        )
+        # Zero out all hotkeys that have been replaced.
+        for uid, hotkey in enumerate(self.hotkeys):
+            if hotkey != self.metagraph.hotkeys[uid]:
+                self.scores[uid] = 0  # hotkey has been replaced
+
+        # Check to see if the metagraph has changed size.
+        # If so, we need to add new hotkeys and moving averages.
+        if len(self.hotkeys) < len(self.metagraph.hotkeys):
+            # Update the size of the moving average scores.
+            new_moving_average = torch.zeros((self.metagraph.n)).to(
+                self.device
+            )
+            min_len = min(len(self.hotkeys), len(self.scores))
+            new_moving_average[:min_len] = self.scores[:min_len]
+            self.scores = new_moving_average
+
+        # Update the hotkeys.
+        self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+
+    def check_registered(self):
+        # --- Check for registration.
+        if not self.subtensor.is_hotkey_registered(
+            netuid=self.config.netuid,
+            hotkey_ss58=self.wallet.hotkey.ss58_address,
+        ):
+            bt.logging.error(
+                f"Wallet: {self.wallet} is not registered on netuid {self.config.netuid}."
+                f" Please register the hotkey using `btcli subnets register` before trying again"
+            )
+            exit()
+
+    def should_sync_metagraph(self):
+        """
+        Check if enough epoch blocks have elapsed since the last checkpoint to sync.
+        """
+        return (
+            ttl_get_block(self) - self.metagraph.last_update[self.uid]
+        ) > self.config.neuron.epoch_length
+    
+    def should_set_weights(self) -> bool:
+        # Check if enough epoch blocks have elapsed since the last epoch.
+        if self.config.neuron.disable_set_weights:
+            return False
+        return (ttl_get_block(self) % self.prev_block) >= self.config.neuron.epoch_length
 
 def main():
     neuron().run()

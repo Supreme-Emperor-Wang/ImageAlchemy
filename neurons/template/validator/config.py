@@ -117,20 +117,10 @@ def add_args(cls, parser):
     )
 
     parser.add_argument(
-        "--neuron.followup_timeout",
-        type=float,
-        help="Follow up query timeout.",
-        default=10,
-    )
-    parser.add_argument(
         "--neuron.followup_sample_size",
         type=int,
         help="How many miners to query for the follow up prompt.",
         default=50,
-    )
-
-    parser.add_argument(
-        "--neuron.answer_timeout", type=float, help="Answer query timeout.", default=10
     )
     parser.add_argument(
         "--neuron.answer_sample_size",
@@ -237,6 +227,12 @@ def add_args(cls, parser):
         "--wandb.track_gating_model",
         action="store_true",
         help="Track the model weights of the gating model in wandb.",
+        default=False,
+    )
+    parser.add_argument(
+        "--wandb.compress",
+        action="store_true",
+        help="Wether to compress images saved to wandb",
         default=False,
     )
 

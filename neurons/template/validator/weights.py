@@ -25,13 +25,6 @@ from template.validator.utils import ttl_get_block
 import bittensor as bt
 
 
-def should_set_weights(self) -> bool:
-    # Check if enough epoch blocks have elapsed since the last epoch.
-    if self.config.neuron.disable_set_weights:
-        return False
-    return (ttl_get_block(self) % self.prev_block) >= self.config.neuron.epoch_length
-
-
 def set_weights(self):
     # Calculate the average reward for each uid across non-zero values.
     # Replace any NaN values with 0.
