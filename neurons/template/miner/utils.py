@@ -132,22 +132,13 @@ def generate(self, synapse, timeout=10):
     ### Seralize the images
     synapse.images = [bt.Tensor.serialize(transform(image)) for image in images]
     images[0].save("test.png")
-    ### Store the images and prompts for uploading to wandb
-    self.event.update(
-        {
-            "images": [
-                wandb.Image(bt.Tensor.deserialize(image), caption=synapse.prompt)
-                if image != []
-                else wandb.Image(
-                    torch.full([3, 1024, 1024], 255, dtype=torch.float),
-                    caption=synapse.prompt,
-                )
-                for image in synapse.images
-            ],
-        }
-    )
-    #### Log to Wanbd
-    self.wandb._log()
+
+    if self.wandb:
+        ### Store the images and prompts for uploading to wandb
+        self.wandb._add_images(synapse)
+
+        #### Log to Wandb
+        self.wandb._log()
 
     #### Log to console
     output_log(
