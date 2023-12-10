@@ -88,13 +88,12 @@ class StableMiner(BaseMiner):
                 port=self.config.axon.port,
             )
             .attach(
-                self.generate_image,
+                forward_fn=self.is_alive,
+                blacklist_fn=self.blacklist
             )
             .attach(
-                self.is_alive,
-            )
-            .attach(
-                self.blacklist,
+                forward_fn=self.generate_image,
+                blacklist_fn=self.blacklist
             )
             .start()
         )
