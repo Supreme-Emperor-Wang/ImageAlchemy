@@ -38,6 +38,9 @@ class WandbUtils:
         config = {}
         config.update(self.config)
         config["model"] = self.config.model
+
+        wandb.login(self.config.wandb.api_key)
+
         self.wandb = wandb.init(
             project=self.config.wandb.project,
             entity=self.config.wandb.entity,

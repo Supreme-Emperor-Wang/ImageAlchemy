@@ -8,6 +8,7 @@ from template.miner.utils import WHITELISTED_HOTKEYS, generate, output_log
 from template.miner.wandb_utils import WandbUtils
 from template.protocol import ImageGeneration, IsAlive
 
+
 import bittensor as bt
 
 
@@ -47,7 +48,13 @@ class StableMiner(BaseMiner):
         self.stats = self.get_defaults()
 
         ### Start the wandb logging thread if both project and entity have been provided
-        if all([self.config.wandb.project, self.config.wandb.entity]):
+        if all(
+            [
+                self.config.wandb.project,
+                self.config.wandb.entity,
+                self.config.wandb.api_key,
+            ]
+        ):
             self.wandb = WandbUtils(
                 self, self.metagraph, self.config, self.wallet, self.event
             )
