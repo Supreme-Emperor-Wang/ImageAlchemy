@@ -40,8 +40,8 @@ class DefaultRewardFrameworkConfig:
     """
 
     diversity_model_weight: float = 0.05
-    image_model_weight: float = 0.45
-    human_model_weight: float = 0.5
+    image_model_weight: float = 0.95
+    human_model_weight: float = 0
 
 
 class StableDiffusionSafetyChecker(PreTrainedModel):
