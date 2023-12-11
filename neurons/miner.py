@@ -17,6 +17,8 @@ class StableMiner(BaseMiner):
         #### Parse the config
         self.config = self.get_config()
 
+        self.wandb = None
+
         if self.config.logging.debug:
             bt.debug()
             output_log("Enabling debug mode...", type="debug")
