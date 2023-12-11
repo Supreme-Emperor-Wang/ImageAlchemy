@@ -137,20 +137,13 @@ class BaseMiner(ABC):
             self.metagraph.sync(lite=True)
 
     def get_miner_info(self):
-        block = self.metagraph.block.item()
-        stake = self.metagraph.S[self.miner_index]
-        trust = self.metagraph.T[self.miner_index]
-        consensus = self.metagraph.C[self.miner_index]
-        incentive = self.metagraph.I[self.miner_index]
-        emissions = self.metagraph.E[self.miner_index]
-
         return {
-            "block": block,
-            "stake": stake,
-            "trust": trust,
-            "consensus": consensus,
-            "incentive": incentive,
-            "emissions": emissions,
+            "block": self.metagraph.block.item(),
+            "stake": self.metagraph.S[self.miner_index],
+            "trust": self.metagraph.T[self.miner_index],
+            "consensus": self.metagraph.C[self.miner_index],
+            "incentive": self.metagraph.I[self.miner_index],
+            "emissions": self.metagraph.E[self.miner_index],
         }
 
     def get_miner_index(self):
