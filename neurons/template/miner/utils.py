@@ -94,25 +94,36 @@ def generate(self, synapse, timeout=10):
     self.stats.total_requests += 1
     start_time = time.perf_counter()
 
+    bt.logging.info(synapse.generation_type)
+
     ### Set up args
     local_args = copy.copy(self.mapping[synapse.generation_type]["args"])
+    local_args["prompt"] = [synapse.prompt]
+    local_args["target_size"] = (synapse.height, synapse.width)
+
+    ### Get the model
+    model = self.mapping[synapse.generation_type]["model"]
+
     if synapse.generation_type == "image_to_image":
         local_args["image"] = T.transforms.ToPILImage()(
             bt.Tensor.deserialize(synapse.prompt_image)
         )
 
-    bt.logging.info(synapse.generation_type)
-    local_args["prompt"] = [synapse.prompt]
-    local_args["target_size"] = (synapse.height, synapse.width)
-
     ### Output logs
     do_logs(self, synapse, local_args)
 
-    ### Get the model
-    model = self.mapping[synapse.generation_type]["model"]
-
     ### Generate images
-    images = model(**local_args).images
+    images = model(
+        guidance_scale=local_args["guidance_scale"],
+        number_of_inference_steps=local_args["num_inference_steps"],
+        num_images_per_prompt=local_args["num_images_per_prompt"],
+        generator=local_args["generator"],
+        prompt=local_args["prompt"],
+        image=local_args["image"]
+        if synapse.generation_type == "image_to_image"
+        else None,
+        target_size=local_args["target_size"],
+    ).images
 
     if time.perf_counter() - start_time > timeout:
         self.stats.timeouts += 1
