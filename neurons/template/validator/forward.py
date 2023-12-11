@@ -16,6 +16,7 @@ transform = T.Compose([T.PILToTensor()])
 
 
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
+    breakpoint()
     responses = self.loop.run_until_complete(
         self.dendrite(
             axons,
@@ -39,19 +40,20 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Log the results for monitoring purposes.
     bt.logging.info(f"Received response: {responses}")
 
-    # Save images
-    bt.logging.info(f"Saving images")
-    i = 0
-    for r in responses:
-        for image in r.images:
-            T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(
-                f"neurons/validator/images/{i}.png"
-            )
-            i = i + 1
+    if not self.config.neuron.disable_manual_validator:
+        # Save images for manual validator
+        bt.logging.info(f"Saving images")
+        i = 0
+        for r in responses:
+            for image in r.images:
+                T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(
+                    f"neurons/validator/images/{i}.png"
+                )
+                i = i + 1
 
-    bt.logging.info(f"Saving prompt")
-    with open("neurons/validator/images/prompt.txt", "w") as f:
-        f.write(prompt)
+        bt.logging.info(f"Saving prompt")
+        with open("neurons/validator/images/prompt.txt", "w") as f:
+            f.write(prompt)
 
     # Initialise rewards tensor
     rewards: torch.FloatTensor = torch.ones(len(responses), dtype=torch.float32).to(
@@ -152,19 +154,21 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Log the event to wandb.
     if not self.config.wandb.off:
         wandb_event = event.copy()
-        
+
         if self.config.wandb.compress:
-            file_type="jpg"
+            file_type = "jpg"
         else:
-            file_type="png"
+            file_type = "png"
 
         wandb_event["images"] = [
-            wandb.Image(bt.Tensor.deserialize(image), caption=prompt, file_type=file_type)
+            wandb.Image(
+                bt.Tensor.deserialize(image), caption=prompt, file_type=file_type
+            )
             if image != []
             else wandb.Image(
                 torch.full([3, 1024, 1024], 255, dtype=torch.float),
                 caption=prompt,
-                file_type=file_type
+                file_type=file_type,
             )
             for image in wandb_event["images"]
         ]

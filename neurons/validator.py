@@ -155,9 +155,7 @@ class neuron:
         )  # Make sure not to sync without passing subtensor
         self.metagraph.sync(subtensor=self.subtensor)  # Sync metagraph with subtensor.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
-        self.uid = self.metagraph.hotkeys.index(
-            self.wallet.hotkey.ss58_address
-        )
+        self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         bt.logging.debug(str(self.metagraph))
 
         # Init Weights.
@@ -264,12 +262,13 @@ class neuron:
                 followup_image = [image for image in t2i_event["images"]][
                     torch.tensor(t2i_event["rewards"]).argmax()
                 ]
+                breakpoint()
                 if followup_prompt is None:
                     followup_prompt = prompt
                 _ = run_step(
                     self, followup_prompt, axons, uids, "image_to_image", followup_image
                 )
-                
+
                 # Re-sync with the network. Updates the metagraph.
                 self.sync()
 
@@ -285,7 +284,6 @@ class neuron:
             except KeyboardInterrupt:
                 bt.logging.success("Keyboard interrupt detected. Exiting validator.")
                 exit()
-
 
     def sync(self):
         """
@@ -327,9 +325,7 @@ class neuron:
         # If so, we need to add new hotkeys and moving averages.
         if len(self.hotkeys) < len(self.metagraph.hotkeys):
             # Update the size of the moving average scores.
-            new_moving_average = torch.zeros((self.metagraph.n)).to(
-                self.device
-            )
+            new_moving_average = torch.zeros((self.metagraph.n)).to(self.device)
             min_len = min(len(self.hotkeys), len(self.scores))
             new_moving_average[:min_len] = self.scores[:min_len]
             self.scores = new_moving_average
@@ -356,12 +352,15 @@ class neuron:
         return (
             ttl_get_block(self) - self.metagraph.last_update[self.uid]
         ) > self.config.neuron.epoch_length
-    
+
     def should_set_weights(self) -> bool:
         # Check if enough epoch blocks have elapsed since the last epoch.
         if self.config.neuron.disable_set_weights:
             return False
-        return (ttl_get_block(self) % self.prev_block) >= self.config.neuron.epoch_length
+        return (
+            ttl_get_block(self) % self.prev_block
+        ) >= self.config.neuron.epoch_length
+
 
 def main():
     neuron().run()

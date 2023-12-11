@@ -108,7 +108,7 @@ def generate(self, synapse, timeout=10):
         local_args["image"] = T.transforms.ToPILImage()(
             bt.Tensor.deserialize(synapse.prompt_image)
         )
-        breakpoint()
+        # breakpoint()
 
     ### Output logs
     do_logs(self, synapse, local_args)
