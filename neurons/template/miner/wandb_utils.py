@@ -1,3 +1,4 @@
+import copy
 from threading import Timer
 
 from template.miner.utils import output_log
@@ -17,7 +18,6 @@ class WandbTimer(Timer):
 
 class WandbUtils:
     def __init__(self, miner, metagraph, config, wallet, event):
-        # breakpoint()
         self.miner = miner
         self.metagraph = metagraph
         self.config = config
@@ -25,21 +25,27 @@ class WandbUtils:
         self.wandb = None
         self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         self.event = event
-        output_log(
-            f"Wandb starting run with project {self.config.wandb.project} and entity {self.config.wandb.entity}."
-        )
-        # self.timer = WandbTimer(600, self._log, [self])
-        # self.timer.start()
+        self.timer = WandbTimer(600, self._loop, [])
+        self.timer.start()
+
+    def _loop(self):
+        if not self.wandb:
+            self._start_run()
+        else:
+            self._log()
 
     def _start_run(self):
         if self.wandb:
             self._stop_run()
 
-        #### Start new run
+        output_log(
+            f"Wandb starting run with project {self.config.wandb.project} and entity {self.config.wandb.entity}."
+        )
 
-        config = {}
-        config.update(self.config)
+        #### Start new run
+        config = copy.deepcopy(self.config)
         config["model"] = self.config.model
+
         self.wandb = wandb.init(
             project=self.config.wandb.project,
             entity=self.config.wandb.entity,
@@ -54,22 +60,25 @@ class WandbUtils:
         output_log(f"Started new run: {self.wandb.name}", "c")
 
     def _add_images(self, synapse):
-
         ### Store the images and prompts for uploading to wandb
         if self.config.wandb.compress:
-            file_type="jpg"
+            file_type = "jpg"
         else:
-            file_type="png"
+            file_type = "png"
 
         self.event.update(
             {
                 "images": [
-                    wandb.Image(bt.Tensor.deserialize(image), caption=synapse.prompt, file_type=file_type)
+                    wandb.Image(
+                        bt.Tensor.deserialize(image),
+                        caption=synapse.prompt,
+                        file_type=file_type,
+                    )
                     if image != []
                     else wandb.Image(
                         torch.full([3, 1024, 1024], 255, dtype=torch.float),
                         caption=synapse.prompt,
-                        file_type=file_type
+                        file_type=file_type,
                     )
                     for image in synapse.images
                 ],
@@ -80,10 +89,6 @@ class WandbUtils:
         self.wandb.finish()
 
     def _log(self):
-        if not self.wandb:
-            self._start_run()
-            return
-        # breakpoint()
         #### Log incentive, trust, emissions, total requests, timeouts
         self.event.update(self.miner.get_miner_info())
         self.event.update(
