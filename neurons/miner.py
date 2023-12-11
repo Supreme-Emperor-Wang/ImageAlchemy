@@ -58,7 +58,6 @@ class StableMiner(BaseMiner):
             self.wandb = WandbUtils(
                 self, self.metagraph, self.config, self.wallet, self.event
             )
-            self.wandb._start_run()
 
         #### Load the model
         self.t2i_model, self.i2i_model = self.load_models()
@@ -87,13 +86,10 @@ class StableMiner(BaseMiner):
                 external_ip=bt.utils.networking.get_external_ip(),
                 port=self.config.axon.port,
             )
-            .attach(
-                forward_fn=self.is_alive,
-                blacklist_fn=self.blacklist
-            )
+            .attach(forward_fn=self.is_alive, blacklist_fn=self.blacklist_is_alive)
             .attach(
                 forward_fn=self.generate_image,
-                blacklist_fn=self.blacklist
+                blacklist_fn=self.blacklist_image_generation,
             )
             .start()
         )
@@ -114,7 +110,7 @@ class StableMiner(BaseMiner):
         generate(self, synapse)
         return synapse
 
-    def blacklist(self, synapse: ImageGeneration) -> typing.Tuple[bool, str]:
+    def _base_blacklist(self, synapse) -> typing.Tuple[bool, str]:
         if (synapse.dendrite.hotkey not in self.metagraph.hotkeys) and (
             synapse.dendrite.hotkey not in WHITELISTED_HOTKEYS
         ):
@@ -128,6 +124,14 @@ class StableMiner(BaseMiner):
             f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}"
         )
         return False, "Hotkey recognized"
+
+    def blacklist_is_alive(self, synapse: IsAlive) -> typing.Tuple[bool, str]:
+        return self._base_blacklist(synapse)
+
+    def blacklist_image_generation(
+        self, synapse: ImageGeneration
+    ) -> typing.Tuple[bool, str]:
+        return self._base_blacklist(synapse)
 
     def loop(self):
         step = 0
