@@ -262,8 +262,11 @@ class neuron:
                 followup_image = [image for image in t2i_event["images"]][
                     torch.tensor(t2i_event["rewards"]).argmax()
                 ]
-                breakpoint()
-                if followup_prompt is None:
+                if (
+                    (followup_prompt is None)
+                    and (followup_image is not None)
+                    and (followup_image is not [])
+                ):
                     followup_prompt = prompt
                 _ = run_step(
                     self, followup_prompt, axons, uids, "image_to_image", followup_image

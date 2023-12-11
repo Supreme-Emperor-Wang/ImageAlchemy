@@ -245,7 +245,7 @@ def generate_random_prompt_gpt(self):
                 presence_penalty=0,
             )
             new_prompt = response.choices[0].message.content
-            bt.logging.trace(f"follow_up prompt is {new_prompt}")
+            bt.logging.trace(f"T2I prompt is {new_prompt}")
             return new_prompt
 
         except Exception as e:
@@ -278,7 +278,7 @@ def generate_followup_prompt_gpt(self, prompt):
                 presence_penalty=0,
             )
             new_prompt = response.choices[0].message.content
-            bt.logging.trace(f"follow_up prompt is {new_prompt}")
+            bt.logging.trace(f"I2I prompt is {new_prompt}")
             return new_prompt
 
         except Exception as e:

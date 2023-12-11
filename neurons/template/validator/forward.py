@@ -16,7 +16,7 @@ transform = T.Compose([T.PILToTensor()])
 
 
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
-    breakpoint()
+    # breakpoint()
     responses = self.loop.run_until_complete(
         self.dendrite(
             axons,
@@ -160,6 +160,8 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         else:
             file_type = "png"
 
+        # breakpoint()
+        # wandb_event["images"] = [wandb.Image(bt.Tensor.deserialize(image), caption="asda", file_type="jpg")if image != []else wandb.Image(torch.full([3, 1024, 1024], 255, dtype=torch.float),caption="asdas",file_type="jpg",)for image in wandb_event["images"]]
         wandb_event["images"] = [
             wandb.Image(
                 bt.Tensor.deserialize(image), caption=prompt, file_type=file_type
@@ -172,6 +174,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             )
             for image in wandb_event["images"]
         ]
+        # breakpoint()
 
         wandb_event = EventSchema.from_dict(
             wandb_event, self.config.neuron.disable_log_rewards

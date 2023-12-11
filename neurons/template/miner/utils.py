@@ -108,23 +108,12 @@ def generate(self, synapse, timeout=10):
         local_args["image"] = T.transforms.ToPILImage()(
             bt.Tensor.deserialize(synapse.prompt_image)
         )
-        # breakpoint()
+        del local_args["num_inference_steps"]
 
     ### Output logs
     do_logs(self, synapse, local_args)
-
     ### Generate images
-    images = model(
-        guidance_scale=local_args["guidance_scale"],
-        # num_inference_steps=local_args["num_inference_steps"],
-        num_images_per_prompt=local_args["num_images_per_prompt"],
-        generator=local_args["generator"],
-        prompt=local_args["prompt"],
-        image=local_args["image"]
-        if synapse.generation_type == "image_to_image"
-        else None,
-        target_size=local_args["target_size"],
-    ).images
+    images = model(**local_args).images
 
     if time.perf_counter() - start_time > timeout:
         self.stats.timeouts += 1
