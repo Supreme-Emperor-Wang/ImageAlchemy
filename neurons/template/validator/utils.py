@@ -9,6 +9,7 @@ from math import floor
 from typing import Any, Callable, List
 
 import pandas as pd
+import template.validator as validator
 import torch
 import torch.nn as nn
 from template.protocol import IsAlive
@@ -16,7 +17,6 @@ from template.protocol import IsAlive
 import bittensor as bt
 import wandb
 
-# import prompting.validators as validators
 # from prompting.validators.misc import ttl_get_block
 
 # The MIT License (MIT)
@@ -292,8 +292,7 @@ def init_wandb(self, reinit=False):
     """Starts a new wandb run."""
     tags = [
         self.wallet.hotkey.ss58_address,
-        # validators.__version__,
-        # str(validators.__spec_version__),
+        str(validator.__version__),
         f"netuid_{self.metagraph.netuid}",
     ]
 

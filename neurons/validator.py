@@ -265,13 +265,16 @@ class neuron:
                 if (
                     (followup_prompt is None)
                     and (followup_image is not None)
-                    and (followup_image is not [])
+                    and (followup_image != [])
                 ):
-                    followup_prompt = prompt
-                _ = run_step(
-                    self, followup_prompt, axons, uids, "image_to_image", followup_image
-                )
-
+                    _ = run_step(
+                        self,
+                        followup_prompt,
+                        axons,
+                        uids,
+                        "image_to_image",
+                        followup_image,
+                    )
                 # Re-sync with the network. Updates the metagraph.
                 self.sync()
 

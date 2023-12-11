@@ -1,11 +1,12 @@
 import copy
 from threading import Timer
 
+import template.validator as validator
+import torch
 from template.miner.utils import output_log
 
-import wandb
-import torch
 import bittensor as bt
+import wandb
 
 
 #### Wandb functions
@@ -46,10 +47,17 @@ class WandbUtils:
         config = copy.deepcopy(self.config)
         config["model"] = self.config.model
 
+        tags = [
+            self.wallet.hotkey.ss58_address,
+            str(validator.__version__),
+            f"netuid_{self.metagraph.netuid}",
+        ]
+
         self.wandb = wandb.init(
             project=self.config.wandb.project,
             entity=self.config.wandb.entity,
             config=config,
+            tags=tags,
         )
 
         #### Take the first two random words plus the name of the wallet, hotkey name and uid

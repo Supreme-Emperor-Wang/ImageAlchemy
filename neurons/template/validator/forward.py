@@ -1,3 +1,4 @@
+import copy
 import os
 import time
 from dataclasses import asdict
@@ -16,7 +17,6 @@ transform = T.Compose([T.PILToTensor()])
 
 
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
-    # breakpoint()
     responses = self.loop.run_until_complete(
         self.dendrite(
             axons,
@@ -153,32 +153,32 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     # Log the event to wandb.
     if not self.config.wandb.off:
-        wandb_event = event.copy()
+        wandb_event = copy.deepcopy(event)
 
         if self.config.wandb.compress:
             file_type = "jpg"
         else:
             file_type = "png"
 
-        # breakpoint()
-        # wandb_event["images"] = [wandb.Image(bt.Tensor.deserialize(image), caption="asda", file_type="jpg")if image != []else wandb.Image(torch.full([3, 1024, 1024], 255, dtype=torch.float),caption="asdas",file_type="jpg",)for image in wandb_event["images"]]
-        wandb_event["images"] = [
-            wandb.Image(
-                bt.Tensor.deserialize(image), caption=prompt, file_type=file_type
-            )
-            if image != []
-            else wandb.Image(
-                torch.full([3, 1024, 1024], 255, dtype=torch.float),
-                caption=prompt,
-                file_type=file_type,
-            )
-            for image in wandb_event["images"]
-        ]
-        # breakpoint()
+        for e, image in enumerate(wandb_event["images"]):
+            if image == []:
+                wandb_event["images"][e] = wandb.Image(
+                    torch.full([3, 1024, 1024], 255, dtype=torch.float),
+                    caption=prompt,
+                    file_type=file_type,
+                )
+            else:
+                if image.shape != [3, 1024, 1024]:
+                    breakpoint()
+                    # TODO penalise wrong response sizes
+                wandb_event["images"][e] = wandb.Image(
+                    bt.Tensor.deserialize(image),
+                    caption=prompt,
+                    file_type=file_type,
+                )
 
         wandb_event = EventSchema.from_dict(
             wandb_event, self.config.neuron.disable_log_rewards
         )
         self.wandb.log(asdict(wandb_event))
-
     return event
