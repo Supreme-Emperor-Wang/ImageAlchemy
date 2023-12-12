@@ -122,7 +122,7 @@ def generate(self, synapse, timeout=10):
 
     ### Set up args
     local_args = copy.copy(self.mapping[synapse.generation_type]["args"])
-    local_args["prompt"] = [clean_nsfw_from_prompt(prompt)]
+    local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
     local_args["target_size"] = (synapse.height, synapse.width)
 
     ### Get the model
