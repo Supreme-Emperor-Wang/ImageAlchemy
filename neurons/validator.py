@@ -204,9 +204,8 @@ class neuron:
         self.loop = asyncio.get_event_loop()
 
         # Init wandb.
-        if not self.config.wandb.off:
-            bt.logging.debug("loading", "wandb")
-            init_wandb(self)
+        bt.logging.debug("loading", "wandb")
+        init_wandb(self)
 
         # Init manual validator
         if not self.config.neuron.disable_manual_validator:

@@ -185,55 +185,10 @@ def add_args(cls, parser):
     )
 
     parser.add_argument(
-        "--wandb.off", action="store_true", help="Turn off wandb.", default=False
-    )
-    parser.add_argument(
-        "--wandb.project_name",
-        type=str,
-        help="The name of the project where you are sending the new run.",
-        default="ImageAlchemy",
-    )
-    parser.add_argument(
-        "--wandb.entity",
-        type=str,
-        help="An entity is a username or team name where youre sending runs.",
-        default="tensoralchemy",
-    )
-    parser.add_argument(
-        "--wandb.offline",
-        action="store_true",
-        help="Runs wandb in offline mode.",
-        default=False,
-    )
-    parser.add_argument(
-        "--wandb.weights_step_length",
-        type=int,
-        help="How many steps before we log the weights.",
-        default=10,
-    )
-    parser.add_argument(
-        "--wandb.run_step_length",
-        type=int,
-        help="How many steps before we rollover to a new run.",
-        default=1500,
-    )
-    parser.add_argument(
         "--wandb.notes",
         type=str,
         help="Notes to add to the wandb run.",
         default="",
-    )
-    parser.add_argument(
-        "--wandb.track_gating_model",
-        action="store_true",
-        help="Track the model weights of the gating model in wandb.",
-        default=False,
-    )
-    parser.add_argument(
-        "--wandb.compress",
-        action="store_true",
-        help="Wether to compress images saved to wandb",
-        default=False,
     )
 
     # Mocks

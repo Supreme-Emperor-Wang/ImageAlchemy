@@ -46,6 +46,7 @@ python -m neurons/miner.py
     --logging.debug # Run in debug mode, alternatively --logging.trace for trace mode
     --wandb.entity <your wanbd entity> 
     --wandb.project <your wadnb project>
+    --wandb.api <your wandb_api_key> # Your wanbd api key
 ```
 
 ---
