@@ -146,8 +146,8 @@ def generate(self, synapse, timeout=10):
     synapse.images = [bt.Tensor.serialize(transform(image)) for image in images]
 
     ### Log NSFW images
-    if nsfw_image_filter(images):
-        bt.logging.debug(f"NSFW image detected in outputs")
+    # if nsfw_image_filter(self, images):
+    #     bt.logging.debug(f"NSFW image detected in outputs")
 
     ### Log to wandb
     if self.wandb:
