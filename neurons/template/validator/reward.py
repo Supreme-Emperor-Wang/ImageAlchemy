@@ -24,6 +24,8 @@ from transformers import (
 
 import bittensor as bt
 
+transform = T.Compose([T.PILToTensor()])
+
 
 class RewardModelType(Enum):
     diversity = "diversity_reward_model"
@@ -119,11 +121,6 @@ class StableDiffusionSafetyChecker(PreTrainedModel):
                     concept_cos - (concept_threshold * adjustment), 3
                 )
                 if result_img["concept_scores"][concept_idx] > 0:
-                    print(
-                        "bad concept",
-                        concept_idx,
-                        result_img["concept_scores"][concept_idx],
-                    )
                     result_img["bad_concepts"].append(concept_idx)
                     result_img["bad_score"] += result_img["concept_scores"][concept_idx]
 
@@ -138,13 +135,12 @@ class StableDiffusionSafetyChecker(PreTrainedModel):
                 if torch.is_tensor(images) or torch.is_tensor(images[0]):
                     images[idx] = torch.zeros_like(images[idx])  # black image
                 else:
-                    # images[idx] is a PIL image, so we can't use .shape, convert using transform
                     try:
                         images[idx] = np.zeros(
                             transform(images[idx]).shape
                         )  # black image
                     except:
-                        images[idx] = np.zeros((512, 512, 3))
+                        images[idx] = np.zeros((1024, 1024, 3))
 
         if any(has_nsfw_concepts):
             print(
@@ -333,7 +329,6 @@ class NSFWRewardModel(BaseRewardModel):
     def __init__(self):
         super().__init__()
         self.device = "cuda"
-        # torch.device(self.config.device if torch.cuda.is_available() else "cpu")
         self.safetychecker = StableDiffusionSafetyChecker.from_pretrained(
             "CompVis/stable-diffusion-safety-checker"
         ).to(self.device)
@@ -360,11 +355,6 @@ class NSFWRewardModel(BaseRewardModel):
             any_nsfw = any(has_nsfw_concept)
             if any_nsfw:
                 return 0.0
-
-            # # remove all nsfw images from the response
-            # for j, has_nsfw in enumerate(has_nsfw_concept):
-            #     if has_nsfw:
-            #         del responses[i].images[j]
 
         except Exception as e:
             print(response.images)
@@ -397,11 +387,6 @@ class ImageRewardModel(BaseRewardModel):
         self.scoring_model = RM.load("ImageReward-v1.0", device=self.device)
 
     def reward(self, response) -> float:
-        # # if theres no images, skip this response.
-        # if len(response.images) == 0:
-        #     top_images.append(None)
-        #     continue
-
         img_scores = torch.zeros(len(response.images), dtype=torch.float32)
         try:
             with torch.no_grad():

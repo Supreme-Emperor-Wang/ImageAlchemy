@@ -41,14 +41,12 @@ class BaseMiner(ABC):
         return {
             "guidance_scale": self.config.miner.guidance_scale,
             "num_inference_steps": self.config.miner.steps,
-            "num_images_per_prompt": self.config.miner.num_images,
             "generator": torch.Generator(device=self.config.miner.device).manual_seed(
                 self.config.miner.seed
             ),
         }, {
             "guidance_scale": self.config.miner.guidance_scale,
             "num_inference_steps": self.config.miner.steps,
-            "num_images_per_prompt": self.config.miner.num_images,
             "generator": torch.Generator(device=self.config.miner.device).manual_seed(
                 self.config.miner.seed
             ),
@@ -122,11 +120,12 @@ class BaseMiner(ABC):
         )
         i2i_model.set_progress_bar_config(disable=True)
 
-        safetychecker = StableDiffusionSafetyChecker.from_pretrained(
+        safety_checker = StableDiffusionSafetyChecker.from_pretrained(
             "CompVis/stable-diffusion-safety-checker"
         ).to(self.config.miner.device)
         processor = CLIPImageProcessor()
-        return t2i_model, i2i_model, safetychecker, processor
+
+        return t2i_model, i2i_model, safety_checker, processor
 
     def add_args(cls, argp: argparse.ArgumentParser):
         pass

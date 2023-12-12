@@ -65,7 +65,7 @@ class StableMiner(BaseMiner):
             self.t2i_model,
             self.i2i_model,
             self.safety_checker,
-            self.processer,
+            self.processor,
         ) = self.load_models()
 
         #### Optimize model

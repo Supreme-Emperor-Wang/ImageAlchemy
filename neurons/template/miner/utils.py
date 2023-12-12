@@ -118,8 +118,6 @@ def generate(self, synapse, timeout=10):
     self.stats.total_requests += 1
     start_time = time.perf_counter()
 
-    bt.logging.info(synapse.generation_type)
-
     ### Set up args
     local_args = copy.copy(self.mapping[synapse.generation_type]["args"])
     local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
@@ -146,8 +144,9 @@ def generate(self, synapse, timeout=10):
     synapse.images = [bt.Tensor.serialize(transform(image)) for image in images]
 
     ### Log NSFW images
-    # if nsfw_image_filter(self, images):
-    #     bt.logging.debug(f"NSFW image detected in outputs")
+    if any(nsfw_image_filter(self, images)):
+        bt.logging.debug(f"NSFW image detected in outputs")
+        synapse.images = []
 
     ### Log to wandb
     if self.wandb:
@@ -167,7 +166,7 @@ def nsfw_image_filter(self, images):
     clip_input = self.processor(
         [transform(image) for image in images], return_tensors="pt"
     ).to(self.config.miner.device)
-    images, nsfw = self.safetychecker.forward(
+    images, nsfw = self.safety_checker.forward(
         images=images, clip_input=clip_input.pixel_values.to(self.config.miner.device)
     )
 
@@ -177,6 +176,6 @@ def nsfw_image_filter(self, images):
 def clean_nsfw_from_prompt(prompt):
     for word in NSFW_WORDS:
         if word in prompt:
-            prompt = prompt.replace(word, "")
+            prompt = prompt.replace(f" {word}", "")
             bt.logging.debug(f"Removed NSFW word {word.strip()} from prompt...")
     return prompt

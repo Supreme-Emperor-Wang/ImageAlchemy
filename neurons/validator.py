@@ -263,7 +263,7 @@ class neuron:
                     torch.tensor(t2i_event["rewards"]).argmax()
                 ]
                 if (
-                    (followup_prompt is None)
+                    (followup_prompt is not None)
                     and (followup_image is not None)
                     and (followup_image != [])
                 ):
