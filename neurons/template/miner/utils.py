@@ -88,7 +88,7 @@ def do_logs(self, synapse, local_args):
     Output logs for each request that comes through.
     """
     time_elapsed = datetime.now() - self.stats.start_time
-    num_images = local_args["num_images_per_prompt"]
+    num_images = 1
 
     output_log(
         f"{sh('Info')} -> Date {datetime.strftime(self.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.stats.total_requests/(time_elapsed.total_seconds()/60):.2f} | Model {self.config.miner.model} | Seed {self.config.miner.seed}.",
