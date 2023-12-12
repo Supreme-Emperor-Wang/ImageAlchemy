@@ -10,6 +10,8 @@ from typing import Dict
 import torch
 from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
 from template.miner.utils import output_log
+from template.validator.reward import StableDiffusionSafetyChecker
+from transformers import CLIPImageProcessor
 
 import bittensor as bt
 
@@ -75,6 +77,12 @@ class BaseMiner(ABC):
             type=str,
             default="stabilityai/stable-diffusion-xl-base-1.0",
         )
+        argp.add_argument(
+            "--miner.nsfw_filter",
+            action="store_true",
+            help="Applies an nsfw filter on the miner's outputs",
+            default=True,
+        )
 
         bt.subtensor.add_args(argp)
         bt.logging.add_args(argp)
@@ -110,10 +118,15 @@ class BaseMiner(ABC):
 
         ### Load the image to image model using the same pipeline (efficient)
         i2i_model = AutoPipelineForImage2Image.from_pipe(t2i_model).to(
-            self.config.miner.device
+            self.config.miner.device,
         )
         i2i_model.set_progress_bar_config(disable=True)
-        return t2i_model, i2i_model
+
+        safetychecker = StableDiffusionSafetyChecker.from_pretrained(
+            "CompVis/stable-diffusion-safety-checker"
+        ).to(self.config.miner.device)
+        processor = CLIPImageProcessor()
+        return t2i_model, i2i_model, safetychecker, processor
 
     def add_args(cls, argp: argparse.ArgumentParser):
         pass

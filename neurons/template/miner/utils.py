@@ -8,9 +8,6 @@ import torchvision.transforms as transforms
 import torchvision.transforms as T
 
 import bittensor as bt
-import wandb
-
-transform = transforms.Compose([transforms.PILToTensor()])
 
 
 #### Wrapper for the raw images
@@ -31,6 +28,33 @@ COLORS = {
 }
 
 WHITELISTED_HOTKEYS = ["5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta"]
+
+NSFW_WORDS = [
+    "hentai",
+    "loli",
+    "lolita",
+    "naked",
+    "undress",
+    "undressed",
+    "nude",
+    "sexy",
+    "sex",
+    "porn",
+    "orgasm",
+    "cum",
+    "cumming",
+    "penis",
+    "cock",
+    "dick",
+    "vagina",
+    "pussy",
+    "anus",
+    "ass",
+    "asshole",
+    "tits",
+]
+
+transform = transforms.Compose([transforms.PILToTensor()])
 
 
 #### Utility function for coloring logs
@@ -98,7 +122,7 @@ def generate(self, synapse, timeout=10):
 
     ### Set up args
     local_args = copy.copy(self.mapping[synapse.generation_type]["args"])
-    local_args["prompt"] = [synapse.prompt]
+    local_args["prompt"] = [clean_nsfw_from_prompt(prompt)]
     local_args["target_size"] = (synapse.height, synapse.width)
 
     ### Get the model
@@ -121,6 +145,10 @@ def generate(self, synapse, timeout=10):
     ### Seralize the images
     synapse.images = [bt.Tensor.serialize(transform(image)) for image in images]
 
+    ### Log NSFW images
+    if nsfw_image_filter(images):
+        bt.logging.debug(f"NSFW image detected in outputs")
+
     ### Log to wandb
     if self.wandb:
         ### Store the images and prompts for uploading to wandb
@@ -133,3 +161,22 @@ def generate(self, synapse, timeout=10):
     output_log(
         f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.", color_key="y"
     )
+
+
+def nsfw_image_filter(self, images):
+    clip_input = self.processor(
+        [transform(image) for image in images], return_tensors="pt"
+    ).to(self.config.miner.device)
+    images, nsfw = self.safetychecker.forward(
+        images=images, clip_input=clip_input.pixel_values.to(self.config.miner.device)
+    )
+
+    return nsfw
+
+
+def clean_nsfw_from_prompt(prompt):
+    for word in NSFW_WORDS:
+        if word in prompt:
+            prompt = prompt.replace(word, "")
+            bt.logging.debug(f"Removed NSFW word {word.strip()} from prompt...")
+    return prompt

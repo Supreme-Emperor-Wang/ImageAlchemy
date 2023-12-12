@@ -8,7 +8,6 @@ from template.miner.utils import WHITELISTED_HOTKEYS, generate, output_log
 from template.miner.wandb_utils import WandbUtils
 from template.protocol import ImageGeneration, IsAlive
 
-
 import bittensor as bt
 
 
@@ -62,7 +61,12 @@ class StableMiner(BaseMiner):
             )
 
         #### Load the model
-        self.t2i_model, self.i2i_model = self.load_models()
+        (
+            self.t2i_model,
+            self.i2i_model,
+            self.safety_checker,
+            self.processer,
+        ) = self.load_models()
 
         #### Optimize model
         if self.config.miner.optimize:

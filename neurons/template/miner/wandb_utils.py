@@ -1,7 +1,6 @@
 import copy
 from threading import Timer
 
-# import template.validator as validator
 import torch
 from template.miner.utils import output_log
 
@@ -49,7 +48,6 @@ class WandbUtils:
 
         tags = [
             self.wallet.hotkey.ss58_address,
-            # str(validator.__version__),
             f"netuid_{self.metagraph.netuid}",
         ]
 

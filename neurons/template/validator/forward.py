@@ -168,9 +168,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     file_type=file_type,
                 )
             else:
-                if image.shape != [3, 1024, 1024]:
-                    breakpoint()
-                    # TODO penalise wrong response sizes
                 wandb_event["images"][e] = wandb.Image(
                     bt.Tensor.deserialize(image),
                     caption=prompt,
