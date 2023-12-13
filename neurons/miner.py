@@ -112,12 +112,12 @@ class StableMiner(BaseMiner):
         synapse.completion = "True"
         return synapse
 
-    def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
-        generate(self, synapse)
+    async def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
+        await generate(self, synapse)
         return synapse
 
     def _base_blacklist(
-        self, synapse, vpermit_tao_limit=-100
+        self, synapse, vpermit_tao_limit=1024
     ) -> typing.Tuple[bool, str]:
         try:
             hotkey = synapse.dendrite.hotkey

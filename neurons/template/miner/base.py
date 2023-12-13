@@ -41,15 +41,9 @@ class BaseMiner(ABC):
         return {
             "guidance_scale": self.config.miner.guidance_scale,
             "num_inference_steps": self.config.miner.steps,
-            "generator": torch.Generator(device=self.config.miner.device).manual_seed(
-                self.config.miner.seed
-            ),
         }, {
             "guidance_scale": self.config.miner.guidance_scale,
             "num_inference_steps": self.config.miner.steps,
-            "generator": torch.Generator(device=self.config.miner.device).manual_seed(
-                self.config.miner.seed
-            ),
         }
 
     def get_config(self) -> "bt.config":

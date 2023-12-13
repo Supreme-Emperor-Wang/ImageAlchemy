@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import time
 import traceback
@@ -114,7 +115,7 @@ def do_logs(self, synapse, local_args):
 ### mapping["text_to_image"]["args"]
 
 
-def generate(self, synapse, timeout=10):
+async def generate(self, synapse, timeout=10):
     """
     Image generation logic shared between both text-to-image and image-to-image
     """
@@ -122,7 +123,7 @@ def generate(self, synapse, timeout=10):
     start_time = time.perf_counter()
 
     ### Set up args
-    local_args = copy.copy(self.mapping[synapse.generation_type]["args"])
+    local_args = copy.deepcopy(self.mapping[synapse.generation_type]["args"])
     local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
     local_args["target_size"] = (synapse.height, synapse.width)
 
@@ -139,13 +140,22 @@ def generate(self, synapse, timeout=10):
     do_logs(self, synapse, local_args)
     ### Generate images & serialize
 
-    try:
-        images = model(**local_args).images
-        synapse.images = [bt.Tensor.serialize(transform(image)) for image in images]
-    except Exception as e:
-        bt.logging.error(f"errror in blacklist {traceback.format_exc()}")
-        images = []
-        synapse.images = []
+    for attempt in range(3):
+        try:
+            images = model(**local_args).images
+            synapse.images = [bt.Tensor.serialize(transform(image)) for image in images]
+            output_log(
+                f"{sh('Generating')} -> Succesful image generation after {attempt+1} attempt(s)"
+            )
+            break
+        except Exception as e:
+            bt.logging.error(
+                f"errror in attempt number {attempt+1} to generate an image"
+            )
+            asyncio.sleep(5)
+            if attempt == 2:
+                images = []
+                synapse.images = []
 
     if time.perf_counter() - start_time > timeout:
         self.stats.timeouts += 1

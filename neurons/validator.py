@@ -225,7 +225,7 @@ class neuron:
         while True:
             try:
                 # Reduce calls to miner to be approximately 1 per 5 minutes
-                while (ttl_get_block(self) - self.prev_block) < 25:
+                while (ttl_get_block(self) - self.prev_block) < 1:
                     sleep(10)
                     bt.logging.info(
                         "waiting for 5 minutes before queriying miners again"

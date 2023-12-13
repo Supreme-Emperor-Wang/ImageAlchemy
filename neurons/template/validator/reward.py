@@ -262,8 +262,6 @@ class BaseRewardModel:
         ):
             filled_rewards[idx] = reward
             filled_rewards_normalized[idx] = reward_normalized
-        if sum(torch.isnan(filled_rewards)) > 0:
-            breakpoint()
         # Return the filled rewards.
         return filled_rewards, filled_rewards_normalized
 
