@@ -123,7 +123,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     self.moving_averaged_scores: torch.FloatTensor = alpha * scattered_rewards + (
         1 - alpha
     ) * self.moving_averaged_scores.to(self.device)
-
     try:
         # Log the step event.
         event.update(

@@ -1,9 +1,9 @@
 import copy
 import time
+import traceback
 from datetime import datetime
 from typing import Dict, List
 
-import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
 
@@ -27,7 +27,10 @@ COLORS = {
     "w": "\033[1;37;40m",
 }
 
-WHITELISTED_HOTKEYS = ["5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta"]
+WHITELISTED_HOTKEYS = [
+    "5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta",
+    "5D1rWnzozRX68ZqKTPXZAFWTJ8hHpox283yWFmsdNjxhRCdB",
+]
 
 NSFW_WORDS = [
     "hentai",
@@ -134,14 +137,18 @@ def generate(self, synapse, timeout=10):
 
     ### Output logs
     do_logs(self, synapse, local_args)
-    ### Generate images
-    images = model(**local_args).images
+    ### Generate images & serialize
+
+    try:
+        images = model(**local_args).images
+        synapse.images = [bt.Tensor.serialize(transform(image)) for image in images]
+    except Exception as e:
+        bt.logging.error(f"errror in blacklist {traceback.format_exc()}")
+        images = []
+        synapse.images = []
 
     if time.perf_counter() - start_time > timeout:
         self.stats.timeouts += 1
-
-    ### Seralize the images
-    synapse.images = [bt.Tensor.serialize(transform(image)) for image in images]
 
     ### Log NSFW images
     if any(nsfw_image_filter(self, images)):

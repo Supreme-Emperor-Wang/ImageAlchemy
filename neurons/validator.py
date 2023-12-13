@@ -225,7 +225,7 @@ class neuron:
         while True:
             try:
                 # Reduce calls to miner to be approximately 1 per 5 minutes
-                while (ttl_get_block(self) - self.prev_block) < 1:
+                while (ttl_get_block(self) - self.prev_block) < 25:
                     sleep(10)
                     bt.logging.info(
                         "waiting for 5 minutes before queriying miners again"
@@ -256,7 +256,6 @@ class neuron:
                 t2i_event = run_step(
                     self, prompt, axons, uids, task_type="text_to_image"
                 )
-
                 # Image to Image Run
                 followup_image = [image for image in t2i_event["images"]][
                     torch.tensor(t2i_event["rewards"]).argmax()

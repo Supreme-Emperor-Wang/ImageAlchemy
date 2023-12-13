@@ -116,20 +116,51 @@ class StableMiner(BaseMiner):
         generate(self, synapse)
         return synapse
 
-    def _base_blacklist(self, synapse) -> typing.Tuple[bool, str]:
-        if (synapse.dendrite.hotkey not in self.metagraph.hotkeys) and (
-            synapse.dendrite.hotkey not in WHITELISTED_HOTKEYS
-        ):
-            # Ignore requests from unrecognized entities.
-            bt.logging.trace(
-                f"Blacklisting unrecognized hotkey: {synapse.dendrite.hotkey}"
-            )
-            return True, "Unrecognized hotkey"
+    def _base_blacklist(
+        self, synapse, vpermit_tao_limit=-100
+    ) -> typing.Tuple[bool, str]:
+        try:
+            hotkey = synapse.dendrite.hotkey
+            synapse_type = type(synapse).__name__
 
-        bt.logging.trace(
-            f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}"
-        )
-        return False, "Hotkey recognized"
+            uid = None
+            axon = None
+            for _uid, _axon in enumerate(self.metagraph.axons):
+                if _axon.hotkey == hotkey:
+                    uid = _uid
+                    axon = _axon
+                    break
+
+            if hotkey in WHITELISTED_HOTKEYS:
+                bt.logging.trace(
+                    f"Not Blacklisting whitelisted hotkey {synapse.dendrite.hotkey}"
+                )
+                return False, "Hotkey recognized"
+
+            if uid is None:
+                bt.logging.trace(
+                    f"Blacklisting unrecognized hotkey: {synapse.dendrite.hotkey}"
+                )
+                return (
+                    True,
+                    f"Blacklisted a non registered hotkey's {synapse_type} request from {hotkey}",
+                )
+
+            # Check stake if uid is recognize
+            tao = self.metagraph.neurons[uid].stake.tao
+            if tao < vpermit_tao_limit:
+                return (
+                    True,
+                    f"Blacklisted a low stake {synapse_type} request: {tao} < {vpermit_tao_limit} from {hotkey}",
+                )
+
+            bt.logging.trace(
+                f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}"
+            )
+            return False, "Hotkey recognized"
+
+        except Exception as e:
+            bt.logging.error(f"errror in blacklist {traceback.format_exc()}")
 
     def blacklist_is_alive(self, synapse: IsAlive) -> typing.Tuple[bool, str]:
         return self._base_blacklist(synapse)
