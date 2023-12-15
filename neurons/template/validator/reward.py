@@ -22,6 +22,8 @@ from transformers import (
     PreTrainedModel,
 )
 
+from template.validator.safety import StableDiffusionSafetyChecker
+
 import bittensor as bt
 
 transform = T.Compose([T.PILToTensor()])
@@ -44,33 +46,6 @@ class DefaultRewardFrameworkConfig:
     diversity_model_weight: float = 0.05
     image_model_weight: float = 0.95
     human_model_weight: float = 0
-
-
-class StableDiffusionSafetyChecker(PreTrainedModel):
-    config_class = CLIPConfig
-
-    _no_split_modules = ["CLIPEncoderLayer"]
-
-    def __init__(self, config: CLIPConfig):
-        super().__init__(config)
-
-        self.vision_model = CLIPVisionModel(config.vision_config)
-        self.visual_projection = nn.Linear(
-            config.vision_config.hidden_size, config.projection_dim, bias=False
-        )
-
-        self.concept_embeds = nn.Parameter(
-            torch.ones(17, config.projection_dim), requires_grad=False
-        )
-        self.special_care_embeds = nn.Parameter(
-            torch.ones(3, config.projection_dim), requires_grad=False
-        )
-
-        self.concept_embeds_weights = nn.Parameter(torch.ones(17), requires_grad=False)
-        self.special_care_embeds_weights = nn.Parameter(
-            torch.ones(3), requires_grad=False
-        )
-        self.transform = transforms.Compose([transforms.PILToTensor()])
 
     @torch.no_grad()
     def forward(self, clip_input, images):

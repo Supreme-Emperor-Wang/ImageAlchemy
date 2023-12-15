@@ -10,8 +10,8 @@ from typing import Dict
 import torch
 from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
 from template.miner.utils import output_log
-from template.validator.reward import StableDiffusionSafetyChecker
 from transformers import CLIPImageProcessor
+from template.validator.safety import StableDiffusionSafetyChecker
 
 import bittensor as bt
 
