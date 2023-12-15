@@ -1,9 +1,17 @@
 import asyncio
 import copy
+from threading import Timer
 import time
 import traceback
 from datetime import datetime
 from typing import Dict, List
+from google.cloud import storage
+
+from template.miner.constants import (
+    IA_BUCKET_NAME,
+    IA_MINER_BLACKLIST,
+    IA_MINER_WHITELIST,
+)
 
 import torchvision.transforms as transforms
 import torchvision.transforms as T
@@ -87,6 +95,63 @@ def get_caller_stake(self, synapse):
     return None
 
 
+#### Background Loop
+class BackgroundTimer(Timer):
+    def run(self):
+        self.function(*self.args, **self.kwargs)
+        while not self.finished.wait(self.interval):
+            self.function(*self.args, **self.kwargs)
+
+
+def background_loop(self):
+    """
+    Handles terminating the miner after deregistration and updating the blacklist and whitelist.
+    """
+    #### Terminate the miner after deregistration
+
+    #### Update the whitelists and blacklists
+
+    if not self.storage_client:
+        self.storage_client = storage.Client.create_anonymous_client()
+
+    blacklist_for_miners = retrieve_public_file(
+        self.storage_client, IA_BUCKET_NAME, IA_MINER_BLACKLIST
+    )
+
+    if blacklist_for_miners:
+        self.hotkey_blacklist = set(
+            [k for k, v in blacklist_for_miners.items() if v["type"] == "hotkey"]
+        )
+        self.coldkey_blacklist = set(
+            [k for k, v in blacklist_for_miners.items() if v["type"] == "coldkey"]
+        )
+
+    whitelist_for_miners = retrieve_public_file(
+        self.storage_client, IA_BUCKET_NAME, IA_MINER_WHITELIST
+    )
+
+    if whitelist_for_miners:
+        self.hotkey_whitelist = set(
+            [k for k, v in whitelist_for_miners.items() if v["type"] == "hotkey"]
+        )
+
+
+def retrieve_public_file(client, bucket_name, source_name):
+    file = None
+    try:
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(source_name)
+        file = blob.download_as_text()
+
+        print(
+            f"Successfully downloaded file: {source_name} of type {type(file)} from {bucket_name}"
+        )
+    except Exception as e:
+        bt.logging.error(f"An error occurred downloading from Google Cloud: {e}")
+
+    return file
+
+
 def do_logs(self, synapse, local_args):
     """
     Output logs for each request that comes through.
@@ -99,20 +164,39 @@ def do_logs(self, synapse, local_args):
         color_key="g",
     )
     output_log(
-        f"{sh('Stats')} -> Type: {synapse.generation_type} | Total requests {self.stats.total_requests} | Timeouts {self.stats.timeouts}.",
+        f"{sh('Request')} -> Type: {synapse.generation_type} | Total requests {self.stats.total_requests:,} | Timeouts {self.stats.timeouts:,}",
         color_key="y",
+    )
+    args_list = [
+        f"{k.capitalize()}: {f'{v:.2f}' if isinstance(v, float) else v}"
+        for k, v in local_args.items()
+    ]
+    output_log(f"{sh('Args')} -> {' | '.join(args_list)}", color_key="m")
+
+    miner_info = self.get_miner_info()
+    output_log(
+        f"{sh('Stats')} -> Block: {miner_info['block']} | Stake: {miner_info['stake']:.2f} | Incentive: {miner_info['incentive']:.2f} | Trust: {miner_info['trust']:.2f} | Consensus: {miner_info['consensus']:.2f}",
+        color_key="c",
     )
     requester_stake = get_caller_stake(self, synapse)
     if not requester_stake:
         requester_stake = -1
     output_log(
         f"{sh('Caller')} -> Stake {int(requester_stake):,} | Hotkey {synapse.dendrite.hotkey}",
-        color_key="c",
+        color_key="y",
     )
-    output_log(f"{sh('Generating')} -> {num_images} image(s)")
+    output_log(f"{sh('Generating')} -> {num_images} image(s)", color_key="c")
 
 
 ### mapping["text_to_image"]["args"]
+
+
+def warm_up(model, local_args):
+    """
+    Warm the model up if using optimization.
+    """
+    images = model(**local_args).images
+    bt.logging.debug("Warm up is complete...")
 
 
 async def generate(self, synapse, timeout=10):
