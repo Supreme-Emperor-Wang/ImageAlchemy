@@ -5,10 +5,10 @@ import typing
 import torch
 from template.miner.base import BaseMiner, Stats
 from template.miner.utils import (
-    WHITELISTED_HOTKEYS,
     BackgroundTimer,
     background_loop,
     generate,
+    get_caller_stake,
     output_log,
     warm_up,
 )
@@ -77,6 +77,7 @@ class StableMiner(BaseMiner):
             )
 
         #### Start the generic background loop
+        self.background_steps = 1
         self.background_timer = BackgroundTimer(600, background_loop, [self])
 
         #### Load the model
@@ -142,40 +143,29 @@ class StableMiner(BaseMiner):
             hotkey = synapse.dendrite.hotkey
             synapse_type = type(synapse).__name__
 
-            uid = None
-            axon = None
-            for _uid, _axon in enumerate(self.metagraph.axons):
-                if _axon.hotkey == hotkey:
-                    uid = _uid
-                    axon = _axon
-                    break
+            caller_stake = get_caller_stake(self, synapse)
 
-            if hotkey in WHITELISTED_HOTKEYS:
-                bt.logging.trace(
-                    f"Not Blacklisting whitelisted hotkey {synapse.dendrite.hotkey}"
-                )
-                return False, "Hotkey recognized"
+            if hotkey in self.hotkey_whitelist:
+                bt.logging.trace(f"Whitelisting hotkey {synapse.dendrite.hotkey}")
+                return False, "Whitelisted hotkey recognized"
 
-            if uid is None:
+            if caller_stake is None:
                 bt.logging.trace(
                     f"Blacklisting unrecognized hotkey: {synapse.dendrite.hotkey}"
                 )
                 return (
                     True,
-                    f"Blacklisted a non registered hotkey's {synapse_type} request from {hotkey}",
+                    f"Blacklisted a non-registered hotkey's {synapse_type} request from {hotkey}",
                 )
 
-            # Check stake if uid is recognize
-            tao = self.metagraph.neurons[uid].stake.tao
-            if tao < vpermit_tao_limit:
+            # Check stake if uid is recognized
+            if caller_stake < vpermit_tao_limit:
                 return (
                     True,
-                    f"Blacklisted a low stake {synapse_type} request: {tao} < {vpermit_tao_limit} from {hotkey}",
+                    f"Blacklisted a low stake {synapse_type} request: {caller_stake} < {vpermit_tao_limit} from {hotkey}",
                 )
 
-            bt.logging.trace(
-                f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}"
-            )
+            bt.logging.trace(f"Allowing recognized hotkey {synapse.dendrite.hotkey}")
             return False, "Hotkey recognized"
 
         except Exception as e:
