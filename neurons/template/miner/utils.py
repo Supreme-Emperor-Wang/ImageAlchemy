@@ -1,6 +1,9 @@
 import asyncio
 import copy
+import os
+import sys
 from threading import Timer
+import _thread
 import time
 import traceback
 from datetime import datetime
@@ -35,11 +38,6 @@ COLORS = {
     "c": "\033[1;36;40m",
     "w": "\033[1;37;40m",
 }
-
-WHITELISTED_HOTKEYS = [
-    "5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta",
-    "5D1rWnzozRX68ZqKTPXZAFWTJ8hHpox283yWFmsdNjxhRCdB",
-]
 
 NSFW_WORDS = [
     "hentai",
@@ -108,32 +106,51 @@ def background_loop(self):
     Handles terminating the miner after deregistration and updating the blacklist and whitelist.
     """
     #### Terminate the miner after deregistration
+    #### Each step is 5 minutes
+    if self.background_steps % 1 == 0:
+        self.metagraph.sync(lite=True)
+        if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
+            bt.logging.debug(">>> Miner has deregistered... terminating...")
+            try:
+                _thread.interrupt_main()
+            except Exception as e:
+                print(f"An error occurred trying to terminate the main thread: {e}")
+            try:
+                os._exit(0)
+            except Exception as e:
+                print(f"An error occurred trying to use os._exit(): {e}")
+            sys.exit(0)
 
     #### Update the whitelists and blacklists
+    if self.background_steps % 2 == 0:
+        if not self.storage_client:
+            self.storage_client = storage.Client.create_anonymous_client()
+            bt.logging.debug("Created anonymous storage client")
 
-    if not self.storage_client:
-        self.storage_client = storage.Client.create_anonymous_client()
-
-    blacklist_for_miners = retrieve_public_file(
-        self.storage_client, IA_BUCKET_NAME, IA_MINER_BLACKLIST
-    )
-
-    if blacklist_for_miners:
-        self.hotkey_blacklist = set(
-            [k for k, v in blacklist_for_miners.items() if v["type"] == "hotkey"]
-        )
-        self.coldkey_blacklist = set(
-            [k for k, v in blacklist_for_miners.items() if v["type"] == "coldkey"]
+        blacklist_for_miners = retrieve_public_file(
+            self.storage_client, IA_BUCKET_NAME, IA_MINER_BLACKLIST
         )
 
-    whitelist_for_miners = retrieve_public_file(
-        self.storage_client, IA_BUCKET_NAME, IA_MINER_WHITELIST
-    )
+        if blacklist_for_miners:
+            self.hotkey_blacklist = set(
+                [k for k, v in blacklist_for_miners.items() if v["type"] == "hotkey"]
+            )
+            self.coldkey_blacklist = set(
+                [k for k, v in blacklist_for_miners.items() if v["type"] == "coldkey"]
+            )
+            bt.logging.debug("Updated the blacklist")
 
-    if whitelist_for_miners:
-        self.hotkey_whitelist = set(
-            [k for k, v in whitelist_for_miners.items() if v["type"] == "hotkey"]
+        whitelist_for_miners = retrieve_public_file(
+            self.storage_client, IA_BUCKET_NAME, IA_MINER_WHITELIST
         )
+
+        if whitelist_for_miners:
+            self.hotkey_whitelist = set(
+                [k for k, v in whitelist_for_miners.items() if v["type"] == "hotkey"]
+            )
+            bt.logging.debug("Updated the hotkey whitelist")
+
+    self.background_steps += 1
 
 
 def retrieve_public_file(client, bucket_name, source_name):
