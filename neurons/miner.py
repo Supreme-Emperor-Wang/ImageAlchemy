@@ -4,7 +4,14 @@ import typing
 
 import torch
 from template.miner.base import BaseMiner, Stats
-from template.miner.utils import WHITELISTED_HOTKEYS, generate, output_log
+from template.miner.utils import (
+    WHITELISTED_HOTKEYS,
+    BackgroundTimer,
+    background_loop,
+    generate,
+    output_log,
+    warm_up,
+)
 from template.miner.wandb_utils import WandbUtils
 from template.protocol import ImageGeneration, IsAlive
 
@@ -28,6 +35,17 @@ class StableMiner(BaseMiner):
 
         #### Build args
         self.t2i_args, self.i2i_args = self.get_args()
+
+        ####
+        self.hotkey_blacklist = {}
+        self.hotkey_whitelist = {
+            "5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta": {
+                "name": "Image Alchemy 1",
+                "reason": "",
+                "type": "hotkey",
+            }
+        }
+        self.storage_client = None
 
         #### Initialise event dict
         self.event = {}
@@ -60,6 +78,9 @@ class StableMiner(BaseMiner):
                 self, self.metagraph, self.config, self.wallet, self.event
             )
 
+        #### Start the generic background loop
+        self.background_timer = BackgroundTimer(600, background_loop, [self])
+
         #### Load the model
         (
             self.t2i_model,
@@ -76,7 +97,7 @@ class StableMiner(BaseMiner):
 
             #### Warm up model
             output_log("Warming up model with compile...")
-            generate(self.t2i_model, self.t2i_args)
+            warm_up(self.t2i_model, self.t2i_args)
 
         ### Set up mapping for the different synapse types
         self.mapping = {
