@@ -11,7 +11,7 @@ import torch
 from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
 from template.miner.utils import output_log
 from transformers import CLIPImageProcessor
-from template.validator.safety import StableDiffusionSafetyChecker
+from neurons.template.safety import StableDiffusionSafetyChecker
 
 import bittensor as bt
 
