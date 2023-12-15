@@ -19,7 +19,7 @@
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
-from template.validator.reward import RewardModelType
+from reward import RewardModelType
 
 
 @dataclass

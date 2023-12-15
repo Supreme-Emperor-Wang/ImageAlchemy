@@ -4,15 +4,15 @@ import copy
 import os
 import sys
 import time
-import traceback
 from datetime import datetime
 from threading import Timer
 from typing import Dict, List
 
+import regex as re
 import torchvision.transforms as transforms
 import torchvision.transforms as T
 from google.cloud import storage
-from template.miner.constants import (
+from neurons.template.constants import (
     IA_BUCKET_NAME,
     IA_MINER_BLACKLIST,
     IA_MINER_WHITELIST,
@@ -292,8 +292,9 @@ def nsfw_image_filter(self, images):
 
 
 def clean_nsfw_from_prompt(prompt):
+    "T2I prompt is A vibrant sunset engulfs a silhouette of a lone tree on a grassy hill."
     for word in NSFW_WORDS:
-        if word in prompt:
-            prompt = prompt.replace(f" {word}", "")
+        if re.sub(r"\b{}\b".format(word), "", prompt):
+            prompt = re.sub(r"\b{}\b".format(word), "", prompt).strip()
             bt.logging.debug(f"Removed NSFW word {word.strip()} from prompt...")
     return prompt

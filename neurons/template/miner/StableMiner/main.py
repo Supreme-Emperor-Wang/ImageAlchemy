@@ -4,8 +4,9 @@ import typing
 from typing import Union
 
 import torch
-from template.miner.base import BaseMiner, Stats
-from template.miner.utils import (
+from base import BaseMiner, Stats
+from neurons.template.protocol import ImageGeneration, IsAlive
+from utils import (
     BackgroundTimer,
     background_loop,
     generate,
@@ -13,8 +14,7 @@ from template.miner.utils import (
     output_log,
     warm_up,
 )
-from template.miner.wandb_utils import WandbUtils
-from template.protocol import ImageGeneration, IsAlive
+from wandb_utils import WandbUtils
 
 import bittensor as bt
 

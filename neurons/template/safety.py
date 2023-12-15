@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
-from template.validator.utils import cosine_distance
+from neurons.template.validator.utils import cosine_distance
 from torch import nn
 from transformers import CLIPConfig, CLIPVisionModel, PreTrainedModel
 

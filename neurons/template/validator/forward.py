@@ -3,12 +3,12 @@ import os
 import time
 from dataclasses import asdict
 
-import template
 import torch
 import torchvision.transforms as T
+from event import EventSchema
 from loguru import logger
-from template.validator.event import EventSchema
-from template.validator.utils import ttl_get_block
+from neurons.template.protocol import ImageGeneration
+from utils import ttl_get_block
 
 import bittensor as bt
 import wandb
@@ -20,13 +20,13 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     responses = self.loop.run_until_complete(
         self.dendrite(
             axons,
-            template.protocol.ImageGeneration(
+            ImageGeneration(
                 generation_type=task_type,
                 prompt=prompt,
                 prompt_image=image,
             )
             if image is not None
-            else template.protocol.ImageGeneration(
+            else ImageGeneration(
                 generation_type=task_type,
                 prompt=prompt,
             ),

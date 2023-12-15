@@ -21,7 +21,7 @@ import os
 
 import torch
 from loguru import logger
-from template.validator.reward import DefaultRewardFrameworkConfig
+from reward import DefaultRewardFrameworkConfig
 
 import bittensor as bt
 

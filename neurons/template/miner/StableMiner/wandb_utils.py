@@ -2,7 +2,7 @@ import copy
 from threading import Timer
 
 import torch
-from template.miner.utils import output_log
+from utils import output_log
 
 import bittensor as bt
 import wandb

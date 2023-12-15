@@ -18,9 +18,9 @@
 
 # Utils for weights setting on chain.
 
-import template.validator as validator
+import neurons.template.validator as validator
 import torch
-from template.validator.utils import ttl_get_block
+from utils import ttl_get_block
 
 import bittensor as bt
 

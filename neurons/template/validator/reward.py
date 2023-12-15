@@ -9,9 +9,12 @@ import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
 from datasets import Dataset
+from neurons.template.safety import StableDiffusionSafetyChecker
+from neurons.template.validator.utils import (
+    calculate_mean_dissimilarity,
+    cosine_distance,
+)
 from sklearn.metrics.pairwise import cosine_similarity
-from template.safety import StableDiffusionSafetyChecker
-from template.validator.utils import calculate_mean_dissimilarity, cosine_distance
 from torch import nn
 from transformers import (
     AutoFeatureExtractor,

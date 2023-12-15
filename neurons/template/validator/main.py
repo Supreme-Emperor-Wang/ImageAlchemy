@@ -39,17 +39,16 @@ from typing import List
 # import this repo
 import torch
 from datasets import load_dataset
-from openai import OpenAI
-from template.protocol import IsAlive
-from template.validator.config import add_args, check_config, config
-from template.validator.forward import run_step
-from template.validator.reward import (
+from neurons.template.protocol import IsAlive
+from neurons.template.validator.config import add_args, check_config, config
+from neurons.template.validator.forward import run_step
+from neurons.template.validator.reward import (
     BlacklistFilter,
     DiversityRewardModel,
     ImageRewardModel,
     NSFWRewardModel,
 )
-from template.validator.utils import (
+from neurons.template.validator.utils import (
     generate_followup_prompt_gpt,
     generate_random_prompt,
     generate_random_prompt_gpt,
@@ -58,7 +57,8 @@ from template.validator.utils import (
     init_wandb,
     ttl_get_block,
 )
-from template.validator.weights import set_weights
+from neurons.template.validator.weights import set_weights
+from openai import OpenAI
 from transformers import pipeline
 
 import bittensor as bt

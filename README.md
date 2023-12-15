@@ -38,7 +38,7 @@ By default the outputs of this script are saved in ```~/civitai/models```.
 ```bash
 # To run the miner
 cd neurons
-python -m neurons/miner.py
+python -m neurons/miner/StableMiner/main.py
     --netuid <your netuid>  # The subnet id you want to connect to
     --subtensor.network <your chain url>  # blockchain endpoint you want to connect
     --wallet.name <your miner wallet> # name of your wallet
@@ -56,7 +56,7 @@ python -m neurons/miner.py
 ```bash
 # To run the miner
 cd ImageAlchemy
-OPENAI_API_KEY=YOUR_OPENAI_API_KEY python -m neurons/validator.py
+OPENAI_API_KEY=YOUR_OPENAI_API_KEY python -m neurons/validator/main.py
     --netuid <your netuid>  # The subnet id you want to connect to
     --subtensor.network <your chain url>  # blockchain endpoint you want to connect
     --wallet.name <your miner wallet> # name of your wallet
