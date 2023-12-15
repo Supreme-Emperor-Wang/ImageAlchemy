@@ -186,9 +186,6 @@ class neuron:
             [
                 self.config.reward.image_model_weight,
                 self.config.reward.diversity_model_weight,
-                self.config.reward.human_model_weight
-                if not self.config.neuron.disable_manual_validator
-                else 0.0,
             ],
             dtype=torch.float32,
         ).to(self.device)
@@ -206,17 +203,6 @@ class neuron:
         # Init wandb.
         bt.logging.debug("loading", "wandb")
         init_wandb(self)
-
-        # Init manual validator
-        if not self.config.neuron.disable_manual_validator:
-            bt.logging.debug("loading", "streamlit validator")
-            process = subprocess.Popen(
-                [
-                    "streamlit",
-                    "run",
-                    os.path.join(os.getcwd(), "template", "validator", "app.py"),
-                ]
-            )
 
     def run(self):
         # Main Validation Loop

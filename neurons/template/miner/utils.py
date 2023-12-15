@@ -1,23 +1,22 @@
+import _thread
 import asyncio
 import copy
 import os
 import sys
-from threading import Timer
-import _thread
 import time
 import traceback
 from datetime import datetime
+from threading import Timer
 from typing import Dict, List
-from google.cloud import storage
 
+import torchvision.transforms as transforms
+import torchvision.transforms as T
+from google.cloud import storage
 from template.miner.constants import (
     IA_BUCKET_NAME,
     IA_MINER_BLACKLIST,
     IA_MINER_WHITELIST,
 )
-
-import torchvision.transforms as transforms
-import torchvision.transforms as T
 
 import bittensor as bt
 
@@ -216,10 +215,11 @@ def warm_up(model, local_args):
     bt.logging.debug("Warm up is complete...")
 
 
-async def generate(self, synapse, timeout=10):
+async def generate(self, synapse):
     """
     Image generation logic shared between both text-to-image and image-to-image
     """
+    timeout = synapse.timeout
     self.stats.total_requests += 1
     start_time = time.perf_counter()
 

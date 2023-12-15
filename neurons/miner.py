@@ -1,6 +1,7 @@
 import time
 import traceback
 import typing
+from typing import Union
 
 import torch
 from template.miner.base import BaseMiner, Stats
@@ -112,10 +113,15 @@ class StableMiner(BaseMiner):
                 external_ip=bt.utils.networking.get_external_ip(),
                 port=self.config.axon.port,
             )
-            .attach(forward_fn=self.is_alive, blacklist_fn=self.blacklist_is_alive)
+            .attach(
+                forward_fn=self.is_alive,
+                blacklist_fn=self.blacklist_is_alive,
+                priority_fn=self.priority_is_alive,
+            )
             .attach(
                 forward_fn=self.generate_image,
                 blacklist_fn=self.blacklist_image_generation,
+                priority_fn=self.priority_image_generation,
             )
             .start()
         )
@@ -128,16 +134,51 @@ class StableMiner(BaseMiner):
         self.loop()
 
     def is_alive(self, synapse: IsAlive) -> IsAlive:
+        timeout = synapse.timeout
+        start_time = time.perf_counter()
         bt.logging.info("IsAlive")
         synapse.completion = "True"
+        if time.perf_counter() - start_time > timeout:
+            self.stats.timeouts += 1
         return synapse
 
     async def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
         await generate(self, synapse)
         return synapse
 
+    def _base_priority(self, synapse) -> float:
+        """
+        The priority function determines the order in which requests are handled. More valuable or higher-priority
+        requests are processed before others. You should design your own priority mechanism with care.
+
+        This implementation assigns priority to incoming requests based on the calling entity's stake in the metagraph.
+
+        Args:
+            synapse (template.protocol.Dummy): The synapse object that contains metadata about the incoming request.
+
+        Returns:
+            float: A priority score derived from the stake of the calling entity.
+
+        Miners may recieve messages from multiple entities at once. This function determines which request should be
+        processed first. Higher values indicate that the request should be processed first. Lower values indicate
+        that the request should be processed later.
+
+        Example priority logic:
+        - A higher stake results in a higher priority value.
+        """
+        caller_uid = self.metagraph.hotkeys.index(
+            synapse.dendrite.hotkey
+        )  # Get the caller index.
+        prirority = float(
+            self.metagraph.S[caller_uid]
+        )  # Return the stake as the priority.
+        bt.logging.trace(
+            f"Prioritizing {synapse.dendrite.hotkey} with value: ", prirority
+        )
+        return prirority
+
     def _base_blacklist(
-        self, synapse, vpermit_tao_limit=1024
+        self, synapse, vpermit_tao_limit=-100
     ) -> typing.Tuple[bool, str]:
         try:
             hotkey = synapse.dendrite.hotkey
@@ -178,6 +219,12 @@ class StableMiner(BaseMiner):
         self, synapse: ImageGeneration
     ) -> typing.Tuple[bool, str]:
         return self._base_blacklist(synapse)
+
+    def priority_is_alive(self, synapse: IsAlive) -> float:
+        return self._base_priority(synapse)
+
+    def priority_image_generation(self, synapse: ImageGeneration) -> float:
+        return self._base_priority(synapse)
 
     def loop(self):
         step = 0
