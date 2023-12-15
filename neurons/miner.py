@@ -37,14 +37,12 @@ class StableMiner(BaseMiner):
         self.t2i_args, self.i2i_args = self.get_args()
 
         ####
-        self.hotkey_blacklist = {}
-        self.hotkey_whitelist = {
-            "5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta": {
-                "name": "Image Alchemy 1",
-                "reason": "",
-                "type": "hotkey",
-            }
-        }
+        self.hotkey_blacklist = set()
+        self.coldkey_blacklist = set()
+        self.hotkey_whitelist = set(
+            ["5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta"]
+        )
+
         self.storage_client = None
 
         #### Initialise event dict
