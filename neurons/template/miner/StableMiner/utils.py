@@ -293,7 +293,7 @@ def nsfw_image_filter(self, images):
 
 def clean_nsfw_from_prompt(prompt):
     for word in NSFW_WORDS:
-        if re.sub(r"\b{}\b".format(word), "", prompt):
+        if re.search(r"\b{}\b".format(word), prompt):
             prompt = re.sub(r"\b{}\b".format(word), "", prompt).strip()
             bt.logging.debug(f"Removed NSFW word {word.strip()} from prompt...")
     return prompt
