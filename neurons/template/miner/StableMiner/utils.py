@@ -292,7 +292,6 @@ def nsfw_image_filter(self, images):
 
 
 def clean_nsfw_from_prompt(prompt):
-    "T2I prompt is A vibrant sunset engulfs a silhouette of a lone tree on a grassy hill."
     for word in NSFW_WORDS:
         if re.sub(r"\b{}\b".format(word), "", prompt):
             prompt = re.sub(r"\b{}\b".format(word), "", prompt).strip()
