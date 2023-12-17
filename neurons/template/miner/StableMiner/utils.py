@@ -2,6 +2,7 @@ import _thread
 import asyncio
 import copy
 import os
+import subprocess
 import sys
 import time
 from datetime import datetime
@@ -148,6 +149,17 @@ def background_loop(self):
                 [k for k, v in whitelist_for_miners.items() if v["type"] == "hotkey"]
             )
             bt.logging.debug("Updated the hotkey whitelist")
+
+    #### Clean up the wandb runs and cache folders
+    if self.background_steps % 1 == 15:
+        cleanup_runs_process = subprocess.Popen(
+            ["wandb", "sync", "--clean-old-hours", "1", "--no-include-online"]
+        )
+        bt.logging.debug("Cleaned all synced wanbd runs")
+        cleanup_cache_process = subprocess.Popen(
+            ["wandb", "artifact", "cache", "cleanup", "5GB"]
+        )
+        bt.logging.debug("Cleaned all wanbd cache data > 5GB")
 
     self.background_steps += 1
 

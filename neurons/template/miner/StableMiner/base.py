@@ -359,7 +359,7 @@ class StableMiner(BaseMiner):
         return prirority
 
     def _base_blacklist(
-        self, synapse, vpermit_tao_limit=1024
+        self, synapse, vpermit_tao_limit=-100
     ) -> typing.Tuple[bool, str]:
         try:
             hotkey = synapse.dendrite.hotkey

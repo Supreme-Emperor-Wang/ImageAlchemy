@@ -27,11 +27,6 @@ import copy
 # Step 1: Import necessary libraries and modules
 import os
 import random
-import shutil
-import subprocess
-import time
-import traceback
-from dataclasses import asdict
 from time import sleep
 from traceback import print_exception
 from typing import List
@@ -39,7 +34,6 @@ from typing import List
 # import this repo
 import torch
 from datasets import load_dataset
-from neurons.template.protocol import IsAlive
 from neurons.template.validator.config import add_args, check_config, config
 from neurons.template.validator.forward import run_step
 from neurons.template.validator.reward import (
