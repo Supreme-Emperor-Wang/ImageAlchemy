@@ -18,7 +18,7 @@
 
 # Utils for weights setting on chain.
 
-import neurons.template.validator as validator
+import neurons.validator as validator
 import torch
 from utils import ttl_get_block
 

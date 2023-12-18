@@ -17,9 +17,6 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-# Bittensor Validator Template:
-# TODO(developer): Rewrite based on protocol defintion.
-
 import argparse
 import asyncio
 import copy
@@ -34,15 +31,15 @@ from typing import List
 # import this repo
 import torch
 from datasets import load_dataset
-from neurons.template.validator.config import add_args, check_config, config
-from neurons.template.validator.forward import run_step
-from neurons.template.validator.reward import (
+from neurons.validator.config import add_args, check_config, config
+from neurons.validator.forward import run_step
+from neurons.validator.reward import (
     BlacklistFilter,
     DiversityRewardModel,
     ImageRewardModel,
     NSFWRewardModel,
 )
-from neurons.template.validator.utils import (
+from neurons.validator.utils import (
     generate_followup_prompt_gpt,
     generate_random_prompt,
     generate_random_prompt_gpt,
@@ -51,14 +48,14 @@ from neurons.template.validator.utils import (
     init_wandb,
     ttl_get_block,
 )
-from neurons.template.validator.weights import set_weights
+from neurons.validator.weights import set_weights
 from openai import OpenAI
 from transformers import pipeline
 
 import bittensor as bt
 
 
-class neuron:
+class StableValidator:
     @classmethod
     def check_config(cls, config: "bt.Config"):
         check_config(cls, config)
@@ -344,11 +341,3 @@ class neuron:
         return (
             ttl_get_block(self) % self.prev_block
         ) >= self.config.neuron.epoch_length
-
-
-def main():
-    neuron().run()
-
-
-if __name__ == "__main__":
-    main()

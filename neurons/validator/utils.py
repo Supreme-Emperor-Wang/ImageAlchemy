@@ -8,11 +8,11 @@ from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List
 
-import neurons.template.validator as validator
+import neurons.validator as validator
 import pandas as pd
 import torch
 import torch.nn as nn
-from neurons.template.protocol import IsAlive
+from neurons.protocol import IsAlive
 
 import bittensor as bt
 import wandb

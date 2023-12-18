@@ -7,7 +7,7 @@ import torch
 import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
-from neurons.template.protocol import ImageGeneration
+from neurons.protocol import ImageGeneration
 from utils import ttl_get_block
 
 import bittensor as bt

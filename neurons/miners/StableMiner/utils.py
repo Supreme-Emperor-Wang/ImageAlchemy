@@ -13,7 +13,7 @@ import regex as re
 import torchvision.transforms as transforms
 import torchvision.transforms as T
 from google.cloud import storage
-from neurons.template.constants import (
+from neurons.constants import (
     IA_BUCKET_NAME,
     IA_MINER_BLACKLIST,
     IA_MINER_WHITELIST,

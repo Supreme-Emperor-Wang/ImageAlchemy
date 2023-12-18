@@ -11,8 +11,8 @@ from typing import Dict, Union
 
 import torch
 from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
-from neurons.template.protocol import ImageGeneration, IsAlive
-from neurons.template.safety import StableDiffusionSafetyChecker
+from neurons.protocol import ImageGeneration, IsAlive
+from neurons.safety import StableDiffusionSafetyChecker
 from transformers import CLIPImageProcessor
 from utils import (
     BackgroundTimer,
