@@ -107,6 +107,7 @@ class BaseMiner(ABC):
         #### Start the generic background loop
         self.background_steps = 1
         self.background_timer = BackgroundTimer(300, background_loop, [self])
+        self.background_timer.start()
 
     def start_axon(self):
         #### Serve the axon
@@ -428,7 +429,7 @@ class BaseMiner(ABC):
             if caller_stake < vpermit_tao_limit:
                 return (
                     True,
-                    f"Blacklisted a low stake {synapse_type} request: {caller_stake} < {vpermit_tao_limit} from {hotkey}",
+                    f"Blacklisted a {synapse_type} request from {hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}",
                 )
 
             bt.logging.trace(f"Allowing recognized hotkey {synapse.dendrite.hotkey}")

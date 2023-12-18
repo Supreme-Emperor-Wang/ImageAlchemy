@@ -11,11 +11,7 @@ from typing import Dict, List
 
 import regex as re
 from google.cloud import storage
-from neurons.constants import (
-    IA_BUCKET_NAME,
-    IA_MINER_BLACKLIST,
-    IA_MINER_WHITELIST,
-)
+from neurons.constants import IA_BUCKET_NAME, IA_MINER_BLACKLIST, IA_MINER_WHITELIST
 
 import bittensor as bt
 
@@ -101,6 +97,7 @@ def background_loop(self):
     """
     Handles terminating the miner after deregistration and updating the blacklist and whitelist.
     """
+    bt.logging.debug("Debug Background Timer")
     #### Terminate the miner after deregistration
     #### Each step is 5 minutes
     if self.background_steps % 1 == 0:
@@ -127,7 +124,7 @@ def background_loop(self):
             self.storage_client, IA_BUCKET_NAME, IA_MINER_BLACKLIST
         )
 
-        if blacklist_for_miners:
+        if blacklist_for_miners and blacklist_for_miners != '{}':
             self.hotkey_blacklist = set(
                 [k for k, v in blacklist_for_miners.items() if v["type"] == "hotkey"]
             )
@@ -139,21 +136,22 @@ def background_loop(self):
         whitelist_for_miners = retrieve_public_file(
             self.storage_client, IA_BUCKET_NAME, IA_MINER_WHITELIST
         )
-
-        if whitelist_for_miners:
+        if whitelist_for_miners and whitelist_for_miners != '{}':
+            if type(whitelist_for_miners) == str:
+                whitelist_for_miners = eval(whitelist_for_miners)
             self.hotkey_whitelist = set(
                 [k for k, v in whitelist_for_miners.items() if v["type"] == "hotkey"]
             )
             bt.logging.debug("Updated the hotkey whitelist")
 
     #### Clean up the wandb runs and cache folders
-    if self.background_steps % 1 == 15:
+    if self.background_steps % 300 == 0:
         cleanup_runs_process = subprocess.Popen(
-            ["wandb", "sync", "--clean-old-hours", "1", "--no-include-online"]
+            ["echo y | wandb sync --clean"], shell = True
         )
         bt.logging.debug("Cleaned all synced wanbd runs")
         cleanup_cache_process = subprocess.Popen(
-            ["wandb", "artifact", "cache", "cleanup", "5GB"]
+            ["wandb artifact cache cleanup 5GB"], shell = True
         )
         bt.logging.debug("Cleaned all wanbd cache data > 5GB")
 
