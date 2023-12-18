@@ -123,8 +123,9 @@ def background_loop(self):
         blacklist_for_miners = retrieve_public_file(
             self.storage_client, IA_BUCKET_NAME, IA_MINER_BLACKLIST
         )
-
         if blacklist_for_miners and blacklist_for_miners != '{}':
+            if type(blacklist_for_miners) == str:
+                blacklist_for_miners = eval(blacklist_for_miners)
             self.hotkey_blacklist = set(
                 [k for k, v in blacklist_for_miners.items() if v["type"] == "hotkey"]
             )
