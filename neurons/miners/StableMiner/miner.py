@@ -1,6 +1,6 @@
 from base import BaseMiner
 import bittensor as bt
-from utils import output_log
+from utils import output_log, warm_up
 import torch
 
 
