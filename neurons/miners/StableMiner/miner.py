@@ -6,6 +6,7 @@ import torch
 
 class StableMiner(BaseMiner):
     def __init__(self):
+        super().__init__()
         #### Load the model
         (
             self.t2i_model,
