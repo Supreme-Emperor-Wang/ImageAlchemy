@@ -70,10 +70,10 @@ class StableValidator:
 
     def __init__(self):
         # Init config
-        self.config = neuron.config()
+        self.config = StableValidator.config()
         self.check_config(self.config)
         bt.logging(config=self.config, logging_dir=self.config.neuron.full_path)
-        bt.logging.info("neuron.__init__()")
+        bt.logging.info("StableValidator.__init__()")
 
         # Init device.
         bt.logging.debug("loading", "device")
