@@ -7,7 +7,7 @@ if __name__ == "__main__":
         sys.path.append(file_path)
 
     ### Import StableMiner after fixing path
-    from base import StableMiner
+    from miner import StableMiner
 
     ### Start the miner
     with StableMiner():
