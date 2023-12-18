@@ -12,6 +12,8 @@ from datetime import datetime
 from typing import Dict, Union
 
 import torch
+import torchvision.transforms as transforms
+import torchvision.transforms as T
 from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
 from neurons.protocol import ImageGeneration, IsAlive
 from neurons.safety import StableDiffusionSafetyChecker
@@ -31,8 +33,6 @@ from wandb_utils import WandbUtils
 
 import bittensor as bt
 
-import torchvision.transforms as transforms
-import torchvision.transforms as T
 
 @dataclass
 class Stats:
