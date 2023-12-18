@@ -1,4 +1,6 @@
 import argparse
+import asyncio
+import copy
 import os
 import random
 import time
@@ -17,9 +19,13 @@ from transformers import CLIPImageProcessor
 from utils import (
     BackgroundTimer,
     background_loop,
+    clean_nsfw_from_prompt,
+    do_logs,
     generate,
     get_caller_stake,
+    nsfw_image_filter,
     output_log,
+    sh,
     warm_up,
 )
 from wandb_utils import WandbUtils
@@ -37,6 +43,92 @@ class Stats:
 
 
 class BaseMiner(ABC):
+    def __init__(self):
+        #### Parse the config
+        self.config = self.get_config()
+
+        self.wandb = None
+
+        if self.config.logging.debug:
+            bt.debug()
+            output_log("Enabling debug mode...", type="debug")
+
+        #### Output the config
+        output_log("Outputting miner config:", "c")
+        output_log(f"{self.config}", color_key="na")
+
+        #### Build args
+        self.t2i_args, self.i2i_args = self.get_args()
+
+        ####
+        self.hotkey_blacklist = set()
+        self.coldkey_blacklist = set()
+        self.hotkey_whitelist = set(
+            ["5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta"]
+        )
+
+        self.storage_client = None
+
+        #### Initialise event dict
+        self.event = {}
+
+        #### Establish subtensor connection
+        output_log("Establishing subtensor connection.", "g", type="debug")
+        self.subtensor = bt.subtensor(config=self.config)
+
+        #### Create the metagraph
+        self.metagraph = self.subtensor.metagraph(netuid=self.config.netuid)
+
+        #### Configure the wallet
+        self.wallet = bt.wallet(config=self.config)
+
+        #### Wait until the miner is registered
+        self.loop_until_registered()
+
+        ### Defaults
+        self.stats = self.get_defaults()
+
+        ### Start the wandb logging thread if both project and entity have been provided
+        if all(
+            [
+                self.config.wandb.project,
+                self.config.wandb.entity,
+                self.config.wandb.api_key,
+            ]
+        ):
+            self.wandb = WandbUtils(
+                self, self.metagraph, self.config, self.wallet, self.event
+            )
+
+        #### Start the generic background loop
+        self.background_steps = 1
+        self.background_timer = BackgroundTimer(300, background_loop, [self])
+
+    def start_axon(self):
+        #### Serve the axon
+        output_log(f"Serving axon on port {self.config.axon.port}.", "g", type="debug")
+        self.axon = (
+            bt.axon(
+                wallet=self.wallet,
+                external_ip=bt.utils.networking.get_external_ip(),
+                port=self.config.axon.port,
+            )
+            .attach(
+                forward_fn=self.is_alive,
+                blacklist_fn=self.blacklist_is_alive,
+                priority_fn=self.priority_is_alive,
+            )
+            .attach(
+                forward_fn=self.generate_image,
+                blacklist_fn=self.blacklist_image_generation,
+                priority_fn=self.priority_image_generation,
+            )
+            .start()
+        )
+        output_log(f"Axon created: {self.axon}", "g", type="debug")
+
+        self.subtensor.serve_axon(axon=self.axon, netuid=self.config.netuid)
+
     def get_defaults(self):
         now = datetime.now()
         stats = Stats(
@@ -199,121 +291,6 @@ class BaseMiner(ABC):
             else 0
         )
 
-
-class StableMiner(BaseMiner):
-    def __init__(self):
-        #### Parse the config
-        self.config = self.get_config()
-
-        self.wandb = None
-
-        if self.config.logging.debug:
-            bt.debug()
-            output_log("Enabling debug mode...", type="debug")
-
-        #### Output the config
-        output_log("Outputting miner config:", "c")
-        output_log(f"{self.config}", color_key="na")
-
-        #### Build args
-        self.t2i_args, self.i2i_args = self.get_args()
-
-        ####
-        self.hotkey_blacklist = set()
-        self.coldkey_blacklist = set()
-        self.hotkey_whitelist = set(
-            ["5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta"]
-        )
-
-        self.storage_client = None
-
-        #### Initialise event dict
-        self.event = {}
-
-        #### Establish subtensor connection
-        output_log("Establishing subtensor connection.", "g", type="debug")
-        self.subtensor = bt.subtensor(config=self.config)
-
-        #### Create the metagraph
-        self.metagraph = self.subtensor.metagraph(netuid=self.config.netuid)
-
-        #### Configure the wallet
-        self.wallet = bt.wallet(config=self.config)
-
-        #### Wait until the miner is registered
-        self.loop_until_registered()
-
-        ### Defaults
-        self.stats = self.get_defaults()
-
-        ### Start the wandb logging thread if both project and entity have been provided
-        if all(
-            [
-                self.config.wandb.project,
-                self.config.wandb.entity,
-                self.config.wandb.api_key,
-            ]
-        ):
-            self.wandb = WandbUtils(
-                self, self.metagraph, self.config, self.wallet, self.event
-            )
-
-        #### Start the generic background loop
-        self.background_steps = 1
-        self.background_timer = BackgroundTimer(300, background_loop, [self])
-
-        #### Load the model
-        (
-            self.t2i_model,
-            self.i2i_model,
-            self.safety_checker,
-            self.processor,
-        ) = self.load_models()
-
-        #### Optimize model
-        if self.config.miner.optimize:
-            self.t2i_model.unet = torch.compile(
-                self.t2i_model.unet, mode="reduce-overhead", fullgraph=True
-            )
-
-            #### Warm up model
-            output_log("Warming up model with compile...")
-            warm_up(self.t2i_model, self.t2i_args)
-
-        ### Set up mapping for the different synapse types
-        self.mapping = {
-            "text_to_image": {"args": self.t2i_args, "model": self.t2i_model},
-            "image_to_image": {"args": self.i2i_args, "model": self.i2i_model},
-        }
-
-        #### Serve the axon
-        output_log(f"Serving axon on port {self.config.axon.port}.", "g", type="debug")
-        self.axon = (
-            bt.axon(
-                wallet=self.wallet,
-                external_ip=bt.utils.networking.get_external_ip(),
-                port=self.config.axon.port,
-            )
-            .attach(
-                forward_fn=self.is_alive,
-                blacklist_fn=self.blacklist_is_alive,
-                priority_fn=self.priority_is_alive,
-            )
-            .attach(
-                forward_fn=self.generate_image,
-                blacklist_fn=self.blacklist_image_generation,
-                priority_fn=self.priority_image_generation,
-            )
-            .start()
-        )
-        output_log(f"Axon created: {self.axon}", "g", type="debug")
-
-        self.subtensor.serve_axon(axon=self.axon, netuid=self.config.netuid)
-
-        #### Start the miner loop
-        output_log("Starting miner loop.", "g", type="debug")
-        self.loop()
-
     def is_alive(self, synapse: IsAlive) -> IsAlive:
         timeout = synapse.timeout
         start_time = time.perf_counter()
@@ -324,7 +301,71 @@ class StableMiner(BaseMiner):
         return synapse
 
     async def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
-        await generate(self, synapse)
+        """
+        Image generation logic shared between both text-to-image and image-to-image
+        """
+        timeout = synapse.timeout
+        self.stats.total_requests += 1
+        start_time = time.perf_counter()
+
+        ### Set up args
+        local_args = copy.deepcopy(self.mapping[synapse.generation_type]["args"])
+        local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
+        local_args["target_size"] = (synapse.height, synapse.width)
+
+        ### Get the model
+        model = self.mapping[synapse.generation_type]["model"]
+
+        if synapse.generation_type == "image_to_image":
+            local_args["image"] = T.transforms.ToPILImage()(
+                bt.Tensor.deserialize(synapse.prompt_image)
+            )
+            del local_args["num_inference_steps"]
+
+        ### Output logs
+        do_logs(self, synapse, local_args)
+
+        ### Generate images & serialize
+
+        for attempt in range(3):
+            try:
+                images = model(**local_args).images
+                synapse.images = [
+                    bt.Tensor.serialize(transform(image)) for image in images
+                ]
+                output_log(
+                    f"{sh('Generating')} -> Succesful image generation after {attempt+1} attempt(s)"
+                )
+                break
+            except Exception as e:
+                bt.logging.error(
+                    f"errror in attempt number {attempt+1} to generate an image"
+                )
+                asyncio.sleep(5)
+                if attempt == 2:
+                    images = []
+                    synapse.images = []
+
+        if time.perf_counter() - start_time > timeout:
+            self.stats.timeouts += 1
+
+        ### Log NSFW images
+        if any(nsfw_image_filter(self, images)):
+            bt.logging.debug(f"NSFW image detected in outputs")
+            synapse.images = []
+
+        ### Log to wandb
+        if self.wandb:
+            ### Store the images and prompts for uploading to wandb
+            self.wandb._add_images(synapse)
+
+            #### Log to Wandb
+            self.wandb._log()
+
+        #### Log to console
+        output_log(
+            f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.", color_key="y"
+        )
         return synapse
 
     def _base_priority(self, synapse) -> float:
@@ -408,6 +449,7 @@ class StableMiner(BaseMiner):
         return self._base_priority(synapse)
 
     def loop(self):
+        output_log("Starting miner loop.", "g", type="debug")
         step = 0
         while True:
             #### Check the miner is still registered
