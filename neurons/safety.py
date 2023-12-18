@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
-from neurons.validator.utils import cosine_distance
 from torch import nn
 from transformers import CLIPConfig, CLIPVisionModel, PreTrainedModel
 
@@ -100,3 +99,9 @@ class StableDiffusionSafetyChecker(PreTrainedModel):
                 " Try again with a different prompt and/or seed."
             )
         return images, has_nsfw_concepts
+
+
+def cosine_distance(image_embeds, text_embeds):
+    normalized_image_embeds = nn.functional.normalize(image_embeds)
+    normalized_text_embeds = nn.functional.normalize(text_embeds)
+    return torch.mm(normalized_image_embeds, normalized_text_embeds.t())
