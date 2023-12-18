@@ -10,8 +10,6 @@ from threading import Timer
 from typing import Dict, List
 
 import regex as re
-import torchvision.transforms as transforms
-import torchvision.transforms as T
 from google.cloud import storage
 from neurons.constants import (
     IA_BUCKET_NAME,
@@ -63,8 +61,6 @@ NSFW_WORDS = [
     "asshole",
     "tits",
 ]
-
-transform = transforms.Compose([transforms.PILToTensor()])
 
 
 #### Utility function for coloring logs
@@ -207,7 +203,7 @@ def do_logs(self, synapse, local_args):
         color_key="c",
     )
     requester_stake = get_caller_stake(self, synapse)
-    if not requester_stake:
+    if requester_stake is None:
         requester_stake = -1
     output_log(
         f"{sh('Caller')} -> Stake {int(requester_stake):,} | Hotkey {synapse.dendrite.hotkey}",
@@ -229,7 +225,7 @@ def warm_up(model, local_args):
 
 def nsfw_image_filter(self, images):
     clip_input = self.processor(
-        [transform(image) for image in images], return_tensors="pt"
+        [self.transform(image) for image in images], return_tensors="pt"
     ).to(self.config.miner.device)
     images, nsfw = self.safety_checker.forward(
         images=images, clip_input=clip_input.pixel_values.to(self.config.miner.device)

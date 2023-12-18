@@ -31,6 +31,8 @@ from wandb_utils import WandbUtils
 
 import bittensor as bt
 
+import torchvision.transforms as transforms
+import torchvision.transforms as T
 
 @dataclass
 class Stats:
@@ -86,6 +88,9 @@ class BaseMiner(ABC):
 
         ### Defaults
         self.stats = self.get_defaults()
+
+        ### Set up transform function 
+        self.transform = transforms.Compose([transforms.PILToTensor()])
 
         ### Start the wandb logging thread if both project and entity have been provided
         if all(
@@ -325,12 +330,11 @@ class BaseMiner(ABC):
         do_logs(self, synapse, local_args)
 
         ### Generate images & serialize
-
         for attempt in range(3):
             try:
                 images = model(**local_args).images
                 synapse.images = [
-                    bt.Tensor.serialize(transform(image)) for image in images
+                    bt.Tensor.serialize(self.transform(image)) for image in images
                 ]
                 output_log(
                     f"{sh('Generating')} -> Succesful image generation after {attempt+1} attempt(s)"
@@ -399,7 +403,7 @@ class BaseMiner(ABC):
         return prirority
 
     def _base_blacklist(
-        self, synapse, vpermit_tao_limit=1024
+        self, synapse, vpermit_tao_limit=-100
     ) -> typing.Tuple[bool, str]:
         try:
             hotkey = synapse.dendrite.hotkey
