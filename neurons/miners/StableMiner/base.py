@@ -6,7 +6,7 @@ import random
 import time
 import traceback
 import typing
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Union
@@ -21,7 +21,6 @@ from utils import (
     background_loop,
     clean_nsfw_from_prompt,
     do_logs,
-    generate,
     get_caller_stake,
     nsfw_image_filter,
     output_log,
