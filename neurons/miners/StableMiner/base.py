@@ -109,6 +109,9 @@ class BaseMiner(ABC):
         self.background_timer = BackgroundTimer(300, background_loop, [self])
         self.background_timer.start()
 
+        ### Init history dict
+        self.history = {}
+
     def start_axon(self):
         #### Serve the axon
         output_log(f"Serving axon on port {self.config.axon.port}.", "g", type="debug")
@@ -309,6 +312,11 @@ class BaseMiner(ABC):
         """
         Image generation logic shared between both text-to-image and image-to-image
         """
+        if synapse.dendrite.hotkey in self.history:
+            self.history[synapse.dendrite.hotkey].append(time.perf_counter())
+        else:  
+            self.history[synapse.dendrite.hotkey] = [time.perf_counter()]
+        
         timeout = synapse.timeout
         self.stats.total_requests += 1
         start_time = time.perf_counter()
@@ -343,7 +351,7 @@ class BaseMiner(ABC):
                 break
             except Exception as e:
                 bt.logging.error(
-                    f"errror in attempt number {attempt+1} to generate an image"
+                    f"error in attempt number {attempt+1} to generate an image"
                 )
                 asyncio.sleep(5)
                 if attempt == 2:
@@ -358,13 +366,19 @@ class BaseMiner(ABC):
             bt.logging.debug(f"NSFW image detected in outputs")
             synapse.images = []
 
-        ### Log to wandb
-        if self.wandb:
-            ### Store the images and prompts for uploading to wandb
-            self.wandb._add_images(synapse)
+        ### Log to wandb    
+        try:
+            if self.wandb:
+                ### Store the images and prompts for uploading to wandb
+                self.wandb._add_images(synapse)
 
-            #### Log to Wandb
-            self.wandb._log()
+                #### Log to Wandb
+                self.wandb._log()
+
+        except Exception as e:        
+            bt.logging.error(
+                f"error trying to log event to wandb"
+            )
 
         #### Log to console
         output_log(
@@ -404,13 +418,17 @@ class BaseMiner(ABC):
         return prirority
 
     def _base_blacklist(
-        self, synapse, vpermit_tao_limit=-100
+        self, synapse, vpermit_tao_limit=1024, rate_limit = 1
     ) -> typing.Tuple[bool, str]:
         try:
             hotkey = synapse.dendrite.hotkey
             synapse_type = type(synapse).__name__
 
             caller_stake = get_caller_stake(self, synapse)
+
+            if (hotkey in self.history.keys()) and (((max(self.history[hotkey])) - time.perf_counter()) < rate_limit):
+                bt.logging.trace(f"Whitelisting hotkey {synapse.dendrite.hotkey}")
+                return False, f"Blacklisted {synapse_type} call from {hotkey}. Rate limit exceeded.",
 
             if hotkey in self.hotkey_whitelist:
                 bt.logging.trace(f"Whitelisting hotkey {synapse.dendrite.hotkey}")
@@ -436,7 +454,7 @@ class BaseMiner(ABC):
             return False, "Hotkey recognized"
 
         except Exception as e:
-            bt.logging.error(f"errror in blacklist {traceback.format_exc()}")
+            bt.logging.error(f"error in blacklist {traceback.format_exc()}")
 
     def blacklist_is_alive(self, synapse: IsAlive) -> typing.Tuple[bool, str]:
         return self._base_blacklist(synapse)
