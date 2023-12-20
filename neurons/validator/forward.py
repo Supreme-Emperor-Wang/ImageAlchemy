@@ -1,13 +1,14 @@
 import copy
-import os
 import time
 from dataclasses import asdict
+from datetime import datetime
 
 import torch
 import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
 from neurons.protocol import ImageGeneration
+from neurons.utils import output_log, sh
 from utils import ttl_get_block
 
 import bittensor as bt
@@ -17,22 +18,40 @@ transform = T.Compose([T.PILToTensor()])
 
 
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
+    
+    time_elapsed = datetime.now() - self.stats.start_time
+
+    output_log(
+        f"{sh('Info')} -> Date {datetime.strftime(self.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.stats.total_requests/(time_elapsed.total_seconds()/60):.2f}",
+        color_key="g",
+    )
+    output_log(
+        f"{sh('Request')} -> Type: {task_type} | Total requests {self.stats.total_requests:,} | Timeouts {self.stats.timeouts:,}",
+        color_key="y",
+    )
+    
+    synapse = ImageGeneration(generation_type=task_type,prompt=prompt,prompt_image=image) if image is not None else ImageGeneration(generation_type=task_type,prompt=prompt)
+    synapse_dict = {k:v for k,v in synapse.__dict__.items() if k in ['timeout', 'prompt','prompt_image', 'num_images_per_prompt', 'height', 'width']}
+    args_list = [
+        f"{k.capitalize()}: {f'{v:.2f}' if isinstance(v, float) else v}"
+        for k, v in synapse_dict.items()
+    ]
+    output_log(f"{sh('Args')} -> {' | '.join(args_list)}", color_key="m")
+    output_log(f"{sh('UIDs')} -> {' | '.join([str(uid) for uid in uids.tolist()])}", color_key="m")
+
+    validator_info = self.get_validator_info()
+    output_log(
+        f"{sh('Stats')} -> Block: {validator_info['block']} | Stake: {validator_info['stake']:.2f} | Rank: {validator_info['rank']:.2f} | VTrust: {validator_info['vtrust']:.2f} | Dividends: {validator_info['dividends']:.2f} | Emissions: {validator_info['emissions']:.2f}",
+        color_key="c",
+    )
     responses = self.loop.run_until_complete(
         self.dendrite(
             axons,
-            ImageGeneration(
-                generation_type=task_type,
-                prompt=prompt,
-                prompt_image=image,
-            )
-            if image is not None
-            else ImageGeneration(
-                generation_type=task_type,
-                prompt=prompt,
-            ),
+            synapse,
             timeout=self.config.neuron.timeout,
         )
     )
+    self.stats.total_requests += 1
     event = {"task_type": task_type}
 
     start_time = time.time()

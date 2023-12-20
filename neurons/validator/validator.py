@@ -31,6 +31,7 @@ from typing import List
 # import this repo
 import torch
 from datasets import load_dataset
+from neurons.utils import BackgroundTimer, background_loop, get_defaults
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
 from neurons.validator.reward import (
@@ -188,12 +189,27 @@ class StableValidator:
         # Init sync with the network. Updates the metagraph.
         self.sync()
 
-        #  Init the event loop
+        # Init the event loop
         self.loop = asyncio.get_event_loop()
 
         # Init wandb.
         bt.logging.debug("loading", "wandb")
         init_wandb(self)
+
+        # Init blacklists and whitelists
+        self.hotkey_blacklist = set()
+        self.coldkey_blacklist = set()
+
+        # Init stats
+        self.stats = get_defaults(self)
+
+        # Get vali index
+        self.validator_index = self.get_validator_index()
+
+        # Start the generic background loop
+        self.background_steps = 1
+        self.background_timer = BackgroundTimer(300, background_loop, [self])
+        self.background_timer.start()
 
     def run(self):
         # Main Validation Loop
@@ -279,6 +295,27 @@ class StableValidator:
         if self.should_set_weights():
             set_weights(self)
             self.prev_block = ttl_get_block(self)
+    
+    def get_validator_index(self):
+        """
+        Retrieve the given miner's index in the metagraph.
+        """
+        index = None
+        try:
+            index = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
+        except ValueError:
+            pass
+        return index
+
+    def get_validator_info(self):
+        return {
+            "block": self.metagraph.block.item(),
+            "stake": self.metagraph.S[self.validator_index],
+            "rank": self.metagraph.R[self.validator_index],
+            "vtrust": self.metagraph.T[self.validator_index],
+            "dividends": self.metagraph.C[self.validator_index],
+            "emissions": self.metagraph.E[self.validator_index],
+        }
 
     def resync_metagraph(self):
         """Resyncs the metagraph and updates the hotkeys and moving averages based on the new metagraph."""

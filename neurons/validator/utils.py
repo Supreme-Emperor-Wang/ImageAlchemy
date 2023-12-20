@@ -134,7 +134,7 @@ def get_random_uids(
         uid_is_available = check_uid_availability(dendrite, self.metagraph, uid, 400)
         uid_is_not_excluded = exclude is None or uid not in exclude
 
-        if uid_is_available:
+        if uid_is_available and (self.metagraph.axons[uid].hotkey not in self.hotkey_blacklist) and (self.metagraph.axons[uid].coldkey not in self.coldkey_blacklist):
             avail_uids.append(uid)
             if uid_is_not_excluded:
                 candidate_uids.append(uid)

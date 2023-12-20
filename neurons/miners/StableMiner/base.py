@@ -7,7 +7,6 @@ import time
 import traceback
 import typing
 from abc import ABC
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Union
 
@@ -17,30 +16,19 @@ import torchvision.transforms as T
 from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
 from neurons.protocol import ImageGeneration, IsAlive
 from neurons.safety import StableDiffusionSafetyChecker
+from neurons.utils import BackgroundTimer, background_loop, get_defaults
 from transformers import CLIPImageProcessor
 from utils import (
-    BackgroundTimer,
-    background_loop,
     clean_nsfw_from_prompt,
     do_logs,
     get_caller_stake,
     nsfw_image_filter,
     output_log,
     sh,
-    warm_up,
 )
 from wandb_utils import WandbUtils
 
 import bittensor as bt
-
-
-@dataclass
-class Stats:
-    start_time: datetime
-    start_dt: datetime
-    total_requests: int
-    timeouts: int
-    response_times: list
 
 
 class BaseMiner(ABC):
@@ -61,7 +49,7 @@ class BaseMiner(ABC):
         #### Build args
         self.t2i_args, self.i2i_args = self.get_args()
 
-        ####
+        #### Init blacklists and whitelists
         self.hotkey_blacklist = set()
         self.coldkey_blacklist = set()
         self.hotkey_whitelist = set(
@@ -87,7 +75,7 @@ class BaseMiner(ABC):
         self.loop_until_registered()
 
         ### Defaults
-        self.stats = self.get_defaults()
+        self.stats = get_defaults(self)
 
         ### Set up transform function 
         self.transform = transforms.Compose([transforms.PILToTensor()])
@@ -136,17 +124,6 @@ class BaseMiner(ABC):
         output_log(f"Axon created: {self.axon}", "g", type="debug")
 
         self.subtensor.serve_axon(axon=self.axon, netuid=self.config.netuid)
-
-    def get_defaults(self):
-        now = datetime.now()
-        stats = Stats(
-            start_time=now,
-            start_dt=datetime.strftime(now, "%Y/%m/%d %H:%M"),
-            total_requests=0,
-            timeouts=0,
-            response_times=[],
-        )
-        return stats
 
     def get_args(self) -> Dict:
         return {
@@ -418,7 +395,7 @@ class BaseMiner(ABC):
         return prirority
 
     def _base_blacklist(
-        self, synapse, vpermit_tao_limit=1024, rate_limit = 1
+        self, synapse, vpermit_tao_limit=-100, rate_limit = 1
     ) -> typing.Tuple[bool, str]:
         try:
             hotkey = synapse.dendrite.hotkey
