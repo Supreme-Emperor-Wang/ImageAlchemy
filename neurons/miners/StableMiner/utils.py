@@ -18,6 +18,7 @@ class Images:
     def __init__(self, images):
         self.images = images
 
+
 NSFW_WORDS = [
     "hentai",
     "loli",
@@ -44,7 +45,6 @@ NSFW_WORDS = [
 ]
 
 
-
 def get_caller_stake(self, synapse):
     """
     Look up the stake of the requesting validator.
@@ -52,6 +52,16 @@ def get_caller_stake(self, synapse):
     if synapse.dendrite.hotkey in self.metagraph.hotkeys:
         index = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
         return self.metagraph.S[index].item()
+    return None
+
+
+def get_coldkey_for_hotkey(self, synapse):
+    """
+    Look up the coldkey of the caller.
+    """
+    if synapse.dendrite.hotkey in self.metagraph.hotkeys:
+        index = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
+        return self.metagraph.coldkeys[index]
     return None
 
 
