@@ -53,7 +53,9 @@ class BaseMiner(ABC):
         #### Init blacklists and whitelists
         self.hotkey_blacklist = set()
         self.coldkey_blacklist = set()
-        self.coldkey_whitelist = set()
+        self.coldkey_whitelist = set(
+            ["5F1FFTkJYyceVGE4DCVN5SxfEQQGJNJQ9CVFVZ3KpihXLxYo"]
+        )
         self.hotkey_whitelist = set(
             ["5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta"]
         )
@@ -486,6 +488,27 @@ class BaseMiner(ABC):
                         f"Emission: {self.metagraph.E[self.miner_index]:.2f}"
                     )
                     output_log(log, "g")
+
+                    ### Show the top 10 requestors by calls along with their delta
+                    ### Hotkey, count, delta, rate limited count
+                    top_requestors = [
+                        (k, v["count"], v["delta"], v["rate_limited_count"])
+                        for k, v in self.request_dict.items()
+                    ]
+
+                    ### Sort by count
+                    top_requestors = sorted(
+                        top_requestors, key=lambda x: x[1], reverse=True
+                    )[:10]
+
+                    formatted_str = " | ".join(
+                        [
+                            f"Hotkey: {x[0]}, Count: {x[1]}, Average delta: {sum(x[2]) / len(x[2]) if len(x[2]) > 0 else 0}, Rate limited count: {x[3]}"
+                            for x in top_requestors
+                        ]
+                    )
+
+                    output_log(f"{sh('Top Callers')} -> {formatted_str}", color_key="c")
 
                 step += 1
                 time.sleep(60)
