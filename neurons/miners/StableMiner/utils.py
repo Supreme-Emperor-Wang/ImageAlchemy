@@ -70,35 +70,54 @@ def do_logs(self, synapse, local_args):
     Output logs for each request that comes through.
     """
     time_elapsed = datetime.now() - self.stats.start_time
-    num_images = 1
 
     output_log(
         f"{sh('Info')} -> Date {datetime.strftime(self.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.stats.total_requests/(time_elapsed.total_seconds()/60):.2f} | Model {self.config.miner.model} | Seed {self.config.miner.seed}.",
         color_key="g",
     )
     output_log(
-        f"{sh('Request')} -> Type: {synapse.generation_type} | Total requests {self.stats.total_requests:,} | Timeouts {self.stats.timeouts:,}",
+        f"{sh('Request')} -> Type: {synapse.generation_type} | Total requests {self.stats.total_requests:,} | Timeouts {self.stats.timeouts:,}.",
         color_key="y",
     )
+
+    ### Show the top 10 requestors by calls along with their delta
+    ### Hotkey, count, delta, rate limited count
+    top_requestors = [
+        (k, v["count"], v["delta"], v["rate_limited_count"])
+        for k, v in self.request_dict.items()
+    ]
+
+    ### Sort by count
+    top_requestors = sorted(top_requestors, key=lambda x: x[1], reverse=True)[:10]
+
+    formatted_str = " | ".join(
+        [
+            f"Hotkey: {x[0]}, Count: {x[1]}, Average delta: {sum(x[2]) / len(x[2]) if len(x[2]) > 0 else 0}, Rate limited count: {x[3]}"
+            for x in top_requestors
+        ]
+    )
+
+    output_log(f"{sh('Top Callers')} -> {formatted_str}", color_key="c")
+
     args_list = [
         f"{k.capitalize()}: {f'{v:.2f}' if isinstance(v, float) else v}"
         for k, v in local_args.items()
     ]
-    output_log(f"{sh('Args')} -> {' | '.join(args_list)}", color_key="m")
+    output_log(f"{sh('Args')} -> {' | '.join(args_list)}.", color_key="m")
 
     miner_info = self.get_miner_info()
     output_log(
-        f"{sh('Stats')} -> Block: {miner_info['block']} | Stake: {miner_info['stake']:.2f} | Incentive: {miner_info['incentive']:.2f} | Trust: {miner_info['trust']:.2f} | Consensus: {miner_info['consensus']:.2f}",
+        f"{sh('Stats')} -> Block: {miner_info['block']} | Stake: {miner_info['stake']:.2f} | Incentive: {miner_info['incentive']:.2f} | Trust: {miner_info['trust']:.2f} | Consensus: {miner_info['consensus']:.2f}.",
         color_key="c",
     )
     requester_stake = get_caller_stake(self, synapse)
     if requester_stake is None:
         requester_stake = -1
     output_log(
-        f"{sh('Caller')} -> Stake {int(requester_stake):,} | Hotkey {synapse.dendrite.hotkey}",
+        f"{sh('Caller')} -> Stake {int(requester_stake):,} | Hotkey {synapse.dendrite.hotkey}.",
         color_key="y",
     )
-    output_log(f"{sh('Generating')} -> {num_images} image(s)", color_key="c")
+    output_log(f"{sh('Generating')} -> 1 image.", color_key="c")
 
 
 ### mapping["text_to_image"]["args"]
