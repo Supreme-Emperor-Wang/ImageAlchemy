@@ -21,8 +21,8 @@ from transformers import CLIPImageProcessor
 from utils import (
     clean_nsfw_from_prompt,
     do_logs,
-    get_coldkey_for_hotkey,
     get_caller_stake,
+    get_coldkey_for_hotkey,
     nsfw_image_filter,
     output_log,
     sh,
@@ -362,7 +362,7 @@ class BaseMiner(ABC):
         return priority
 
     def _base_blacklist(
-        self, synapse, vpermit_tao_limit=-100, rate_limit=1
+        self, synapse, vpermit_tao_limit=1024, rate_limit=1
     ) -> typing.Tuple[bool, str]:
         try:
             ### Get the name of the synapse
