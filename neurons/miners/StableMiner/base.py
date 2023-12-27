@@ -98,7 +98,7 @@ class BaseMiner(ABC):
 
         #### Start the generic background loop
         self.background_steps = 1
-        self.background_timer = BackgroundTimer(300, background_loop, [self])
+        self.background_timer = BackgroundTimer(300, background_loop, [self, False])
         self.background_timer.start()
 
         ### Init history dict
