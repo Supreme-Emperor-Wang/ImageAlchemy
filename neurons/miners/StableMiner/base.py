@@ -135,7 +135,6 @@ class BaseMiner(ABC):
             "num_inference_steps": self.config.miner.steps,
         }, {
             "guidance_scale": self.config.miner.guidance_scale,
-            "num_inference_steps": self.config.miner.steps,
         }
 
     def get_config(self) -> "bt.config":
