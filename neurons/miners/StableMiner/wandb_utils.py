@@ -31,8 +31,6 @@ class WandbUtils:
     def _loop(self):
         if not self.wandb:
             self._start_run()
-        else:
-            self._log()
 
     def _start_run(self):
         if self.wandb:
@@ -65,12 +63,10 @@ class WandbUtils:
         )
         output_log(f"Started new run: {self.wandb.name}", "c")
 
-    def _add_images(self, synapse):
+    def _add_images(self, synapse, file_type="png"):
         ### Store the images and prompts for uploading to wandb
         if self.config.wandb.compress:
             file_type = "jpg"
-        else:
-            file_type = "png"
 
         self.event.update(
             {
