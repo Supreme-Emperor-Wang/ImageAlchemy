@@ -55,12 +55,12 @@ def get_caller_stake(self, synapse):
     return None
 
 
-def get_coldkey_for_hotkey(self, synapse):
+def get_coldkey_for_hotkey(self, hotkey):
     """
     Look up the coldkey of the caller.
     """
-    if synapse.dendrite.hotkey in self.metagraph.hotkeys:
-        index = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
+    if hotkey in self.metagraph.hotkeys:
+        index = self.metagraph.hotkeys.index(hotkey)
         return self.metagraph.coldkeys[index]
     return None
 
