@@ -80,25 +80,6 @@ def do_logs(self, synapse, local_args):
         color_key="y",
     )
 
-    ### Show the top 10 requestors by calls along with their delta
-    ### Hotkey, count, delta, rate limited count
-    top_requestors = [
-        (k, v["count"], v["delta"], v["rate_limited_count"])
-        for k, v in self.request_dict.items()
-    ]
-
-    ### Sort by count
-    top_requestors = sorted(top_requestors, key=lambda x: x[1], reverse=True)[:10]
-
-    formatted_str = " | ".join(
-        [
-            f"Hotkey: {x[0]}, Count: {x[1]}, Average delta: {sum(x[2]) / len(x[2]) if len(x[2]) > 0 else 0}, Rate limited count: {x[3]}"
-            for x in top_requestors
-        ]
-    )
-
-    output_log(f"{sh('Top Callers')} -> {formatted_str}", color_key="c")
-
     args_list = [
         f"{k.capitalize()}: {f'{v:.2f}' if isinstance(v, float) else v}"
         for k, v in local_args.items()
