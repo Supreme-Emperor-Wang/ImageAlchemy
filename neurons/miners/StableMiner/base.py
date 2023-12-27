@@ -21,6 +21,7 @@ from transformers import CLIPImageProcessor
 from utils import (
     clean_nsfw_from_prompt,
     do_logs,
+    get_coldkey_for_hotkey,
     get_caller_stake,
     nsfw_image_filter,
     output_log,
@@ -289,11 +290,14 @@ class BaseMiner(ABC):
         """
         Image generation logic shared between both text-to-image and image-to-image
         """
-        if synapse.dendrite.hotkey in self.history:
-            self.history[synapse.dendrite.hotkey].append(time.perf_counter())
-        else:
-            self.history[synapse.dendrite.hotkey] = [time.perf_counter()]
 
+        ### Add the time of the request to a dict for rate limiting purposes
+        hotkey = synapse.dendrite.hotkey
+        if not hotkey in self.history:
+            self.history[hotkey] = []
+        self.history[hotkey].append(time.perf_counter())
+
+        ### Misc
         timeout = synapse.timeout
         self.stats.total_requests += 1
         start_time = time.perf_counter()
@@ -337,6 +341,7 @@ class BaseMiner(ABC):
                         f"Failed to generate any images after {attempt+1} attempts."
                     )
 
+        ### Count timeouts
         if time.perf_counter() - start_time > timeout:
             self.stats.timeouts += 1
 
@@ -357,7 +362,7 @@ class BaseMiner(ABC):
         except Exception as e:
             bt.logging.error(f"Error trying to log events to wandb.")
 
-        #### Log to console
+        #### Log time to generate image
         output_log(
             f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.", color_key="y"
         )
@@ -379,48 +384,60 @@ class BaseMiner(ABC):
             synapse_type = type(synapse).__name__
 
             ### Caller hotkey
-            hotkey = synapse.dendrite.hotkey
+            caller_hotkey = synapse.dendrite.hotkey
+
+            ### Retrieve the coldkey of the caller
+            caller_coldkey = get_coldkey_for_hotkey(self, caller_hotkey)
 
             ### Retrieve the stake of the caller
             caller_stake = get_caller_stake(self, synapse)
 
-            ### Retrieve the coldkey of the caller
-            caller_coldkey = get_caller_coldkey(self, synapse)
-
             ### Allow through any whitelisted keys unconditionally
             ### Note that blocking these keys will result in a ban from the network
-            if hotkey in self.hotkey_whitelist:
-                bt.logging.trace(f"Whitelisting hotkey {hotkey}")
+            if caller_coldkey in self.coldkey_whitelist:
+                bt.logging.debug(f"Whitelisting coldkey {caller_coldkey}")
+                return False, "Whitelisted coldkey recognized"
+
+            if caller_hotkey in self.hotkey_whitelist:
+                bt.logging.debug(f"Whitelisting hotkey {caller_hotkey}")
                 return False, "Whitelisted hotkey recognized"
 
             ### Apply a rate limit from the same caller
-            if (hotkey in self.history.keys()) and (
-                ((max(self.history[hotkey])) - time.perf_counter()) < rate_limit
+            if any(
+                [
+                    not caller_hotkey in self.history.keys(),
+                    self.history[caller_hotkey][-1] - time.perf_counter() < rate_limit,
+                ]
             ):
-                bt.logging.trace(
-                    f"Allowing hotkey request from {hotkey} (not rate limited)"
+                ### This will execute under the following conditions:
+                ### - If the caller's hotkey isn't in the history yet (first request from a validator)
+                ### - It isn't the first request, and the time between the last call is less than the rate limit value
+                bt.logging.debug(
+                    f"Allowing hotkey request from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) not exceeded"
                 )
                 return (
                     False,
-                    f"Blacklisted {synapse_type} call from {hotkey}. Rate limit exceeded.",
+                    f"Blacklisted {synapse_type} call from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) exceeded.",
                 )
 
             ### Blacklist requests from validators that aren't registered
             if caller_stake is None:
-                bt.logging.trace(f"Blacklisting a non-registered hotkey: {hotkey}")
+                bt.logging.trace(
+                    f"Blacklisting a non-registered hotkey: {caller_hotkey}"
+                )
                 return (
                     True,
-                    f"Blacklisted a non-registered hotkey's {synapse_type} request from {hotkey}",
+                    f"Blacklisted a non-registered hotkey's {synapse_type} request from {caller_hotkey}",
                 )
 
             ### Check that the caller has sufficient stake
             if caller_stake < vpermit_tao_limit:
                 return (
                     True,
-                    f"Blacklisted a {synapse_type} request from {hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}",
+                    f"Blacklisted a {synapse_type} request from {caller_hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}",
                 )
 
-            bt.logging.trace(f"Allowing recognized hotkey {hotkey}")
+            bt.logging.trace(f"Allowing recognized hotkey {caller_hotkey}")
             return False, "Hotkey recognized"
 
         except Exception as e:
