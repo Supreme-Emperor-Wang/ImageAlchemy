@@ -1,12 +1,17 @@
-import _thread
-import subprocess
+import _thread, os, subprocess, sys
+import json
+import bittensor as bt
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Timer
-
-from neurons.constants import IA_BUCKET_NAME, IA_MINER_BLACKLIST, IA_MINER_WHITELIST
-
-import bittensor as bt
+from neurons.constants import (
+    IA_BUCKET_NAME,
+    IA_MINER_BLACKLIST,
+    IA_MINER_WHITELIST,
+    IA_VALIDATOR_BLACKLIST,
+    IA_VALIDATOR_WHITELIST,
+)
+from google.cloud import storage
 
 
 @dataclass
@@ -16,6 +21,7 @@ class Stats:
     total_requests: int
     timeouts: int
     response_times: list
+
 
 #### Colors to use in the logs
 COLORS = {
@@ -27,6 +33,7 @@ COLORS = {
     "c": "\033[1;36;40m",
     "w": "\033[1;37;40m",
 }
+
 
 #### Utility function for coloring logs
 def output_log(message: str, color_key: str = "w", type: str = "info") -> None:
@@ -56,6 +63,7 @@ def get_defaults(self):
     )
     return stats
 
+
 #### Background Loop
 class BackgroundTimer(Timer):
     def run(self):
@@ -64,70 +72,103 @@ class BackgroundTimer(Timer):
             self.function(*self.args, **self.kwargs)
 
 
-def background_loop(self):
+def background_loop(self, is_validator):
     """
     Handles terminating the miner after deregistration and updating the blacklist and whitelist.
     """
     bt.logging.debug("Debug Background Timer")
+
+    neuron_type = "Validator" if is_validator else "Miner"
+    whitelist_type = IA_VALIDATOR_WHITELIST if is_validator else IA_MINER_WHITELIST
+    blacklist_type = IA_VALIDATOR_BLACKLIST if is_validator else IA_MINER_BLACKLIST
+
     #### Terminate the miner after deregistration
     #### Each step is 5 minutes
     if self.background_steps % 1 == 0:
         self.metagraph.sync(lite=True)
         if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
-            bt.logging.debug(">>> Miner has deregistered... terminating...")
+            bt.logging.debug(f">>> {neuron_type} has deregistered... terminating.")
             try:
                 _thread.interrupt_main()
             except Exception as e:
-                print(f"An error occurred trying to terminate the main thread: {e}")
+                bt.logging.error(
+                    f"An error occurred trying to terminate the main thread: {e}."
+                )
             try:
                 os._exit(0)
             except Exception as e:
-                print(f"An error occurred trying to use os._exit(): {e}")
+                bt.logging.error(f"An error occurred trying to use os._exit(): {e}.")
             sys.exit(0)
 
     #### Update the whitelists and blacklists
-    if self.background_steps % 2 == 0:
-        if not self.storage_client:
-            self.storage_client = storage.Client.create_anonymous_client()
-            bt.logging.debug("Created anonymous storage client")
+    if self.background_steps % 1 == 0:
+        try:
+            if not self.storage_client:
+                self.storage_client = storage.Client.create_anonymous_client()
+                bt.logging.debug("Created anonymous storage client.")
 
-        blacklist_for_miners = retrieve_public_file(
-            self.storage_client, IA_BUCKET_NAME, IA_MINER_BLACKLIST
-        )
-        if blacklist_for_miners and blacklist_for_miners != '{}':
-            if type(blacklist_for_miners) == str:
-                blacklist_for_miners = eval(blacklist_for_miners)
-            self.hotkey_blacklist = set(
-                [k for k, v in blacklist_for_miners.items() if v["type"] == "hotkey"]
+            blacklist_for_neuron = retrieve_public_file(
+                self.storage_client, IA_BUCKET_NAME, blacklist_type
             )
-            self.coldkey_blacklist = set(
-                [k for k, v in blacklist_for_miners.items() if v["type"] == "coldkey"]
-            )
-            bt.logging.debug("Updated the blacklist")
+            if blacklist_for_neuron:
+                self.hotkey_blacklist = set(
+                    [
+                        k
+                        for k, v in blacklist_for_neuron.items()
+                        if v["type"] == "hotkey"
+                    ]
+                )
+                self.coldkey_blacklist = set(
+                    [
+                        k
+                        for k, v in blacklist_for_neuron.items()
+                        if v["type"] == "coldkey"
+                    ]
+                )
+                bt.logging.debug("Updated the key blacklists.")
 
-        whitelist_for_miners = retrieve_public_file(
-            self.storage_client, IA_BUCKET_NAME, IA_MINER_WHITELIST
-        )
-        if whitelist_for_miners and whitelist_for_miners != '{}':
-            if type(whitelist_for_miners) == str:
-                whitelist_for_miners = eval(whitelist_for_miners)
-            self.hotkey_whitelist = set(
-                [k for k, v in whitelist_for_miners.items() if v["type"] == "hotkey"]
+            whitelist_for_neuron = retrieve_public_file(
+                self.storage_client, IA_BUCKET_NAME, whitelist_type
             )
-            bt.logging.debug("Updated the hotkey whitelist")
+            if whitelist_for_neuron:
+                self.hotkey_whitelist = set(
+                    [
+                        k
+                        for k, v in whitelist_for_neuron.items()
+                        if v["type"] == "hotkey"
+                    ]
+                )
+                self.coldkey_whitelist = set(
+                    [
+                        k
+                        for k, v in whitelist_for_neuron.items()
+                        if v["type"] == "coldkey"
+                    ]
+                )
+                bt.logging.debug("Updated the key whitelists.")
+        except Exception as e:
+            bt.logging.error(
+                f"An error occurred trying to update the blacklists and whitelists: {e}."
+            )
 
     #### Clean up the wandb runs and cache folders
     if self.background_steps % 300 == 0:
-        cleanup_runs_process = subprocess.Popen(
-            ["echo y | wandb sync --clean"], shell = True
-        )
-        bt.logging.debug("Cleaned all synced wanbd runs")
-        cleanup_cache_process = subprocess.Popen(
-            ["wandb artifact cache cleanup 5GB"], shell = True
-        )
-        bt.logging.debug("Cleaned all wanbd cache data > 5GB")
+        try:
+            cleanup_runs_process = subprocess.Popen(
+                ["echo y | wandb sync --clean"], shell=True
+            )
+            bt.logging.debug("Cleaned all synced wandb runs.")
+            cleanup_cache_process = subprocess.Popen(
+                ["wandb artifact cache cleanup 5GB"], shell=True
+            )
+            bt.logging.debug("Cleaned all wandb cache data > 5GB.")
+        except Exception as e:
+            bt.logging.error(
+                f"An error occurred trying to clean wandb artifacts and runs: {e}."
+            )
 
     self.background_steps += 1
+
 
 def retrieve_public_file(client, bucket_name, source_name):
     file = None
@@ -136,9 +177,11 @@ def retrieve_public_file(client, bucket_name, source_name):
         blob = bucket.blob(source_name)
         file = blob.download_as_text()
 
-        print(
+        bt.logging.debug(
             f"Successfully downloaded file: {source_name} of type {type(file)} from {bucket_name}"
         )
+
+        file = json.loads(file)
     except Exception as e:
         bt.logging.error(f"An error occurred downloading from Google Cloud: {e}")
 
