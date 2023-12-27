@@ -53,6 +53,7 @@ class BaseMiner(ABC):
         #### Init blacklists and whitelists
         self.hotkey_blacklist = set()
         self.coldkey_blacklist = set()
+        self.coldkey_whitelist = set()
         self.hotkey_whitelist = set(
             ["5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta"]
         )
@@ -99,7 +100,7 @@ class BaseMiner(ABC):
         self.background_timer.start()
 
         ### Init history dict
-        self.history = {}
+        self.request_history = {}
 
     def start_axon(self):
         #### Serve the axon
@@ -152,17 +153,10 @@ class BaseMiner(ABC):
 
         argp.add_argument("--miner.guidance_scale", type=float, default=7.5)
         argp.add_argument("--miner.steps", type=int, default=30)
-        argp.add_argument("--miner.num_images", type=int, default=1)
         argp.add_argument(
             "--miner.model",
             type=str,
             default="stabilityai/stable-diffusion-xl-base-1.0",
-        )
-        argp.add_argument(
-            "--miner.nsfw_filter",
-            action="store_true",
-            help="Applies an nsfw filter on the miner's outputs",
-            default=True,
         )
 
         bt.subtensor.add_args(argp)
@@ -278,12 +272,8 @@ class BaseMiner(ABC):
         )
 
     def is_alive(self, synapse: IsAlive) -> IsAlive:
-        timeout = synapse.timeout
-        start_time = time.perf_counter()
         bt.logging.info("IsAlive")
         synapse.completion = "True"
-        if time.perf_counter() - start_time > timeout:
-            self.stats.timeouts += 1
         return synapse
 
     async def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
@@ -293,9 +283,9 @@ class BaseMiner(ABC):
 
         ### Add the time of the request to a dict for rate limiting purposes
         hotkey = synapse.dendrite.hotkey
-        if not hotkey in self.history:
-            self.history[hotkey] = []
-        self.history[hotkey].append(time.perf_counter())
+        if not hotkey in self.request_history:
+            self.request_history[hotkey] = []
+        self.request_history[hotkey].append(time.perf_counter())
 
         ### Misc
         timeout = synapse.timeout
@@ -396,38 +386,20 @@ class BaseMiner(ABC):
             ### Note that blocking these keys will result in a ban from the network
             if caller_coldkey in self.coldkey_whitelist:
                 bt.logging.debug(f"Whitelisting coldkey {caller_coldkey}")
-                return False, "Whitelisted coldkey recognized"
+                return False, "Whitelisted coldkey recognized."
 
             if caller_hotkey in self.hotkey_whitelist:
                 bt.logging.debug(f"Whitelisting hotkey {caller_hotkey}")
-                return False, "Whitelisted hotkey recognized"
-
-            ### Apply a rate limit from the same caller
-            if any(
-                [
-                    not caller_hotkey in self.history.keys(),
-                    self.history[caller_hotkey][-1] - time.perf_counter() < rate_limit,
-                ]
-            ):
-                ### This will execute under the following conditions:
-                ### - If the caller's hotkey isn't in the history yet (first request from a validator)
-                ### - It isn't the first request, and the time between the last call is less than the rate limit value
-                bt.logging.debug(
-                    f"Allowing hotkey request from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) not exceeded"
-                )
-                return (
-                    False,
-                    f"Blacklisted {synapse_type} call from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) exceeded.",
-                )
+                return False, "Whitelisted hotkey recognized."
 
             ### Blacklist requests from validators that aren't registered
             if caller_stake is None:
-                bt.logging.trace(
-                    f"Blacklisting a non-registered hotkey: {caller_hotkey}"
+                bt.logging.debug(
+                    f"Blacklisting a non-registered hotkey: {caller_hotkey}."
                 )
                 return (
                     True,
-                    f"Blacklisted a non-registered hotkey's {synapse_type} request from {caller_hotkey}",
+                    f"Blacklisted a non-registered hotkey's {synapse_type} request from {caller_hotkey}.",
                 )
 
             ### Check that the caller has sufficient stake
@@ -437,7 +409,25 @@ class BaseMiner(ABC):
                     f"Blacklisted a {synapse_type} request from {caller_hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}",
                 )
 
-            bt.logging.trace(f"Allowing recognized hotkey {caller_hotkey}")
+            ### Apply a rate limit from the same caller
+            if caller_hotkey in self.request_history.keys():
+                now = time.perf_counter()
+
+                ### The difference in seconds between the current request and the previous one
+                delta = now - self.request_history[caller_hotkey][-1]
+
+                ### E.g., 0.3 < 1.0
+                if delta < rate_limit:
+                    return (
+                        True,
+                        f"Blacklisted {synapse_type} call from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) exceeded. Delta: {delta:.2f}s.",
+                    )
+
+                bt.logging.debug(
+                    f"Allowing hotkey request from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) not exceeded. Delta: {delta:.2f}s."
+                )
+
+            bt.logging.debug(f"Allowing recognized hotkey {caller_hotkey}")
             return False, "Hotkey recognized"
 
         except Exception as e:
