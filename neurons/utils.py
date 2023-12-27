@@ -1,17 +1,24 @@
-import _thread, os, subprocess, sys
+import _thread
 import json
-import bittensor as bt
+import os
+import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Timer
+
+import torch
+from google.cloud import storage
 from neurons.constants import (
     IA_BUCKET_NAME,
     IA_MINER_BLACKLIST,
     IA_MINER_WHITELIST,
     IA_VALIDATOR_BLACKLIST,
+    IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
 )
-from google.cloud import storage
+
+import bittensor as bt
 
 
 @dataclass
@@ -146,6 +153,20 @@ def background_loop(self, is_validator):
                     ]
                 )
                 bt.logging.debug("Updated the key whitelists.")
+
+            if is_validator:
+                validator_weights = retrieve_public_file(
+                    self.storage_client, IA_BUCKET_NAME, IA_VALIDATOR_WEIGHT_FILES
+                )
+                self.reward_weights = torch.tensor(
+                    [
+                        v
+                        for k, v in validator_weights.items()
+                        if "manual" not in k
+                    ],
+                    dtype=torch.float32,
+                ).to(self.device)
+                bt.logging.debug("Updated the validator weights.")
         except Exception as e:
             bt.logging.error(
                 f"An error occurred trying to update the blacklists and whitelists: {e}."
