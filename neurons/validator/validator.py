@@ -199,6 +199,8 @@ class StableValidator:
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
         self.coldkey_blacklist = set()
+        self.hotkey_whitelist = set()
+        self.coldkey_whitelist = set()
 
         # Init stats
         self.stats = get_defaults(self)
@@ -214,20 +216,21 @@ class StableValidator:
     def run(self):
         # Main Validation Loop
         bt.logging.info("Starting validator loop.")
-        step = 0
+        self.step = 0
         while True:
             try:
                 # Reduce calls to miner to be approximately 1 per 5 minutes
                 while (ttl_get_block(self) - self.prev_block) < 1:
                     sleep(10)
                     bt.logging.info(
-                        "waiting for 5 minutes before queriying miners again"
+                        "Waiting for 5 minutes before querying miners again..."
                     )
 
                 # Get a random number of uids
                 uids = get_random_uids(
                     self, self.dendrite, k=self.config.neuron.followup_sample_size
                 ).to(self.device)
+
                 axons = [self.metagraph.axons[uid] for uid in uids]
 
                 # Generate prompt + followup_prompt
@@ -295,7 +298,7 @@ class StableValidator:
         if self.should_set_weights():
             set_weights(self)
             self.prev_block = ttl_get_block(self)
-    
+
     def get_validator_index(self):
         """
         Retrieve the given miner's index in the metagraph.
@@ -359,7 +362,7 @@ class StableValidator:
         ):
             bt.logging.error(
                 f"Wallet: {self.wallet} is not registered on netuid {self.config.netuid}."
-                f" Please register the hotkey using `btcli subnets register` before trying again"
+                f" Please register the hotkey before trying again"
             )
             exit()
 
