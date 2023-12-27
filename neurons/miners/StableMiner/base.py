@@ -77,7 +77,7 @@ class BaseMiner(ABC):
         ### Defaults
         self.stats = get_defaults(self)
 
-        ### Set up transform function 
+        ### Set up transform function
         self.transform = transforms.Compose([transforms.PILToTensor()])
 
         ### Start the wandb logging thread if both project and entity have been provided
@@ -219,12 +219,12 @@ class BaseMiner(ABC):
             if index is not None:
                 self.miner_index = index
                 output_log(
-                    f"Miner {self.config.wallet.hotkey} is registered on uid {self.metagraph.uids[self.miner_index]}.",
+                    f"Miner {self.config.wallet.hotkey} is registered with uid {self.metagraph.uids[self.miner_index]}.",
                     "g",
                 )
                 break
             output_log(
-                f"Miner {self.config.wallet.hotkey} is not registered. Sleeping for 30 seconds...",
+                f"Miner {self.config.wallet.hotkey} is not registered. Sleeping for 120 seconds...",
                 "r",
             )
             time.sleep(120)
@@ -291,9 +291,9 @@ class BaseMiner(ABC):
         """
         if synapse.dendrite.hotkey in self.history:
             self.history[synapse.dendrite.hotkey].append(time.perf_counter())
-        else:  
+        else:
             self.history[synapse.dendrite.hotkey] = [time.perf_counter()]
-        
+
         timeout = synapse.timeout
         self.stats.total_requests += 1
         start_time = time.perf_counter()
@@ -310,7 +310,6 @@ class BaseMiner(ABC):
             local_args["image"] = T.transforms.ToPILImage()(
                 bt.Tensor.deserialize(synapse.prompt_image)
             )
-            del local_args["num_inference_steps"]
 
         ### Output logs
         do_logs(self, synapse, local_args)
@@ -323,27 +322,30 @@ class BaseMiner(ABC):
                     bt.Tensor.serialize(self.transform(image)) for image in images
                 ]
                 output_log(
-                    f"{sh('Generating')} -> Succesful image generation after {attempt+1} attempt(s)"
+                    f"{sh('Generating')} -> Succesful image generation after {attempt+1} attempt(s)."
                 )
                 break
             except Exception as e:
                 bt.logging.error(
-                    f"error in attempt number {attempt+1} to generate an image"
+                    f"Error in attempt number {attempt+1} to generate an image."
                 )
                 asyncio.sleep(5)
                 if attempt == 2:
                     images = []
                     synapse.images = []
+                    bt.logging.error(
+                        f"Failed to generate any images after {attempt+1} attempts."
+                    )
 
         if time.perf_counter() - start_time > timeout:
             self.stats.timeouts += 1
 
         ### Log NSFW images
         if any(nsfw_image_filter(self, images)):
-            bt.logging.debug(f"NSFW image detected in outputs")
+            bt.logging.debug(f"An image was flagged as NSFW: discarding image.")
             synapse.images = []
 
-        ### Log to wandb    
+        ### Log to wandb
         try:
             if self.wandb:
                 ### Store the images and prompts for uploading to wandb
@@ -352,10 +354,8 @@ class BaseMiner(ABC):
                 #### Log to Wandb
                 self.wandb._log()
 
-        except Exception as e:        
-            bt.logging.error(
-                f"error trying to log event to wandb"
-            )
+        except Exception as e:
+            bt.logging.error(f"Error trying to log events to wandb.")
 
         #### Log to console
         output_log(
@@ -364,74 +364,67 @@ class BaseMiner(ABC):
         return synapse
 
     def _base_priority(self, synapse) -> float:
-        """
-        The priority function determines the order in which requests are handled. More valuable or higher-priority
-        requests are processed before others. You should design your own priority mechanism with care.
-
-        This implementation assigns priority to incoming requests based on the calling entity's stake in the metagraph.
-
-        Args:
-            synapse (template.protocol.Dummy): The synapse object that contains metadata about the incoming request.
-
-        Returns:
-            float: A priority score derived from the stake of the calling entity.
-
-        Miners may recieve messages from multiple entities at once. This function determines which request should be
-        processed first. Higher values indicate that the request should be processed first. Lower values indicate
-        that the request should be processed later.
-
-        Example priority logic:
-        - A higher stake results in a higher priority value.
-        """
-        caller_uid = self.metagraph.hotkeys.index(
-            synapse.dendrite.hotkey
-        )  # Get the caller index.
-        prirority = float(
-            self.metagraph.S[caller_uid]
-        )  # Return the stake as the priority.
+        caller_uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
+        priority = float(self.metagraph.S[caller_uid])
         bt.logging.trace(
-            f"Prioritizing {synapse.dendrite.hotkey} with value: ", prirority
+            f"Prioritizing {synapse.dendrite.hotkey} with value: ", priority
         )
-        return prirority
+        return priority
 
     def _base_blacklist(
-        self, synapse, vpermit_tao_limit=-100, rate_limit = 1
+        self, synapse, vpermit_tao_limit=-100, rate_limit=1
     ) -> typing.Tuple[bool, str]:
         try:
-            hotkey = synapse.dendrite.hotkey
+            ### Get the name of the synapse
             synapse_type = type(synapse).__name__
 
+            ### Caller hotkey
+            hotkey = synapse.dendrite.hotkey
+
+            ### Retrieve the stake of the caller
             caller_stake = get_caller_stake(self, synapse)
 
-            if (hotkey in self.history.keys()) and (((max(self.history[hotkey])) - time.perf_counter()) < rate_limit):
-                bt.logging.trace(f"Whitelisting hotkey {synapse.dendrite.hotkey}")
-                return False, f"Blacklisted {synapse_type} call from {hotkey}. Rate limit exceeded.",
+            ### Retrieve the coldkey of the caller
+            caller_coldkey = get_caller_coldkey(self, synapse)
 
+            ### Allow through any whitelisted keys unconditionally
+            ### Note that blocking these keys will result in a ban from the network
             if hotkey in self.hotkey_whitelist:
-                bt.logging.trace(f"Whitelisting hotkey {synapse.dendrite.hotkey}")
+                bt.logging.trace(f"Whitelisting hotkey {hotkey}")
                 return False, "Whitelisted hotkey recognized"
 
-            if caller_stake is None:
+            ### Apply a rate limit from the same caller
+            if (hotkey in self.history.keys()) and (
+                ((max(self.history[hotkey])) - time.perf_counter()) < rate_limit
+            ):
                 bt.logging.trace(
-                    f"Blacklisting unrecognized hotkey: {synapse.dendrite.hotkey}"
+                    f"Allowing hotkey request from {hotkey} (not rate limited)"
                 )
+                return (
+                    False,
+                    f"Blacklisted {synapse_type} call from {hotkey}. Rate limit exceeded.",
+                )
+
+            ### Blacklist requests from validators that aren't registered
+            if caller_stake is None:
+                bt.logging.trace(f"Blacklisting a non-registered hotkey: {hotkey}")
                 return (
                     True,
                     f"Blacklisted a non-registered hotkey's {synapse_type} request from {hotkey}",
                 )
 
-            # Check stake if uid is recognized
+            ### Check that the caller has sufficient stake
             if caller_stake < vpermit_tao_limit:
                 return (
                     True,
                     f"Blacklisted a {synapse_type} request from {hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}",
                 )
 
-            bt.logging.trace(f"Allowing recognized hotkey {synapse.dendrite.hotkey}")
+            bt.logging.trace(f"Allowing recognized hotkey {hotkey}")
             return False, "Hotkey recognized"
 
         except Exception as e:
-            bt.logging.error(f"error in blacklist {traceback.format_exc()}")
+            bt.logging.error(f"Error in blacklist: {traceback.format_exc()}")
 
     def blacklist_is_alive(self, synapse: IsAlive) -> typing.Tuple[bool, str]:
         return self._base_blacklist(synapse)
