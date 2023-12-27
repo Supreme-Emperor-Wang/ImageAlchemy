@@ -77,11 +77,11 @@ def check_uid(dendrite, axon, uid):
             dendrite(axon, IsAlive(), deserialize=False, timeout=2.3)
         )
         if response.is_success:
-            bt.logging.debug(f"UID {uid} is active")
+            bt.logging.debug(f"UID {uid} is active.")
             # loop.close()
             return True
         else:
-            bt.logging.debug(f"UID {uid} is not active")
+            bt.logging.debug(f"UID {uid} is not active.")
             # loop.close()
             return False
     except Exception as e:
@@ -134,7 +134,11 @@ def get_random_uids(
         uid_is_available = check_uid_availability(dendrite, self.metagraph, uid, 400)
         uid_is_not_excluded = exclude is None or uid not in exclude
 
-        if uid_is_available and (self.metagraph.axons[uid].hotkey not in self.hotkey_blacklist) and (self.metagraph.axons[uid].coldkey not in self.coldkey_blacklist):
+        if (
+            uid_is_available
+            and (self.metagraph.axons[uid].hotkey not in self.hotkey_blacklist)
+            and (self.metagraph.axons[uid].coldkey not in self.coldkey_blacklist)
+        ):
             avail_uids.append(uid)
             if uid_is_not_excluded:
                 candidate_uids.append(uid)
