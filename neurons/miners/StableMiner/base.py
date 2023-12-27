@@ -380,17 +380,21 @@ class BaseMiner(ABC):
             ### Allow through any whitelisted keys unconditionally
             ### Note that blocking these keys will result in a ban from the network
             if caller_coldkey in self.coldkey_whitelist:
-                bt.logging.debug(f"Whitelisting coldkey {caller_coldkey}")
+                bt.logging.debug(
+                    f"Whitelisting coldkey's {synapse_type} request from {caller_hotkey}"
+                )
                 return False, "Whitelisted coldkey recognized."
 
             if caller_hotkey in self.hotkey_whitelist:
-                bt.logging.debug(f"Whitelisting hotkey {caller_hotkey}")
+                bt.logging.debug(
+                    f"Whitelisting hotkey's {synapse_type} request from {caller_hotkey}"
+                )
                 return False, "Whitelisted hotkey recognized."
 
             ### Blacklist requests from validators that aren't registered
             if caller_stake is None:
                 bt.logging.debug(
-                    f"Blacklisting a non-registered hotkey: {caller_hotkey}."
+                    f"Blacklisted a non-registered hotkey's {synapse_type} request from {caller_hotkey}."
                 )
                 return (
                     True,
@@ -404,38 +408,40 @@ class BaseMiner(ABC):
                     f"Blacklisted a {synapse_type} request from {caller_hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}",
                 )
 
-            ### Apply a rate limit from the same caller
-            if caller_hotkey in self.request_dict.keys():
-                now = time.perf_counter()
+            ### Only run this block if we're dealing with the ImageGeneration synapse
+            if synapse_type == "ImageGeneration":
+                ### Apply a rate limit from the same caller
+                if caller_hotkey in self.request_dict.keys():
+                    now = time.perf_counter()
 
-                ### The difference in seconds between the current request and the previous one
-                delta = now - self.request_dict[caller_hotkey]["history"][-1]
+                    ### The difference in seconds between the current request and the previous one
+                    delta = now - self.request_dict[caller_hotkey]["history"][-1]
 
-                ### E.g., 0.3 < 1.0
-                if delta < rate_limit:
-                    ### Count number of rate limited calls from caller's hotkey
-                    self.request_dict[caller_hotkey]["rate_limited_count"] += 1
-                    return (
-                        True,
-                        f"Blacklisted {synapse_type} call from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) exceeded. Delta: {delta:.2f}s.",
+                    ### E.g., 0.3 < 1.0
+                    if delta < rate_limit:
+                        ### Count number of rate limited calls from caller's hotkey
+                        self.request_dict[caller_hotkey]["rate_limited_count"] += 1
+                        return (
+                            True,
+                            f"Blacklisted {synapse_type} call from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) exceeded. Delta: {delta:.2f}s.",
+                        )
+
+                    ### Only track the data for non-rate limited calls
+                    self.request_dict[caller_hotkey]["history"].append(now)
+                    self.request_dict[caller_hotkey]["delta"].append(delta)
+                    self.request_dict[caller_hotkey]["count"] += 1
+
+                    bt.logging.debug(
+                        f"Allowing hotkey request from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) not exceeded. Delta: {delta:.2f}s."
                     )
-
-                ### Only track the data for non-rate limited calls
-                self.request_dict[caller_hotkey]["history"].append(now)
-                self.request_dict[caller_hotkey]["delta"].append(delta)
-                self.request_dict[caller_hotkey]["count"] += 1
-
-                bt.logging.debug(
-                    f"Allowing hotkey request from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) not exceeded. Delta: {delta:.2f}s."
-                )
-            else:
-                ### For the first request, initialize the dictionary
-                self.request_dict[caller_hotkey] = {
-                    "history": [time.perf_counter()],
-                    "delta": [0],
-                    "count": 0,
-                    "rate_limited_count": 0,
-                }
+                else:
+                    ### For the first request, initialize the dictionary
+                    self.request_dict[caller_hotkey] = {
+                        "history": [time.perf_counter()],
+                        "delta": [0],
+                        "count": 0,
+                        "rate_limited_count": 0,
+                    }
 
             bt.logging.debug(f"Allowing recognized hotkey {caller_hotkey}")
             return False, "Hotkey recognized"
