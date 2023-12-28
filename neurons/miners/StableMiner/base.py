@@ -311,7 +311,8 @@ class BaseMiner(ABC):
                     bt.Tensor.serialize(self.transform(image)) for image in images
                 ]
                 output_log(
-                    f"{sh('Generating')} -> Succesful image generation after {attempt+1} attempt(s)."
+                    f"{sh('Generating')} -> Succesful image generation after {attempt+1} attempt(s).",
+                    color_key="c",
                 )
                 break
             except Exception as e:

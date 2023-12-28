@@ -98,7 +98,7 @@ def do_logs(self, synapse, local_args):
         f"{sh('Caller')} -> Stake {int(requester_stake):,} | Hotkey {synapse.dendrite.hotkey}.",
         color_key="y",
     )
-    output_log(f"{sh('Generating')} -> 1 image.", color_key="c")
+    # output_log(f"{sh('Generating')} -> 1 image.", color_key="c")
 
 
 ### mapping["text_to_image"]["args"]
