@@ -111,11 +111,7 @@ class StableValidator:
 
         # Dendrite pool for querying the network during  training.
         bt.logging.debug("loading", "dendrite_pool")
-        if self.config.neuron.mock_dendrite_pool:
-            # self.dendrite = MockDendrite()
-            pass
-        else:
-            self.dendrite = bt.dendrite(wallet=self.wallet)
+        self.dendrite = bt.dendrite(wallet=self.wallet)
         bt.logging.debug(str(self.dendrite))
 
         # Init metagraph.
@@ -207,7 +203,7 @@ class StableValidator:
 
                 # Get a random number of uids
                 uids = get_random_uids(
-                    self, self.dendrite, k=self.config.neuron.followup_sample_size
+                    self, self.dendrite, k=self.config.neuron.sample_size
                 ).to(self.device)
 
                 axons = [self.metagraph.axons[uid] for uid in uids]

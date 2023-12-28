@@ -74,12 +74,6 @@ def add_args(cls, parser):
     )
 
     parser.add_argument(
-        "--neuron.num_concurrent_forwards",
-        type=int,
-        help="The number of concurrent forwards running at any time.",
-        default=1,
-    )
-    parser.add_argument(
         "--neuron.disable_set_weights",
         action="store_true",
         help="Disables setting weights.",
@@ -91,24 +85,12 @@ def add_args(cls, parser):
         help="Moving average alpha parameter, how much to add of the new observation.",
         default=0.05,
     )
-
+    
     parser.add_argument(
-        "--neuron.followup_sample_size",
+        "--neuron.sample_size",
         type=int,
-        help="How many miners to query for the follow up prompt.",
-        default=50,
-    )
-    parser.add_argument(
-        "--neuron.answer_sample_size",
-        type=int,
-        help="How many miners to query for the answer.",
-        default=50,
-    )
-    parser.add_argument(
-        "--neuron.num_followup_steps",
-        type=int,
-        help="How many followup steps to take.",
-        default=4,
+        help="How many miners to query for a single prompt.",
+        default=12,
     )
 
     parser.add_argument(
@@ -116,18 +98,6 @@ def add_args(cls, parser):
         type=int,
         help="Override the default epoch length (how often we set weights).",
         default=5,
-    )
-    parser.add_argument(
-        "--neuron.checkpoint_block_length",
-        type=int,
-        help="Blocks before a checkpoint is saved.",
-        default=100,
-    )
-    parser.add_argument(
-        "--neuron.events_retention_size",
-        type=str,
-        help="Events retention size.",
-        default="2 GB",
     )
     parser.add_argument(
         "--neuron.dont_save_events",
@@ -167,47 +137,6 @@ def add_args(cls, parser):
         default="",
     )
 
-    # Mocks
-    parser.add_argument(
-        "--mock", action="store_true", help="Mock all items.", default=False
-    )
-    parser.add_argument(
-        "--neuron.mock_reward_models",
-        action="store_true",
-        help="Dont download the reward model.",
-        default=False,
-    )
-    parser.add_argument(
-        "--neuron.blacklist_off",
-        action="store_true",
-        help="Dont apply the blacklist reward model",
-        default=False,
-    )
-    parser.add_argument(
-        "--neuron.nsfw_off",
-        action="store_true",
-        help="Dont apply the nsfw reward model",
-        default=False,
-    )
-    parser.add_argument(
-        "--neuron.relevance_off",
-        action="store_true",
-        help="Dont apply the relevance reward model",
-        default=False,
-    )
-    parser.add_argument(
-        "--neuron.diversity_off",
-        action="store_true",
-        help="Dont apply the diversity reward model",
-        default=False,
-    )
-    parser.add_argument(
-        "--neuron.task_validator_off",
-        action="store_true",
-        help="Dont apply the task validator reward model",
-        default=False,
-    )
-
     parser.add_argument(
         "--reward.diversity_model_weight",
         type=float,
@@ -225,31 +154,6 @@ def add_args(cls, parser):
         type=float,
         help="Weight for the human reward model",
         default=DefaultRewardFrameworkConfig.human_model_weight,
-    )
-
-    parser.add_argument(
-        "--neuron.mock_dendrite_pool",
-        action="store_true",
-        help="Dont download the dendrite pool.",
-        default=False,
-    )
-    parser.add_argument(
-        "--neuron.mock_gating_model",
-        action="store_true",
-        help="Dont download the gating model.",
-        default=False,
-    )
-    parser.add_argument(
-        "--neuron.mock_dataset",
-        action="store_true",
-        help="Dont download the dataset.",
-        default=False,
-    )
-    parser.add_argument(
-        "--neuron.use_custom_gating_model",
-        action="store_true",
-        help="Use a custom gating model.",
-        default=False,
     )
 
 
