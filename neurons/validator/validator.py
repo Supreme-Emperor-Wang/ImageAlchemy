@@ -187,6 +187,7 @@ class StableValidator:
         self.validator_index = self.get_validator_index()
 
         # Start the generic background loop
+        self.storage_client = None
         self.background_steps = 1
         self.background_timer = BackgroundTimer(300, background_loop, [self, True])
         self.background_timer.start()
