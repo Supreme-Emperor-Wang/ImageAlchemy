@@ -70,6 +70,7 @@ def do_logs(self, synapse, local_args):
     Output logs for each request that comes through.
     """
     time_elapsed = datetime.now() - self.stats.start_time
+    hotkey = synapse.dendrite.hotkey
 
     output_log(
         f"{sh('Info')} -> Date {datetime.strftime(self.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.stats.total_requests/(time_elapsed.total_seconds()/60):.2f} | Model {self.config.miner.model} | Seed {self.config.miner.seed}.",
@@ -91,17 +92,24 @@ def do_logs(self, synapse, local_args):
         f"{sh('Stats')} -> Block: {miner_info['block']} | Stake: {miner_info['stake']:.2f} | Incentive: {miner_info['incentive']:.2f} | Trust: {miner_info['trust']:.2f} | Consensus: {miner_info['consensus']:.2f}.",
         color_key="c",
     )
+
+    ### Output stake
     requester_stake = get_caller_stake(self, synapse)
     if requester_stake is None:
         requester_stake = -1
+
+    ### Retrieve the coldkey of the caller
+    caller_coldkey = get_coldkey_for_hotkey(self, hotkey)
+
+    temp_string = f"Stake {int(requester_stake):,}"
+
+    if hotkey in self.hotkey_whitelist or caller_coldkey in self.coldkey_whitelist:
+        temp_string = "Whitelisted key"
+
     output_log(
-        f"{sh('Caller')} -> Stake {int(requester_stake):,} | Hotkey {synapse.dendrite.hotkey}.",
+        f"{sh('Caller')} -> {temp_string} | Hotkey {hotkey}.",
         color_key="y",
     )
-    # output_log(f"{sh('Generating')} -> 1 image.", color_key="c")
-
-
-### mapping["text_to_image"]["args"]
 
 
 def warm_up(model, local_args):
