@@ -27,7 +27,7 @@ class Stats:
     start_dt: datetime
     total_requests: int
     timeouts: int
-    response_times: list
+    nsfw_count: int
 
 
 #### Colors to use in the logs
