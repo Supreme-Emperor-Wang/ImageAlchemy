@@ -335,6 +335,7 @@ class BaseMiner(ABC):
         ### Log NSFW images
         if any(nsfw_image_filter(self, images)):
             bt.logging.debug(f"An image was flagged as NSFW: discarding image.")
+            self.stats.nsfw_count += 1
             synapse.images = []
 
         ### Log to wandb
