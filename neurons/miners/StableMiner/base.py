@@ -382,21 +382,25 @@ class BaseMiner(ABC):
             ### Allow through any whitelisted keys unconditionally
             ### Note that blocking these keys will result in a ban from the network
             if caller_coldkey in self.coldkey_whitelist:
-                bt.logging.debug(
-                    f"Whitelisting coldkey's {synapse_type} request from {caller_hotkey}"
+                output_log(
+                    f"Whitelisting coldkey's {synapse_type} request from {caller_hotkey}.",
+                    color_key="g",
                 )
                 return False, "Whitelisted coldkey recognized."
 
             if caller_hotkey in self.hotkey_whitelist:
-                bt.logging.debug(
-                    f"Whitelisting hotkey's {synapse_type} request from {caller_hotkey}"
+                output_log(
+                    f"Whitelisting hotkey's {synapse_type} request from {caller_hotkey}.",
+                    color_key="g",
                 )
                 return False, "Whitelisted hotkey recognized."
 
             ### Blacklist requests from validators that aren't registered
             if caller_stake is None:
-                bt.logging.debug(
-                    f"Blacklisted a non-registered hotkey's {synapse_type} request from {caller_hotkey}."
+                output_log(
+                    f"Blacklisted a non-registered hotkey's {synapse_type} request from {caller_hotkey}.",
+                    color_key="r",
+                    type="debug",
                 )
                 return (
                     True,
@@ -405,9 +409,14 @@ class BaseMiner(ABC):
 
             ### Check that the caller has sufficient stake
             if caller_stake < vpermit_tao_limit:
+                output_log(
+                    f"Blacklisted a {synapse_type} request from {caller_hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}.",
+                    color_key="r",
+                    type="debug",
+                )
                 return (
                     True,
-                    f"Blacklisted a {synapse_type} request from {caller_hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}",
+                    f"Blacklisted a {synapse_type} request from {caller_hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}.",
                 )
 
             ### Only run this block if we're dealing with the ImageGeneration synapse
@@ -423,9 +432,14 @@ class BaseMiner(ABC):
                     if delta < rate_limit:
                         ### Count number of rate limited calls from caller's hotkey
                         self.request_dict[caller_hotkey]["rate_limited_count"] += 1
+                        output_log(
+                            f"Blacklisted a {synapse_type} request from {caller_hotkey}. Rate limit ({rate_limit:.2f}) exceeded. Delta: {delta:.2f}s.",
+                            color_key="r",
+                            type="debug",
+                        )
                         return (
                             True,
-                            f"Blacklisted {synapse_type} call from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) exceeded. Delta: {delta:.2f}s.",
+                            f"Blacklisted a {synapse_type} request from {caller_hotkey}. Rate limit ({rate_limit:.2f}) exceeded. Delta: {delta:.2f}s.",
                         )
 
                     ### Only track the data for non-rate limited calls
@@ -433,8 +447,9 @@ class BaseMiner(ABC):
                     self.request_dict[caller_hotkey]["delta"].append(delta)
                     self.request_dict[caller_hotkey]["count"] += 1
 
-                    bt.logging.debug(
-                        f"Allowing hotkey request from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) not exceeded. Delta: {delta:.2f}s."
+                    output_log(
+                        f"Allowing hotkey request from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) not exceeded. Delta: {delta:.2f}s.",
+                        color_key="g",
                     )
                 else:
                     ### For the first request, initialize the dictionary
@@ -508,14 +523,17 @@ class BaseMiner(ABC):
                         top_requestors, key=lambda x: x[1], reverse=True
                     )[:10]
 
-                    formatted_str = " | ".join(
-                        [
-                            f"Hotkey: {x[0]}, Count: {x[1]}, Average delta: {sum(x[2]) / len(x[2]) if len(x[2]) > 0 else 0}, Rate limited count: {x[3]}"
-                            for x in top_requestors
-                        ]
-                    )
+                    if len(top_requestors) > 0:
+                        formatted_str = " | ".join(
+                            [
+                                f"Hotkey: {x[0]}, Count: {x[1]}, Average delta: {sum(x[2]) / len(x[2]) if len(x[2]) > 0 else 0}, Rate limited count: {x[3]}"
+                                for x in top_requestors
+                            ]
+                        )
 
-                    output_log(f"{sh('Top Callers')} -> {formatted_str}", color_key="c")
+                        output_log(
+                            f"{sh('Top Callers')} -> {formatted_str}", color_key="c"
+                        )
 
                 step += 1
                 time.sleep(60)
