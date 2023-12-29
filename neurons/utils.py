@@ -90,20 +90,27 @@ def background_loop(self, is_validator):
     #### Terminate the miner after deregistration
     #### Each step is 5 minutes
     if self.background_steps % 1 == 0 and self.background_steps > 1:
-        self.metagraph.sync(lite=True)
-        if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
-            bt.logging.debug(f">>> {neuron_type} has deregistered... terminating.")
-            try:
-                _thread.interrupt_main()
-            except Exception as e:
-                bt.logging.error(
-                    f"An error occurred trying to terminate the main thread: {e}."
-                )
-            try:
-                os._exit(0)
-            except Exception as e:
-                bt.logging.error(f"An error occurred trying to use os._exit(): {e}.")
-            sys.exit(0)
+        try:
+            self.metagraph.sync(lite=True)
+            if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
+                bt.logging.debug(f">>> {neuron_type} has deregistered... terminating.")
+                try:
+                    _thread.interrupt_main()
+                except Exception as e:
+                    bt.logging.error(
+                        f"An error occurred trying to terminate the main thread: {e}."
+                    )
+                try:
+                    os._exit(0)
+                except Exception as e:
+                    bt.logging.error(
+                        f"An error occurred trying to use os._exit(): {e}."
+                    )
+                sys.exit(0)
+        except Exception as e:
+            bt.logging.error(
+                f">>> An unexpected error occurred syncing the metagraph: {e}"
+            )
 
     #### Update the whitelists and blacklists
     if self.background_steps % 1 == 0:
