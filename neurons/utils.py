@@ -65,8 +65,8 @@ def get_defaults(self):
         start_time=now,
         start_dt=datetime.strftime(now, "%Y/%m/%d %H:%M"),
         total_requests=0,
+        nsfw_count=0,
         timeouts=0,
-        response_times=[],
     )
     return stats
 
@@ -83,15 +83,13 @@ def background_loop(self, is_validator):
     """
     Handles terminating the miner after deregistration and updating the blacklist and whitelist.
     """
-    bt.logging.debug("Debug Background Timer")
-
     neuron_type = "Validator" if is_validator else "Miner"
     whitelist_type = IA_VALIDATOR_WHITELIST if is_validator else IA_MINER_WHITELIST
     blacklist_type = IA_VALIDATOR_BLACKLIST if is_validator else IA_MINER_BLACKLIST
 
     #### Terminate the miner after deregistration
     #### Each step is 5 minutes
-    if self.background_steps % 1 == 0:
+    if self.background_steps % 1 == 0 and self.background_steps > 1:
         self.metagraph.sync(lite=True)
         if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
             bt.logging.debug(f">>> {neuron_type} has deregistered... terminating.")
@@ -159,11 +157,7 @@ def background_loop(self, is_validator):
                     self.storage_client, IA_BUCKET_NAME, IA_VALIDATOR_WEIGHT_FILES
                 )
                 self.reward_weights = torch.tensor(
-                    [
-                        v
-                        for k, v in validator_weights.items()
-                        if "manual" not in k
-                    ],
+                    [v for k, v in validator_weights.items() if "manual" not in k],
                     dtype=torch.float32,
                 ).to(self.device)
                 bt.logging.debug("Updated the validator weights.")
