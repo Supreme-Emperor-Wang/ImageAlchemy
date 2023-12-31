@@ -16,6 +16,8 @@ from neurons.constants import (
     IA_VALIDATOR_BLACKLIST,
     IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
+    WANDB_MINER_PATH,
+    WANDB_VALIDATOR_PATH,
 )
 
 import bittensor as bt
@@ -174,10 +176,11 @@ def background_loop(self, is_validator):
             )
 
     #### Clean up the wandb runs and cache folders
-    if self.background_steps % 300 == 0:
+    if self.background_steps == 1 or self.background_steps % 300 == 0:
+        wandb_path = WANDB_VALIDATOR_PATH if is_validator else WANDB_MINER_PATH
         try:
             cleanup_runs_process = subprocess.Popen(
-                ["echo y | wandb sync --clean"], shell=True
+                [f"echo y | wandb sync --clean {wandb_path}"], shell=True
             )
             bt.logging.debug("Cleaned all synced wandb runs.")
             cleanup_cache_process = subprocess.Popen(
