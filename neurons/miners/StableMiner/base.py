@@ -1,23 +1,12 @@
-import argparse
-import asyncio
-import copy
-import os
-import random
-import time
-import traceback
-import typing
-from abc import ABC
-from datetime import datetime
-from typing import Dict, Union
-
-import torch
+import argparse, asyncio, copy, os, random, time, traceback, typing
+import bittensor as bt
 import torchvision.transforms as transforms
 import torchvision.transforms as T
-from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
+
+from abc import ABC
+from typing import Dict
 from neurons.protocol import ImageGeneration, IsAlive
-from neurons.safety import StableDiffusionSafetyChecker
 from neurons.utils import BackgroundTimer, background_loop, get_defaults
-from transformers import CLIPImageProcessor
 from utils import (
     clean_nsfw_from_prompt,
     do_logs,
@@ -28,8 +17,6 @@ from utils import (
     sh,
 )
 from wandb_utils import WandbUtils
-
-import bittensor as bt
 
 
 class BaseMiner(ABC):
@@ -182,29 +169,6 @@ class BaseMiner(ABC):
             os.makedirs(config.full_path, exist_ok=True)
 
         return config
-
-    def load_models(self):
-        ### Load the text-to-image model
-        t2i_model = AutoPipelineForText2Image.from_pretrained(
-            self.config.miner.model,
-            torch_dtype=torch.float16,
-            use_safetensors=True,
-            variant="fp16",
-        ).to(self.config.miner.device)
-        t2i_model.set_progress_bar_config(disable=True)
-
-        ### Load the image to image model using the same pipeline (efficient)
-        i2i_model = AutoPipelineForImage2Image.from_pipe(t2i_model).to(
-            self.config.miner.device,
-        )
-        i2i_model.set_progress_bar_config(disable=True)
-
-        safety_checker = StableDiffusionSafetyChecker.from_pretrained(
-            "CompVis/stable-diffusion-safety-checker"
-        ).to(self.config.miner.device)
-        processor = CLIPImageProcessor()
-
-        return t2i_model, i2i_model, safety_checker, processor
 
     def add_args(cls, argp: argparse.ArgumentParser):
         pass
