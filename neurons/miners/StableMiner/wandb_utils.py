@@ -1,4 +1,5 @@
 import copy
+import os
 from threading import Timer
 
 import torch
@@ -6,6 +7,8 @@ from utils import output_log
 
 import bittensor as bt
 import wandb
+
+from constants import WANDB_MINER_PATH
 
 
 #### Wandb functions
@@ -49,11 +52,15 @@ class WandbUtils:
             f"netuid_{self.metagraph.netuid}",
         ]
 
+        if not os.path.exists(WANDB_MINER_PATH):
+            os.makedirs(WANDB_MINER_PATH, exist_ok=True)
+
         self.wandb = wandb.init(
             project=self.config.wandb.project,
             entity=self.config.wandb.entity,
             config=config,
             tags=tags,
+            dir=WANDB_MINER_PATH,
         )
 
         #### Take the first two random words plus the name of the wallet, hotkey name and uid
