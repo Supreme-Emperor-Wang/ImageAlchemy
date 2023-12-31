@@ -1,12 +1,14 @@
 # Utils for checkpointing and saving the model.
 import asyncio
 import copy
+import os
 import random
 import time
 import traceback
 from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List
+from neurons.constants import WANDB_VALIDATOR_PATH
 
 import neurons.validator as validator
 import pandas as pd
@@ -291,13 +293,17 @@ def init_wandb(self, reinit=False):
         for key in ("neuron", "reward", "netuid", "wandb")
     }
     wandb_config["neuron"].pop("full_path", None)
+
+    if not os.path.exists(WANDB_VALIDATOR_PATH):
+        os.makedirs(WANDB_VALIDATOR_PATH, exist_ok=True)
+
     self.wandb = wandb.init(
         anonymous="allow",
         reinit=reinit,
         project="ImageAlchemy",
         entity="tensoralchemy",
         config=wandb_config,
-        dir=self.config.neuron.full_path,
+        dir=WANDB_VALIDATOR_PATH,
         tags=tags,
         notes=self.config.wandb.notes,
     )
