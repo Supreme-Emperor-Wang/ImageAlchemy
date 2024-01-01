@@ -6,6 +6,7 @@ import random
 from time import sleep
 from traceback import print_exception
 from typing import List
+from neurons.constants import N_NEURONS
 
 import torch
 from datasets import load_dataset
@@ -52,20 +53,18 @@ class StableValidator:
         self.config = StableValidator.config()
         self.check_config(self.config)
         bt.logging(config=self.config, logging_dir=self.config.neuron.full_path)
-        bt.logging.info("StableValidator.__init__()")
+        bt.logging.debug("StableValidator.__init__()")
 
         # Init device.
-        bt.logging.debug("loading", "device")
+        bt.logging.debug(f"Device: {self.config.neuron.device}")
         self.device = torch.device(self.config.neuron.device)
-        bt.logging.debug(str(self.device))
 
         # Init seed
-        bt.logging.debug("setting", "seed")
-        self.seed = random.randint(0, 1000000)
-        bt.logging.debug(str(self.seed))
+        self.seed = random.randint(0, 1_000_000)
+        bt.logging.debug(f"Seed: {self.seed}")
 
         # Init dataset
-        bt.logging.debug("loading", "dataset")
+        bt.logging.debug("Loading dataset")
         self.dataset = iter(
             load_dataset("poloclub/diffusiondb")["train"]
             .shuffle(seed=self.seed)
@@ -73,7 +72,7 @@ class StableValidator:
         )
 
         # Init prompt generation model
-        bt.logging.debug("loading", "prompt generation model")
+        bt.logging.debug(f"Loading prompt generation model")
         self.prompt_generation_pipeline = pipeline(
             "text-generation", model="succinctly/text2image-prompt-generator"
         )
@@ -87,12 +86,10 @@ class StableValidator:
         self.prompt_generation_failures = 0
 
         # Init subtensor
-        bt.logging.debug("loading", "subtensor")
         self.subtensor = bt.subtensor(config=self.config)
-        bt.logging.debug(str(self.subtensor))
+        bt.logging.debug(f"Loaded subtensor: {self.subtensor}")
 
         # Init wallet.
-        bt.logging.debug("loading", "wallet")
         self.wallet = bt.wallet(config=self.config)
         self.wallet.create_if_non_existent()
         if not self.config.wallet._mock:
@@ -102,32 +99,25 @@ class StableValidator:
                 raise Exception(
                     f"Wallet not currently registered on netuid {self.config.netuid}, please first register wallet before running"
                 )
-        bt.logging.debug(str(self.wallet))
 
-        # Init subtensor
-        bt.logging.debug("loading", "subtensor")
-        self.subtensor = bt.subtensor(config=self.config)
-        bt.logging.debug(str(self.subtensor))
-
-        # Dendrite pool for querying the network during  training.
-        bt.logging.debug("loading", "dendrite_pool")
+        # Dendrite pool for querying the network during training.
         self.dendrite = bt.dendrite(wallet=self.wallet)
-        bt.logging.debug(str(self.dendrite))
+        bt.logging.debug(f"Loaded dendrite pool: {self.dendrite}")
 
         # Init metagraph.
-        bt.logging.debug("loading", "metagraph")
         self.metagraph = bt.metagraph(
             netuid=self.config.netuid, network=self.subtensor.network, sync=False
         )  # Make sure not to sync without passing subtensor
         self.metagraph.sync(subtensor=self.subtensor)  # Sync metagraph with subtensor.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
         self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
-        bt.logging.debug(str(self.metagraph))
+        bt.logging.debug("Loaded metagraph")
 
         # Init Weights.
-        bt.logging.debug("loading", "moving_averaged_scores")
         self.moving_averaged_scores = torch.zeros((self.metagraph.n)).to(self.device)
-        bt.logging.debug(str(self.moving_averaged_scores))
+        bt.logging.debug(
+            f"Loaded moving_averaged_scores: {str(self.moving_averaged_scores)}"
+        )
 
         # Each validator gets a unique identity (UID) in the network for differentiation.
         self.my_subnet_uid = self.metagraph.hotkeys.index(
@@ -150,8 +140,8 @@ class StableValidator:
         # Init reward function
         self.reward_weights = torch.tensor(
             [
-                self.config.reward.image_model_weight,
-                self.config.reward.diversity_model_weight,
+                0.95,
+                0.05,
             ],
             dtype=torch.float32,
         ).to(self.device)
@@ -167,8 +157,8 @@ class StableValidator:
         self.loop = asyncio.get_event_loop()
 
         # Init wandb.
-        bt.logging.debug("loading", "wandb")
         init_wandb(self)
+        bt.logging.debug("Loaded wandb")
 
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
@@ -202,9 +192,7 @@ class StableValidator:
                     )
 
                 # Get a random number of uids
-                uids = get_random_uids(
-                    self, self.dendrite, k=self.config.neuron.sample_size
-                ).to(self.device)
+                uids = get_random_uids(self, self.dendrite, k=N_NEURONS).to(self.device)
 
                 axons = [self.metagraph.axons[uid] for uid in uids]
 
@@ -297,7 +285,6 @@ class StableValidator:
 
     def resync_metagraph(self):
         """Resyncs the metagraph and updates the hotkeys and moving averages based on the new metagraph."""
-        bt.logging.info("resync_metagraph()")
 
         # Copies state of metagraph before syncing.
         previous_metagraph = copy.deepcopy(self.metagraph)
