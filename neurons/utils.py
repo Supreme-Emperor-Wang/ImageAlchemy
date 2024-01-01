@@ -179,14 +179,17 @@ def background_loop(self, is_validator):
     if self.background_steps == 1 or self.background_steps % 300 == 0:
         wandb_path = WANDB_VALIDATOR_PATH if is_validator else WANDB_MINER_PATH
         try:
-            cleanup_runs_process = subprocess.Popen(
-                [f"echo y | wandb sync --clean {wandb_path}"], shell=True
-            )
-            bt.logging.debug("Cleaned all synced wandb runs.")
-            cleanup_cache_process = subprocess.Popen(
-                ["wandb artifact cache cleanup 5GB"], shell=True
-            )
-            bt.logging.debug("Cleaned all wandb cache data > 5GB.")
+            if os.path.exists(wandb_path):
+                cleanup_runs_process = subprocess.Popen(
+                    [f"echo y | wandb sync --clean {wandb_path}"], shell=True
+                )
+                bt.logging.debug("Cleaned all synced wandb runs.")
+                cleanup_cache_process = subprocess.Popen(
+                    ["wandb artifact cache cleanup 5GB"], shell=True
+                )
+                bt.logging.debug("Cleaned all wandb cache data > 5GB.")
+            else:
+                bt.logging.debug(f"The path {wandb_path} doesn't exist yet.")
         except Exception as e:
             bt.logging.error(
                 f"An error occurred trying to clean wandb artifacts and runs: {e}."
