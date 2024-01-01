@@ -76,7 +76,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     start_time = time.time()
 
     # Log the results for monitoring purposes.
-    bt.logging.info(f"Received response: {responses}")
+    bt.logging.info(f"Received {len(responses)} response(s): {responses}")
 
     # Initialise rewards tensor
     rewards: torch.FloatTensor = torch.ones(len(responses), dtype=torch.float32).to(
