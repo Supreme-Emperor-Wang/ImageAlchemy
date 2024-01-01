@@ -1,11 +1,7 @@
-import argparse
-import os
-
-import torch
-from loguru import logger
-from reward import DefaultRewardFrameworkConfig
-
+import argparse, os
 import bittensor as bt
+
+from loguru import logger
 
 
 def check_config(cls, config: "bt.Config"):
@@ -26,7 +22,7 @@ def check_config(cls, config: "bt.Config"):
             config.wallet.name,
             config.wallet.hotkey,
             config.netuid,
-            config.neuron.name,
+            config.alchemy.name,
         )
     )
     config.neuron.full_path = os.path.expanduser(full_path)
