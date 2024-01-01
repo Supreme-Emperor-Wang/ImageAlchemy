@@ -8,7 +8,7 @@ import traceback
 from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List
-from neurons.constants import VPERMIT_TAO, WANDB_VALIDATOR_PATH
+from neurons.constants import VPERMIT_TAO, WANDB_RUN_STEP_LENGTH, WANDB_VALIDATOR_PATH
 
 import neurons.validator as validator
 import pandas as pd
@@ -188,7 +188,7 @@ def cosine_distance(image_embeds, text_embeds):
 
 def should_reinit_wandb(self):
     # Check if wandb run needs to be rolled over.
-    return self.step and self.step % self.config.wandb.run_step_length == 0
+    return self.step and self.step % WANDB_RUN_STEP_LENGTH == 0
 
 
 def generate_random_prompt(self):
@@ -274,15 +274,10 @@ def init_wandb(self, reinit=False):
 
     if self.config.mock:
         tags.append("mock")
-    if self.config.neuron.use_custom_gating_model:
-        tags.append("custom_gating_model")
+
     for fn in self.reward_functions:
         if not self.config.neuron.mock_reward_models:
             tags.append(str(fn.name))
-    if self.config.neuron.disable_set_weights:
-        tags.append("disable_set_weights")
-    if self.config.neuron.disable_log_rewards:
-        tags.append("disable_log_rewards")
 
     wandb_config = {
         key: copy.deepcopy(self.config.get(key, None))
@@ -301,7 +296,6 @@ def init_wandb(self, reinit=False):
         config=wandb_config,
         dir=WANDB_VALIDATOR_PATH,
         tags=tags,
-        notes=self.config.wandb.notes,
     )
     bt.logging.success(
         prefix="Started a new wandb run",
