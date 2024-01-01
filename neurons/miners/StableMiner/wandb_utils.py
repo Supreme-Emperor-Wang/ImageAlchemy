@@ -8,7 +8,7 @@ from utils import output_log
 import bittensor as bt
 import wandb
 
-from constants import WANDB_MINER_PATH
+from neurons.constants import WANDB_MINER_PATH
 
 
 #### Wandb functions
@@ -70,10 +70,8 @@ class WandbUtils:
         )
         output_log(f"Started new run: {self.wandb.name}", "c")
 
-    def _add_images(self, synapse, file_type="png"):
+    def _add_images(self, synapse, file_type="jpg"):
         ### Store the images and prompts for uploading to wandb
-        if self.config.wandb.compress:
-            file_type = "jpg"
 
         self.event.update(
             {
