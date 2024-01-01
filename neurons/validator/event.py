@@ -26,7 +26,7 @@ class EventSchema:
     set_weights: Optional[List[List[float]]]
 
     @staticmethod
-    def from_dict(event_dict: dict, disable_log_rewards: bool) -> "EventSchema":
+    def from_dict(event_dict: dict) -> "EventSchema":
         """Converts a dictionary to an EventSchema object."""
 
         rewards = {
