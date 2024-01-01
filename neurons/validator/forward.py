@@ -2,6 +2,7 @@ import copy
 import time
 from dataclasses import asdict
 from datetime import datetime
+from neurons.constants import FOLLOWUP_TIMEOUT, MOVING_AVERAGE_ALPHA
 
 import torch
 import torchvision.transforms as T
@@ -18,7 +19,6 @@ transform = T.Compose([T.PILToTensor()])
 
 
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
-    
     time_elapsed = datetime.now() - self.stats.start_time
 
     output_log(
@@ -29,15 +29,34 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         f"{sh('Request')} -> Type: {task_type} | Total requests {self.stats.total_requests:,} | Timeouts {self.stats.timeouts:,}",
         color_key="y",
     )
-    
-    synapse = ImageGeneration(generation_type=task_type,prompt=prompt,prompt_image=image) if image is not None else ImageGeneration(generation_type=task_type,prompt=prompt)
-    synapse_dict = {k:v for k,v in synapse.__dict__.items() if k in ['timeout', 'prompt','prompt_image', 'num_images_per_prompt', 'height', 'width']}
+
+    synapse = (
+        ImageGeneration(generation_type=task_type, prompt=prompt, prompt_image=image)
+        if image is not None
+        else ImageGeneration(generation_type=task_type, prompt=prompt)
+    )
+    synapse_dict = {
+        k: v
+        for k, v in synapse.__dict__.items()
+        if k
+        in [
+            "timeout",
+            "prompt",
+            "prompt_image",
+            "num_images_per_prompt",
+            "height",
+            "width",
+        ]
+    }
     args_list = [
         f"{k.capitalize()}: {f'{v:.2f}' if isinstance(v, float) else v}"
         for k, v in synapse_dict.items()
     ]
     output_log(f"{sh('Args')} -> {' | '.join(args_list)}", color_key="m")
-    output_log(f"{sh('UIDs')} -> {' | '.join([str(uid) for uid in uids.tolist()])}", color_key="m")
+    output_log(
+        f"{sh('UIDs')} -> {' | '.join([str(uid) for uid in uids.tolist()])}",
+        color_key="m",
+    )
 
     validator_info = self.get_validator_info()
     output_log(
@@ -48,7 +67,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         self.dendrite(
             axons,
             synapse,
-            timeout=self.config.neuron.timeout,
+            timeout=FOLLOWUP_TIMEOUT,
         )
     )
     self.stats.total_requests += 1
@@ -66,17 +85,15 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     for masking_fn_i in self.masking_functions:
         mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
         rewards *= mask_i_normalized.to(self.device)
-        if not self.config.neuron.disable_log_rewards:
-            event[masking_fn_i.name] = mask_i.tolist()
-            event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
+        event[masking_fn_i.name] = mask_i.tolist()
+        event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
         bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
 
     for weight_i, reward_fn_i in zip(self.reward_weights, self.reward_functions):
         reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
         rewards += weight_i * reward_i_normalized.to(self.device)
-        if not self.config.neuron.disable_log_rewards:
-            event[reward_fn_i.name] = reward_i.tolist()
-            event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
+        event[reward_fn_i.name] = reward_i.tolist()
+        event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
         bt.logging.trace(str(reward_fn_i.name), reward_i_normalized.tolist())
 
     # Compute forward pass rewards, assumes followup_uids and answer_uids are mutually exclusive.
@@ -87,7 +104,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     # Update moving_averaged_scores with rewards produced by this step.
     # shape: [ metagraph.n ]
-    alpha: float = self.config.neuron.moving_average_alpha
+    alpha: float = MOVING_AVERAGE_ALPHA
     self.moving_averaged_scores: torch.FloatTensor = alpha * scattered_rewards + (
         1 - alpha
     ) * self.moving_averaged_scores.to(self.device)
@@ -114,35 +131,28 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     except Exception as err:
         bt.logging.error("Error updating event dict", str(err))
 
-    bt.logging.debug("event:", str(event))
-    if not self.config.neuron.dont_save_events:
-        logger.log("EVENTS", "events", **event)
+    bt.logging.debug(f"Events: {str(event)}")
+    logger.log("EVENTS", "events", **event)
 
     # Log the event to wandb.
-    if not self.config.wandb.off:
-        wandb_event = copy.deepcopy(event)
+    wandb_event = copy.deepcopy(event)
 
-        if self.config.wandb.compress:
-            file_type = "jpg"
+    file_type = "jpg"
+
+    for e, image in enumerate(wandb_event["images"]):
+        if image == []:
+            wandb_event["images"][e] = wandb.Image(
+                torch.full([3, 1024, 1024], 255, dtype=torch.float),
+                caption=prompt,
+                file_type=file_type,
+            )
         else:
-            file_type = "png"
+            wandb_event["images"][e] = wandb.Image(
+                bt.Tensor.deserialize(image),
+                caption=prompt,
+                file_type=file_type,
+            )
 
-        for e, image in enumerate(wandb_event["images"]):
-            if image == []:
-                wandb_event["images"][e] = wandb.Image(
-                    torch.full([3, 1024, 1024], 255, dtype=torch.float),
-                    caption=prompt,
-                    file_type=file_type,
-                )
-            else:
-                wandb_event["images"][e] = wandb.Image(
-                    bt.Tensor.deserialize(image),
-                    caption=prompt,
-                    file_type=file_type,
-                )
-
-        wandb_event = EventSchema.from_dict(
-            wandb_event, self.config.neuron.disable_log_rewards
-        )
-        self.wandb.log(asdict(wandb_event))
+    wandb_event = EventSchema.from_dict(wandb_event)
+    self.wandb.log(asdict(wandb_event))
     return event
