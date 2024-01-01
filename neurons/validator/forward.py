@@ -27,6 +27,10 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     )
     output_log(
         f"{sh('Request')} -> Type: {task_type} | Total requests {self.stats.total_requests:,} | Timeouts {self.stats.timeouts:,}",
+        color_key="c",
+    )
+    output_log(
+        f"{sh('Prompt')} -> {synapse.__dict__['prompt']}",
         color_key="y",
     )
 
@@ -41,9 +45,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         if k
         in [
             "timeout",
-            "prompt",
-            "prompt_image",
-            "num_images_per_prompt",
             "height",
             "width",
         ]
@@ -52,7 +53,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         f"{k.capitalize()}: {f'{v:.2f}' if isinstance(v, float) else v}"
         for k, v in synapse_dict.items()
     ]
-    output_log(f"{sh('Args')} -> {' | '.join(args_list)}", color_key="m")
+    output_log(f"{sh('Info')} -> {' | '.join(args_list)}", color_key="m")
     output_log(
         f"{sh('UIDs')} -> {' | '.join([str(uid) for uid in uids.tolist()])}",
         color_key="m",
@@ -70,6 +71,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             timeout=FOLLOWUP_TIMEOUT,
         )
     )
+
     self.stats.total_requests += 1
     event = {"task_type": task_type}
 
