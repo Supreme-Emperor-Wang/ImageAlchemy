@@ -8,7 +8,7 @@ import traceback
 from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List
-from neurons.constants import WANDB_VALIDATOR_PATH
+from neurons.constants import VPERMIT_TAO, WANDB_VALIDATOR_PATH
 
 import neurons.validator as validator
 import pandas as pd
@@ -59,11 +59,11 @@ def check_uid(dendrite, axon, uid):
             dendrite(axon, IsAlive(), deserialize=False, timeout=2.3)
         )
         if response.is_success:
-            bt.logging.debug(f"UID {uid} is active.")
+            bt.logging.trace(f"UID {uid} is active.")
             # loop.close()
             return True
         else:
-            bt.logging.debug(f"UID {uid} is not active.")
+            bt.logging.trace(f"UID {uid} is not active.")
             # loop.close()
             return False
     except Exception as e:
@@ -113,7 +113,9 @@ def get_random_uids(
     avail_uids = []
 
     for uid in range(self.metagraph.n.item()):
-        uid_is_available = check_uid_availability(dendrite, self.metagraph, uid, 400)
+        uid_is_available = check_uid_availability(
+            dendrite, self.metagraph, uid, VPERMIT_TAO
+        )
         uid_is_not_excluded = exclude is None or uid not in exclude
 
         if (
@@ -125,7 +127,7 @@ def get_random_uids(
             if uid_is_not_excluded:
                 candidate_uids.append(uid)
 
-    # Check if candidate_uids contain enough for querying, if not grab all avaliable uids
+    # Check if candidate_uids contain enough for querying, if not grab all available uids
     available_uids = candidate_uids
     if len(candidate_uids) < k:
         uids = torch.tensor(available_uids)
@@ -186,11 +188,7 @@ def cosine_distance(image_embeds, text_embeds):
 
 def should_reinit_wandb(self):
     # Check if wandb run needs to be rolled over.
-    return (
-        not self.config.wandb.off
-        and self.step
-        and self.step % self.config.wandb.run_step_length == 0
-    )
+    return self.step and self.step % self.config.wandb.run_step_length == 0
 
 
 def generate_random_prompt(self):
@@ -207,8 +205,7 @@ def generate_random_prompt(self):
 
 
 def generate_random_prompt_gpt(self):
-    for attempt in range(2):
-        bt.logging.debug("calling openai")
+    for _ in range(2):
         try:
             response = self.openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
@@ -245,8 +242,7 @@ def generate_followup_prompt_gpt(self, prompt):
         },
     ]
 
-    for attempt in range(2):
-        bt.logging.debug("calling openai")
+    for _ in range(2):
         try:
             response = self.openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
