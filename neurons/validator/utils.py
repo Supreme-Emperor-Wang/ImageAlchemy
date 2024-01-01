@@ -280,9 +280,9 @@ def init_wandb(self, reinit=False):
 
     wandb_config = {
         key: copy.deepcopy(self.config.get(key, None))
-        for key in ("neuron", "reward", "netuid", "wandb")
+        for key in ("neuron", "alchemy", "reward", "netuid", "wandb")
     }
-    wandb_config["neuron"].pop("full_path", None)
+    wandb_config["alchemy"].pop("full_path", None)
 
     if not os.path.exists(WANDB_VALIDATOR_PATH):
         os.makedirs(WANDB_VALIDATOR_PATH, exist_ok=True)
