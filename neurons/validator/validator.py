@@ -52,8 +52,7 @@ class StableValidator:
         # Init config
         self.config = StableValidator.config()
         self.check_config(self.config)
-        bt.logging(config=self.config, logging_dir=self.config.neuron.full_path)
-        bt.logging.debug("StableValidator.__init__()")
+        bt.logging(config=self.config, logging_dir=self.config.alchemy.full_path)
 
         # Init device.
         bt.logging.debug(f"Device: {self.config.alchemy.device}")
