@@ -14,3 +14,8 @@ WANDB_VALIDATOR_PATH = os.path.expanduser("~/.ImageAlchemy/wandb/validator")
 ### Validator only
 N_NEURONS = 10
 VPERMIT_TAO = 1024
+FOLLOWUP_TIMEOUT = 10
+
+WANDB_RUN_STEP_LENGTH = 5
+EPOCH_LENGTH = 5
+MOVING_AVERAGE_ALPHA = 0.05
