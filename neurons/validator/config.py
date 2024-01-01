@@ -33,127 +33,35 @@ def check_config(cls, config: "bt.Config"):
     if not os.path.exists(config.neuron.full_path):
         os.makedirs(config.neuron.full_path, exist_ok=True)
 
-    if not config.neuron.dont_save_events:
-        # Add custom event logger for the events.
-        logger.level("EVENTS", no=38, icon="📝")
-        logger.add(
-            config.neuron.full_path + "/" + "completions.log",
-            rotation=config.neuron.events_retention_size,
-            serialize=True,
-            enqueue=True,
-            backtrace=False,
-            diagnose=False,
-            level="EVENTS",
-            format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}",
-        )
+    # Add custom event logger for the events.
+    logger.level("EVENTS", no=38, icon="📝")
+    logger.add(
+        config.neuron.full_path + "/" + "completions.log",
+        rotation=config.neuron.events_retention_size,
+        serialize=True,
+        enqueue=True,
+        backtrace=False,
+        diagnose=False,
+        level="EVENTS",
+        format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}",
+    )
 
 
 def add_args(cls, parser):
     # Netuid Arg
-    parser.add_argument(
-        "--netuid", type=int, help="Prompting network netuid", default=1
-    )
+    parser.add_argument("--netuid", type=int, help="Network netuid", default=1)
 
     parser.add_argument(
-        "--neuron.name",
+        "--alchemy.name",
         type=str,
-        help="Trials for this miner go in miner.root / (wallet_cold - wallet_hot) / miner.name. ",
-        default="core_prompting_validator",
+        help="Trials for this validator go in validator.root / (wallet_cold - wallet_hot) / validator.name.",
+        default="image_alchemy_validator",
     )
     parser.add_argument(
-        "--neuron.device",
+        "--alchemy.device",
         type=str,
         help="Device to run the validator on.",
-        default="cuda" if torch.cuda.is_available() else "cpu",
-    )
-    parser.add_argument(
-        "--neuron.disable_log_rewards",
-        action="store_true",
-        help="Disable all reward logging, suppresses reward functions and their values from being logged to wandb.",
-        default=False,
-    )
-
-    parser.add_argument(
-        "--neuron.disable_set_weights",
-        action="store_true",
-        help="Disables setting weights.",
-        default=False,
-    )
-    parser.add_argument(
-        "--neuron.moving_average_alpha",
-        type=float,
-        help="Moving average alpha parameter, how much to add of the new observation.",
-        default=0.05,
-    )
-    
-    parser.add_argument(
-        "--neuron.sample_size",
-        type=int,
-        help="How many miners to query for a single prompt.",
-        default=12,
-    )
-
-    parser.add_argument(
-        "--neuron.epoch_length",
-        type=int,
-        help="Override the default epoch length (how often we set weights).",
-        default=5,
-    )
-    parser.add_argument(
-        "--neuron.dont_save_events",
-        action="store_true",
-        help="If set, we dont save events to a log file.",
-        default=False,
-    )
-
-    parser.add_argument(
-        "--neuron.vpermit_tao_limit",
-        type=int,
-        help="The maximum number of TAO allowed to query a validator with a vpermit.",
-        default=4096,
-    )
-
-    parser.add_argument(
-        "--neuron.axon_off",
-        "--axon_off",
-        action="store_true",
-        # Note: the validator needs to serve an Axon with their IP or they may
-        #   be blacklisted by the firewall of serving peers on the network.
-        help="Set this flag to not attempt to serve an Axon.",
-        default=False,
-    )
-
-    parser.add_argument(
-        "--neuron.timeout",
-        type=float,
-        help="Follow up query timeout.",
-        default=10,
-    )
-
-    parser.add_argument(
-        "--wandb.notes",
-        type=str,
-        help="Notes to add to the wandb run.",
-        default="",
-    )
-
-    parser.add_argument(
-        "--reward.diversity_model_weight",
-        type=float,
-        help="Weight for the diversity reward model",
-        default=DefaultRewardFrameworkConfig.diversity_model_weight,
-    )
-    parser.add_argument(
-        "--reward.image_model_weight",
-        type=float,
-        help="Weight for the image reward model",
-        default=DefaultRewardFrameworkConfig.image_model_weight,
-    )
-    parser.add_argument(
-        "--reward.human_model_weight",
-        type=float,
-        help="Weight for the human reward model",
-        default=DefaultRewardFrameworkConfig.human_model_weight,
+        default="cuda:0",
     )
 
 
