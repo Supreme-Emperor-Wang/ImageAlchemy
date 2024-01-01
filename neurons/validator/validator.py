@@ -55,7 +55,6 @@ class StableValidator:
         bt.logging(config=self.config, logging_dir=self.config.alchemy.full_path)
 
         # Init device.
-        bt.logging.debug(f"Device: {self.config.alchemy.device}")
         self.device = torch.device(self.config.alchemy.device)
 
         # Init seed
@@ -71,7 +70,9 @@ class StableValidator:
         )
 
         # Init prompt generation model
-        bt.logging.debug(f"Loading prompt generation model")
+        bt.logging.debug(
+            f"Loading prompt generation model on device: {self.config.alchemy.device}"
+        )
         self.prompt_generation_pipeline = pipeline(
             "text-generation", model="succinctly/text2image-prompt-generator"
         )
