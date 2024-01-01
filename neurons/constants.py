@@ -10,3 +10,7 @@ IA_VALIDATOR_WEIGHT_FILES = "weights.json"
 
 WANDB_MINER_PATH = os.path.expanduser("~/.ImageAlchemy/wandb/miner")
 WANDB_VALIDATOR_PATH = os.path.expanduser("~/.ImageAlchemy/wandb/validator")
+
+### Validator only
+N_NEURONS = 10
+VPERMIT_TAO = 1024
