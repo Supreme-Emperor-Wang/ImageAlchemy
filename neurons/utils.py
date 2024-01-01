@@ -89,7 +89,7 @@ def background_loop(self, is_validator):
     whitelist_type = IA_VALIDATOR_WHITELIST if is_validator else IA_MINER_WHITELIST
     blacklist_type = IA_VALIDATOR_BLACKLIST if is_validator else IA_MINER_BLACKLIST
 
-    #### Terminate the miner after deregistration
+    #### Terminate the miner / validator after deregistration
     #### Each step is 5 minutes
     if self.background_steps % 1 == 0 and self.background_steps > 1:
         try:
