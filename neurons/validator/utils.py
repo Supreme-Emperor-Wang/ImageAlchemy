@@ -276,8 +276,7 @@ def init_wandb(self, reinit=False):
         tags.append("mock")
 
     for fn in self.reward_functions:
-        if not self.config.neuron.mock_reward_models:
-            tags.append(str(fn.name))
+        tags.append(str(fn.name))
 
     wandb_config = {
         key: copy.deepcopy(self.config.get(key, None))
