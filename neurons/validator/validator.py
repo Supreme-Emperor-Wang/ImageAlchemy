@@ -6,7 +6,7 @@ import random
 from time import sleep
 from traceback import print_exception
 from typing import List
-from neurons.constants import N_NEURONS
+from neurons.constants import EPOCH_LENGTH, N_NEURONS
 
 import torch
 from datasets import load_dataset
@@ -56,8 +56,8 @@ class StableValidator:
         bt.logging.debug("StableValidator.__init__()")
 
         # Init device.
-        bt.logging.debug(f"Device: {self.config.neuron.device}")
-        self.device = torch.device(self.config.neuron.device)
+        bt.logging.debug(f"Device: {self.config.alchemy.device}")
+        self.device = torch.device(self.config.alchemy.device)
 
         # Init seed
         self.seed = random.randint(0, 1_000_000)
@@ -176,6 +176,7 @@ class StableValidator:
         self.storage_client = None
         self.background_steps = 1
         self.background_timer = BackgroundTimer(300, background_loop, [self, True])
+        self.background_timer.daemon = True
         self.background_timer.start()
 
     def run(self):
@@ -334,12 +335,8 @@ class StableValidator:
         """
         return (
             ttl_get_block(self) - self.metagraph.last_update[self.uid]
-        ) > self.config.neuron.epoch_length
+        ) > EPOCH_LENGTH
 
     def should_set_weights(self) -> bool:
         # Check if enough epoch blocks have elapsed since the last epoch.
-        if self.config.neuron.disable_set_weights:
-            return False
-        return (
-            ttl_get_block(self) % self.prev_block
-        ) >= self.config.neuron.epoch_length
+        return (ttl_get_block(self) % self.prev_block) >= EPOCH_LENGTH
