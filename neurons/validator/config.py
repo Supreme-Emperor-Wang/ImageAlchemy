@@ -2,6 +2,7 @@ import argparse, os
 import bittensor as bt
 
 from loguru import logger
+from neurons.constants import EVENTS_RETENTION_SIZE
 
 
 def check_config(cls, config: "bt.Config"):
@@ -25,15 +26,15 @@ def check_config(cls, config: "bt.Config"):
             config.alchemy.name,
         )
     )
-    config.neuron.full_path = os.path.expanduser(full_path)
-    if not os.path.exists(config.neuron.full_path):
-        os.makedirs(config.neuron.full_path, exist_ok=True)
+    config.alchemy.full_path = os.path.expanduser(full_path)
+    if not os.path.exists(config.alchemy.full_path):
+        os.makedirs(config.alchemy.full_path, exist_ok=True)
 
     # Add custom event logger for the events.
     logger.level("EVENTS", no=38, icon="📝")
     logger.add(
-        config.neuron.full_path + "/" + "completions.log",
-        rotation=config.neuron.events_retention_size,
+        config.alchemy.full_path + "/" + "completions.log",
+        rotation=EVENTS_RETENTION_SIZE,
         serialize=True,
         enqueue=True,
         backtrace=False,
