@@ -29,16 +29,18 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         f"{sh('Request')} -> Type: {task_type} | Total requests {self.stats.total_requests:,} | Timeouts {self.stats.timeouts:,}",
         color_key="c",
     )
-    output_log(
-        f"{sh('Prompt')} -> {synapse.__dict__['prompt']}",
-        color_key="y",
-    )
 
     synapse = (
         ImageGeneration(generation_type=task_type, prompt=prompt, prompt_image=image)
         if image is not None
         else ImageGeneration(generation_type=task_type, prompt=prompt)
     )
+
+    output_log(
+        f"{sh('Prompt')} -> {synapse.__dict__['prompt']}",
+        color_key="y",
+    )
+
     synapse_dict = {
         k: v
         for k, v in synapse.__dict__.items()
