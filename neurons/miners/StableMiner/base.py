@@ -1,11 +1,17 @@
-import argparse, asyncio, copy, os, random, time, traceback, typing
-import bittensor as bt
-from neurons.constants import VPERMIT_TAO
-import torchvision.transforms as transforms
-import torchvision.transforms as T
-
+import argparse
+import asyncio
+import copy
+import os
+import random
+import time
+import traceback
+import typing
 from abc import ABC
 from typing import Dict
+
+import torchvision.transforms as transforms
+import torchvision.transforms as T
+from neurons.constants import VPERMIT_TAO
 from neurons.protocol import ImageGeneration, IsAlive
 from neurons.utils import BackgroundTimer, background_loop, get_defaults
 from utils import (
@@ -18,6 +24,8 @@ from utils import (
     sh,
 )
 from wandb_utils import WandbUtils
+
+import bittensor as bt
 
 
 class BaseMiner(ABC):
