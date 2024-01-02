@@ -30,6 +30,7 @@ class Stats:
     total_requests: int
     timeouts: int
     nsfw_count: int
+    generation_time: int
 
 
 #### Colors to use in the logs
@@ -69,6 +70,7 @@ def get_defaults(self):
         total_requests=0,
         nsfw_count=0,
         timeouts=0,
+        generation_time=0,
     )
     return stats
 
@@ -180,6 +182,8 @@ def background_loop(self, is_validator):
         wandb_path = WANDB_VALIDATOR_PATH if is_validator else WANDB_MINER_PATH
         try:
             if os.path.exists(wandb_path):
+                ### Write a condition to skip this if there are no runs to clean
+                # os.path.basename(path).split("run-")[1].split("-")[0], "%Y%m%d_%H%M%S"
                 cleanup_runs_process = subprocess.Popen(
                     [f"echo y | wandb sync --clean {wandb_path}"], shell=True
                 )

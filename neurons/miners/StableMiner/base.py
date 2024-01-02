@@ -316,8 +316,11 @@ class BaseMiner(ABC):
             bt.logging.error(f"Error trying to log events to wandb.")
 
         #### Log time to generate image
+        generation_time = time.perf_counter() - start_time
+        self.stats.generation_time += generation_time
         output_log(
-            f"{sh('Time')} -> {time.perf_counter() - start_time:.2f}s.", color_key="y"
+            f"{sh('Time')} -> {generation_time:.2f}s | Average: {self.stats.generation_time / self.stats.total_requests:.2f}s",
+            color_key="y",
         )
         return synapse
 
