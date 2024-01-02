@@ -10,10 +10,7 @@ import torchvision.transforms as transforms
 import torchvision.transforms as T
 from datasets import Dataset
 from neurons.safety import StableDiffusionSafetyChecker
-from neurons.validator.utils import (
-    calculate_mean_dissimilarity,
-    cosine_distance,
-)
+from neurons.validator.utils import calculate_mean_dissimilarity, cosine_distance
 from sklearn.metrics.pairwise import cosine_similarity
 from torch import nn
 from transformers import (
@@ -394,7 +391,7 @@ class ImageRewardModel(BaseRewardModel):
         )
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
-        return rewards
+        return rewards / rewards.sum()
 
 
 class DiversityRewardModel(BaseRewardModel):
@@ -482,4 +479,4 @@ class DiversityRewardModel(BaseRewardModel):
         return dissimilarity_scores
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
-        return rewards
+        return rewards / rewards.sum()

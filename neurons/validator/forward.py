@@ -2,12 +2,12 @@ import copy
 import time
 from dataclasses import asdict
 from datetime import datetime
-from neurons.constants import FOLLOWUP_TIMEOUT, MOVING_AVERAGE_ALPHA
 
 import torch
 import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
+from neurons.constants import FOLLOWUP_TIMEOUT, MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration
 from neurons.utils import output_log, sh
 from utils import ttl_get_block

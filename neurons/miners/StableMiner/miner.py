@@ -1,10 +1,15 @@
-import bittensor as bt
 import torch
 from base import BaseMiner
-from utils import output_log, warm_up
-from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
+from diffusers import (
+    AutoPipelineForImage2Image,
+    AutoPipelineForText2Image,
+    DPMSolverMultistepScheduler,
+)
 from neurons.safety import StableDiffusionSafetyChecker
 from transformers import CLIPImageProcessor
+from utils import output_log, warm_up
+
+import bittensor as bt
 
 
 class StableMiner(BaseMiner):
@@ -31,13 +36,15 @@ class StableMiner(BaseMiner):
             variant="fp16",
         ).to(self.config.miner.device)
         self.t2i_model.set_progress_bar_config(disable=True)
-
+        self.t2i_model.scheduler = DPMSolverMultistepScheduler.from_config(self.t2i_model.scheduler.config) 
+        
         ### Load the image to image model using the same pipeline (efficient)
         self.i2i_model = AutoPipelineForImage2Image.from_pipe(self.t2i_model).to(
             self.config.miner.device,
         )
         self.i2i_model.set_progress_bar_config(disable=True)
-
+        self.i2i_model.scheduler = DPMSolverMultistepScheduler.from_config(self.i2i_model.scheduler.config) 
+        
         self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
             "CompVis/stable-diffusion-safety-checker"
         ).to(self.config.miner.device)
