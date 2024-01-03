@@ -55,6 +55,8 @@ class WandbUtils:
         if not os.path.exists(WANDB_MINER_PATH):
             os.makedirs(WANDB_MINER_PATH, exist_ok=True)
 
+        wandb.login(anonymous="never", key=self.config.wandb.api_key)
+
         self.wandb = wandb.init(
             project=self.config.wandb.project,
             entity=self.config.wandb.entity,
