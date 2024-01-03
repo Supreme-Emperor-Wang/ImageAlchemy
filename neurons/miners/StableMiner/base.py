@@ -9,6 +9,7 @@ import typing
 from abc import ABC
 from typing import Dict
 
+import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
 from neurons.constants import VPERMIT_TAO
@@ -277,7 +278,7 @@ class BaseMiner(ABC):
         ### Generate images & serialize
         for attempt in range(3):
             try:
-                images = model(**local_args).images
+                images = model(**local_args, generator = [torch.Generator(device="cuda").manual_seed(synapse.seed)]).images
                 synapse.images = [
                     bt.Tensor.serialize(self.transform(image)) for image in images
                 ]
