@@ -186,11 +186,6 @@ def cosine_distance(image_embeds, text_embeds):
     return torch.mm(normalized_image_embeds, normalized_text_embeds.t())
 
 
-def should_reinit_wandb(self):
-    # Check if wandb run needs to be rolled over.
-    return self.step and self.step % WANDB_RUN_STEP_LENGTH == 0
-
-
 def generate_random_prompt(self):
     # Pull a random prompt from the dataset and cut to 1-7 words
     prompt_trim_length = random.randint(1, 7)
