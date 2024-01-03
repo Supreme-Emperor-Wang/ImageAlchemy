@@ -356,6 +356,36 @@ class BaseMiner(ABC):
             ### Retrieve the stake of the caller
             caller_stake = get_caller_stake(self, synapse)
 
+            ### Count the request frequencies
+            exceeded_rate_limit = False
+            if synapse_type == "ImageGeneration":
+                ### Apply a rate limit from the same caller
+                if caller_hotkey in self.request_dict.keys():
+                    now = time.perf_counter()
+
+                    ### The difference in seconds between the current request and the previous one
+                    delta = now - self.request_dict[caller_hotkey]["history"][-1]
+
+                    ### E.g., 0.3 < 1.0
+                    if delta < rate_limit:
+                        ### Count number of rate limited calls from caller's hotkey
+                        self.request_dict[caller_hotkey]["rate_limited_count"] += 1
+                        exceeded_rate_limit = True
+
+                        ### Store the data
+                        self.request_dict[caller_hotkey]["history"].append(now)
+                        self.request_dict[caller_hotkey]["delta"].append(delta)
+                        self.request_dict[caller_hotkey]["count"] += 1
+
+                else:
+                    ### For the first request, initialize the dictionary
+                    self.request_dict[caller_hotkey] = {
+                        "history": [time.perf_counter()],
+                        "delta": [0],
+                        "count": 0,
+                        "rate_limited_count": 0,
+                    }
+
             ### Allow through any whitelisted keys unconditionally
             ### Note that blocking these keys will result in a ban from the network
             if caller_coldkey in self.coldkey_whitelist:
@@ -371,6 +401,18 @@ class BaseMiner(ABC):
                     color_key="g",
                 )
                 return False, "Whitelisted hotkey recognized."
+
+            ### Reject request if rate limit was exceeded and key wasn't whitelisted
+            if exceeded_rate_limit:
+                output_log(
+                    f"Blacklisted a {synapse_type} request from {caller_hotkey}. Rate limit ({rate_limit:.2f}) exceeded. Delta: {delta:.2f}s.",
+                    color_key="r",
+                    type="debug",
+                )
+                return (
+                    True,
+                    f"Blacklisted a {synapse_type} request from {caller_hotkey}. Rate limit ({rate_limit:.2f}) exceeded. Delta: {delta:.2f}s.",
+                )
 
             ### Blacklist requests from validators that aren't registered
             if caller_stake is None:
@@ -395,47 +437,6 @@ class BaseMiner(ABC):
                     True,
                     f"Blacklisted a {synapse_type} request from {caller_hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}.",
                 )
-
-            ### Only run this block if we're dealing with the ImageGeneration synapse
-            if synapse_type == "ImageGeneration":
-                ### Apply a rate limit from the same caller
-                if caller_hotkey in self.request_dict.keys():
-                    now = time.perf_counter()
-
-                    ### The difference in seconds between the current request and the previous one
-                    delta = now - self.request_dict[caller_hotkey]["history"][-1]
-
-                    ### E.g., 0.3 < 1.0
-                    if delta < rate_limit:
-                        ### Count number of rate limited calls from caller's hotkey
-                        self.request_dict[caller_hotkey]["rate_limited_count"] += 1
-                        output_log(
-                            f"Blacklisted a {synapse_type} request from {caller_hotkey}. Rate limit ({rate_limit:.2f}) exceeded. Delta: {delta:.2f}s.",
-                            color_key="r",
-                            type="debug",
-                        )
-                        return (
-                            True,
-                            f"Blacklisted a {synapse_type} request from {caller_hotkey}. Rate limit ({rate_limit:.2f}) exceeded. Delta: {delta:.2f}s.",
-                        )
-
-                    ### Only track the data for non-rate limited calls
-                    self.request_dict[caller_hotkey]["history"].append(now)
-                    self.request_dict[caller_hotkey]["delta"].append(delta)
-                    self.request_dict[caller_hotkey]["count"] += 1
-
-                    output_log(
-                        f"Allowing hotkey request from {caller_hotkey}. Rate limit ({rate_limit:.2f}s) not exceeded. Delta: {delta:.2f}s.",
-                        color_key="g",
-                    )
-                else:
-                    ### For the first request, initialize the dictionary
-                    self.request_dict[caller_hotkey] = {
-                        "history": [time.perf_counter()],
-                        "delta": [0],
-                        "count": 0,
-                        "rate_limited_count": 0,
-                    }
 
             bt.logging.debug(f"Allowing recognized hotkey {caller_hotkey}")
             return False, "Hotkey recognized"
@@ -501,15 +502,17 @@ class BaseMiner(ABC):
                     )[:10]
 
                     if len(top_requestors) > 0:
-                        formatted_str = " | ".join(
+                        formatted_str = "\n".join(
                             [
-                                f"Hotkey: {x[0]}, Count: {x[1]}, Average delta: {sum(x[2]) / len(x[2]) if len(x[2]) > 0 else 0}, Rate limited count: {x[3]}"
+                                f"Hotkey: {x[0]}, Count: {x[1]} ({x[1] / self.stats.total_requests:.2f}%), Average delta: {sum(x[2]) / len(x[2]) if len(x[2]) > 0 else 0:.2f}, Rate limited count: {x[3]}"
                                 for x in top_requestors
                             ]
                         )
+                        formatted_str = f"{formatted_str}\n"
 
                         output_log(
-                            f"{sh('Top Callers')} -> {formatted_str}", color_key="c"
+                            f"{sh('Top Callers')} -> Metrics\n{formatted_str}",
+                            color_key="c",
                         )
 
                 step += 1
