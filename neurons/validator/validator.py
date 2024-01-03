@@ -190,10 +190,10 @@ class StableValidator:
             try:
                 # Reduce calls to miner to be approximately 1 per 5 minutes
                 while (ttl_get_block(self) - self.prev_block) < 1:
-                    sleep(self.request_frequency)
                     bt.logging.info(
-                        "Waiting for 5 minutes before querying miners again..."
+                        f"Waiting for {self.request_frequency} seconds before querying miners again..."
                     )
+                    sleep(self.request_frequency)
 
                 # Get a random number of uids
                 uids = get_random_uids(self, self.dendrite, k=N_NEURONS).to(self.device)
