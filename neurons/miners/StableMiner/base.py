@@ -127,12 +127,9 @@ class BaseMiner(ABC):
 
     def get_args(self) -> Dict:
         return {
-            "guidance_scale": self.config.miner.guidance_scale,
-            "num_inference_steps": self.config.miner.steps,
-        }, {
-            "guidance_scale": self.config.miner.guidance_scale,
-            "num_inference_steps": self.config.miner.steps,
-        }
+            "guidance_scale": 7.5,
+            "num_inference_steps": 30,
+        }, {"guidance_scale": 5, "strength": 0.6}
 
     def get_config(self) -> "bt.config":
         argp = argparse.ArgumentParser(description="Miner Configs")
