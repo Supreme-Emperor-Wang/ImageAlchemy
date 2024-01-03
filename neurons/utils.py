@@ -184,14 +184,20 @@ def background_loop(self, is_validator):
             if os.path.exists(wandb_path):
                 ### Write a condition to skip this if there are no runs to clean
                 # os.path.basename(path).split("run-")[1].split("-")[0], "%Y%m%d_%H%M%S"
-                cleanup_runs_process = subprocess.Popen(
-                    [f"echo y | wandb sync --clean {wandb_path}"], shell=True
-                )
-                bt.logging.debug("Cleaned all synced wandb runs.")
-                cleanup_cache_process = subprocess.Popen(
-                    ["wandb artifact cache cleanup 5GB"], shell=True
-                )
-                bt.logging.debug("Cleaned all wandb cache data > 5GB.")
+                runs = [
+                    x
+                    for x in os.listdir(wandb_path)
+                    if "run-" in x and not "latest-run" in x
+                ]
+                if len(runs) > 0:
+                    cleanup_runs_process = subprocess.Popen(
+                        [f"echo y | wandb sync --clean {wandb_path}"], shell=True
+                    )
+                    bt.logging.debug("Cleaned all synced wandb runs.")
+                    cleanup_cache_process = subprocess.Popen(
+                        ["wandb artifact cache cleanup 5GB"], shell=True
+                    )
+                    bt.logging.debug("Cleaned all wandb cache data > 5GB.")
             else:
                 bt.logging.debug(f"The path {wandb_path} doesn't exist yet.")
         except Exception as e:
