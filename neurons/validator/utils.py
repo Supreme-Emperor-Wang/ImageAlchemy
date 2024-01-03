@@ -305,7 +305,7 @@ def reinit_wandb(self):
 
 def get_promptdb_backup(prompt_history=[]):
     api = wandb.Api()
-    runs = api.runs(f"tensoralchemy/ImageAlchemy")
+    runs = api.runs(f"tensoralchemists/ImageAlchemyTest")
     for run in runs:
         if run.historyLineCount >= 100:
             history = run.history()
