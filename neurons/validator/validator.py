@@ -6,10 +6,10 @@ import random
 from time import sleep
 from traceback import print_exception
 from typing import List
-from neurons.constants import EPOCH_LENGTH, N_NEURONS
 
 import torch
 from datasets import load_dataset
+from neurons.constants import ENABLE_IMAGE2IMAGE, EPOCH_LENGTH, N_NEURONS
 from neurons.utils import BackgroundTimer, background_loop, get_defaults
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
@@ -220,23 +220,24 @@ class StableValidator:
                 t2i_event = run_step(
                     self, prompt, axons, uids, task_type="text_to_image"
                 )
-                # Image to Image Run
-                followup_image = [image for image in t2i_event["images"]][
-                    torch.tensor(t2i_event["rewards"]).argmax()
-                ]
-                if (
-                    (followup_prompt is not None)
-                    and (followup_image is not None)
-                    and (followup_image != [])
-                ):
-                    _ = run_step(
-                        self,
-                        followup_prompt,
-                        axons,
-                        uids,
-                        "image_to_image",
-                        followup_image,
-                    )
+                if ENABLE_IMAGE2IMAGE:
+                    # Image to Image Run
+                    followup_image = [image for image in t2i_event["images"]][
+                        torch.tensor(t2i_event["rewards"]).argmax()
+                    ]
+                    if (
+                        (followup_prompt is not None)
+                        and (followup_image is not None)
+                        and (followup_image != [])
+                    ):
+                        _ = run_step(
+                            self,
+                            followup_prompt,
+                            axons,
+                            uids,
+                            "image_to_image",
+                            followup_image,
+                        )
                 # Re-sync with the network. Updates the metagraph.
                 self.sync()
 
