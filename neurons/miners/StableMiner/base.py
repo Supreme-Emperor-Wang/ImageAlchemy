@@ -372,10 +372,10 @@ class BaseMiner(ABC):
                         self.request_dict[caller_hotkey]["rate_limited_count"] += 1
                         exceeded_rate_limit = True
 
-                        ### Store the data
-                        self.request_dict[caller_hotkey]["history"].append(now)
-                        self.request_dict[caller_hotkey]["delta"].append(delta)
-                        self.request_dict[caller_hotkey]["count"] += 1
+                    ### Store the data
+                    self.request_dict[caller_hotkey]["history"].append(now)
+                    self.request_dict[caller_hotkey]["delta"].append(delta)
+                    self.request_dict[caller_hotkey]["count"] += 1
 
                 else:
                     ### For the first request, initialize the dictionary
