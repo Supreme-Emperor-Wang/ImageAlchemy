@@ -237,9 +237,7 @@ def retrieve_public_file(client, bucket_name, source_name):
         blob = bucket.blob(source_name)
         file = blob.download_as_text()
 
-        bt.logging.debug(
-            f"Successfully downloaded file: {source_name} of type {type(file)} from {bucket_name}"
-        )
+        bt.logging.debug(f"Successfully downloaded {source_name} from {bucket_name}")
 
         file = json.loads(file)
     except Exception as e:
