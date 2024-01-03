@@ -17,6 +17,7 @@ from neurons.constants import (
     IA_VALIDATOR_SETTINGS_FILE,
     IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
+    VALIDATOR_DEFAULT_QUERY_TIMEOUT,
     VALIDATOR_DEFAULT_REQUEST_FREQUENCY,
     WANDB_MINER_PATH,
     WANDB_VALIDATOR_PATH,
@@ -188,6 +189,9 @@ def background_loop(self, is_validator):
 
                 self.request_frequency = validator_settings.get(
                     "request_frequency", VALIDATOR_DEFAULT_REQUEST_FREQUENCY
+                )
+                self.query_timeout = validator_settings.get(
+                    "query_timeout", VALIDATOR_DEFAULT_QUERY_TIMEOUT
                 )
 
                 bt.logging.debug(
