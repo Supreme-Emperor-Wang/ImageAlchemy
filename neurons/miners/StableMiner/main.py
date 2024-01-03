@@ -10,6 +10,4 @@ if __name__ == "__main__":
     from miner import StableMiner
 
     ### Start the miner
-    with StableMiner():
-        while True:
-            time.sleep(1)
+    StableMiner()
