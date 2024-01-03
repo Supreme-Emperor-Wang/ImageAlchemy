@@ -172,6 +172,9 @@ class StableValidator:
         # Get vali index
         self.validator_index = self.get_validator_index()
 
+        # Set validator request frequency
+        self.requency_frequency = 60
+
         # Start the generic background loop
         self.storage_client = None
         self.background_steps = 1
