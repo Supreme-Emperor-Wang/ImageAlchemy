@@ -70,7 +70,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         self.dendrite(
             axons,
             synapse,
-            timeout=FOLLOWUP_TIMEOUT,
+            timeout=self.query_timeout,
         )
     )
 
@@ -141,7 +141,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Log the event to wandb.
     wandb_event = copy.deepcopy(event)
 
-    file_type = "jpg"
+    file_type = "png"
 
     for e, image in enumerate(wandb_event["images"]):
         if image == []:
