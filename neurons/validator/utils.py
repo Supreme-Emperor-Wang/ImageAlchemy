@@ -8,7 +8,7 @@ import traceback
 from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List
-from neurons.constants import VPERMIT_TAO, WANDB_RUN_STEP_LENGTH, WANDB_VALIDATOR_PATH
+from neurons.constants import VPERMIT_TAO, WANDB_VALIDATOR_PATH
 
 import neurons.validator as validator
 import pandas as pd
