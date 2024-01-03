@@ -14,8 +14,10 @@ from neurons.constants import (
     IA_MINER_BLACKLIST,
     IA_MINER_WHITELIST,
     IA_VALIDATOR_BLACKLIST,
+    IA_VALIDATOR_SETTINGS_FILE,
     IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
+    VALIDATOR_DEFAULT_REQUEST_FREQUENCY,
     WANDB_MINER_PATH,
     WANDB_VALIDATOR_PATH,
 )
@@ -92,7 +94,6 @@ def background_loop(self, is_validator):
     blacklist_type = IA_VALIDATOR_BLACKLIST if is_validator else IA_MINER_BLACKLIST
 
     #### Terminate the miner / validator after deregistration
-    #### Each step is 5 minutes
     if self.background_steps % 1 == 0 and self.background_steps > 1:
         try:
             self.metagraph.sync(lite=True)
@@ -119,10 +120,12 @@ def background_loop(self, is_validator):
     #### Update the whitelists and blacklists
     if self.background_steps % 1 == 0:
         try:
+            ### Create client if needed
             if not self.storage_client:
                 self.storage_client = storage.Client.create_anonymous_client()
                 bt.logging.debug("Created anonymous storage client.")
 
+            ### Update the blacklists
             blacklist_for_neuron = retrieve_public_file(
                 self.storage_client, IA_BUCKET_NAME, blacklist_type
             )
@@ -141,8 +144,9 @@ def background_loop(self, is_validator):
                         if v["type"] == "coldkey"
                     ]
                 )
-                bt.logging.debug("Updated the key blacklists.")
+                bt.logging.debug("Retrieved the latest blacklists.")
 
+            ### Update the whitelists
             whitelist_for_neuron = retrieve_public_file(
                 self.storage_client, IA_BUCKET_NAME, whitelist_type
             )
@@ -161,9 +165,11 @@ def background_loop(self, is_validator):
                         if v["type"] == "coldkey"
                     ]
                 )
-                bt.logging.debug("Updated the key whitelists.")
+                bt.logging.debug("Retrieved the latest whitelists.")
 
+            ### Validator only
             if is_validator:
+                ### Update weights
                 validator_weights = retrieve_public_file(
                     self.storage_client, IA_BUCKET_NAME, IA_VALIDATOR_WEIGHT_FILES
                 )
@@ -171,10 +177,26 @@ def background_loop(self, is_validator):
                     [v for k, v in validator_weights.items() if "manual" not in k],
                     dtype=torch.float32,
                 ).to(self.device)
-                bt.logging.debug("Updated the validator weights.")
+                bt.logging.debug(
+                    f"Retrieved the latest validator weights: {self.reward_weights}"
+                )
+
+                ### Update settings
+                validator_settings: dict = retrieve_public_file(
+                    self.storage_client, IA_BUCKET_NAME, IA_VALIDATOR_SETTINGS_FILE
+                )
+
+                self.request_frequency = validator_settings.get(
+                    "request_frequency", VALIDATOR_DEFAULT_REQUEST_FREQUENCY
+                )
+
+                bt.logging.debug(
+                    f"Retrieved the latest validator settings: {validator_settings}"
+                )
+
         except Exception as e:
             bt.logging.error(
-                f"An error occurred trying to update the blacklists and whitelists: {e}."
+                f"An error occurred trying to update settings from the cloud: {e}."
             )
 
     #### Clean up the wandb runs and cache folders
