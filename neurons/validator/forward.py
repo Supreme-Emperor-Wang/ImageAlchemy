@@ -26,7 +26,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         color_key="g",
     )
     output_log(
-        f"{sh('Request')} -> Type: {task_type} | Total requests {self.stats.total_requests:,} | Timeouts {self.stats.timeouts:,}",
+        f"{sh('Request')} -> Type: {task_type} | Total requests sent {self.stats.total_requests:,} | Timeouts {self.stats.timeouts:,}",
         color_key="c",
     )
 
@@ -58,7 +58,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     output_log(f"{sh('Info')} -> {' | '.join(args_list)}", color_key="m")
     output_log(
         f"{sh('UIDs')} -> {' | '.join([str(uid) for uid in uids.tolist()])}",
-        color_key="m",
+        color_key="y",
     )
 
     validator_info = self.get_validator_info()
