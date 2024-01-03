@@ -508,7 +508,7 @@ class BaseMiner(ABC):
                                 for x in top_requestors
                             ]
                         )
-                        formatted_str = f"{formatted_str}\n"
+                        formatted_str = f"{formatted_str}"
 
                         output_log(
                             f"{sh('Top Callers')} -> Metrics\n{formatted_str}",
