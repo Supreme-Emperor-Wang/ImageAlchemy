@@ -504,7 +504,7 @@ class BaseMiner(ABC):
                     if len(top_requestors) > 0:
                         formatted_str = "\n".join(
                             [
-                                f"Hotkey: {x[0]}, Count: {x[1]} ({x[1] / self.stats.total_requests:.2f}%), Average delta: {sum(x[2]) / len(x[2]) if len(x[2]) > 0 else 0:.2f}, Rate limited count: {x[3]}"
+                                f"Hotkey: {x[0]}, Count: {x[1]} ({((x[1] / self.stats.total_requests)*100):.2f}%), Average delta: {sum(x[2]) / len(x[2]) if len(x[2]) > 0 else 0:.2f}, Rate limited count: {x[3]}"
                                 for x in top_requestors
                             ]
                         )
