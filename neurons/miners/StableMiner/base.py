@@ -144,6 +144,7 @@ class BaseMiner(ABC):
         argp.add_argument("--wandb.entity", type=str, default="")
         argp.add_argument("--wandb.api_key", type=str, default="")
         argp.add_argument("--miner.device", type=str, default="cuda:0")
+        argp.add_argument("--miner.optimize", action="store_true")
 
         seed = random.randint(0, 100_000_000_000)
         argp.add_argument("--miner.seed", type=int, default=seed)
