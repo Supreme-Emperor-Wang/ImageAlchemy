@@ -278,7 +278,14 @@ class BaseMiner(ABC):
         ### Generate images & serialize
         for attempt in range(3):
             try:
-                images = model(**local_args, generator = [torch.Generator(device="cuda").manual_seed(synapse.seed)]).images
+                images = model(
+                    **local_args,
+                    generator=[
+                        torch.Generator(device=self.config.miner.device).manual_seed(
+                            synapse.seed
+                        )
+                    ],
+                ).images
                 synapse.images = [
                     bt.Tensor.serialize(self.transform(image)) for image in images
                 ]
