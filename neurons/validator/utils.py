@@ -8,12 +8,12 @@ import traceback
 from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List
-from neurons.constants import VPERMIT_TAO, WANDB_VALIDATOR_PATH
 
 import neurons.validator as validator
 import pandas as pd
 import torch
 import torch.nn as nn
+from neurons.constants import VPERMIT_TAO, WANDB_VALIDATOR_PATH
 from neurons.protocol import IsAlive
 
 import bittensor as bt
@@ -199,15 +199,15 @@ def generate_random_prompt(self):
     return new_prompt
 
 
-def generate_random_prompt_gpt(self):
+def generate_random_prompt_gpt(self, model = "gpt-4", prompt = "You are an image prompt generator. Your purpose is to generate a single one sentence prompt that can be fed into Dalle-3."):
     for _ in range(2):
         try:
             response = self.openai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=model,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are an image prompt generator. Your purpose is to generate creative one sentence prompts that can be fed into Dalle-3.",
+                        "content": prompt,
                     },
                 ],
                 temperature=1,
@@ -227,20 +227,20 @@ def generate_random_prompt_gpt(self):
     return None
 
 
-def generate_followup_prompt_gpt(self, prompt):
+def generate_followup_prompt_gpt(self, prompt, model = "gpt-3.5-turbo", followup_prompt = "An image has now been generated from your first prompt. What is a second instruction that can be applied to this generated image?"):
     messages = [
         {"role": "system", "content": "You are an image prompt generator."},
         {"role": "assistant", "content": f"{prompt}"},
         {
             "role": "user",
-            "content": "An image has now been generated from your first prompt. What is a second instruction that can be applied to this generated image?",
+            "content": f"{followup_prompt}",
         },
     ]
 
     for _ in range(2):
         try:
             response = self.openai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=model,
                 messages=messages,
                 temperature=1,
                 max_tokens=256,
