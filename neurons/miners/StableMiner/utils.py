@@ -73,11 +73,11 @@ def do_logs(self, synapse, local_args):
     hotkey = synapse.dendrite.hotkey
 
     output_log(
-        f"{sh('Info')} -> Date {datetime.strftime(self.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.stats.total_requests/(time_elapsed.total_seconds()/60):.2f} | Model {self.config.miner.model} | Seed {self.config.miner.seed}.",
+        f"{sh('Info')} -> Date {datetime.strftime(self.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.stats.total_requests/(time_elapsed.total_seconds()/60):.2f} | Model {self.config.miner.model} | Default seed {self.config.miner.seed}.",
         color_key="g",
     )
     output_log(
-        f"{sh('Request')} -> Type: {synapse.generation_type} | Total requests {self.stats.total_requests:,} | Timeouts {self.stats.timeouts:,}.",
+        f"{sh('Request')} -> Type: {synapse.generation_type} | Request seed: {synapse.seed} | Total requests {self.stats.total_requests:,} | Timeouts {self.stats.timeouts:,}.",
         color_key="y",
     )
 
@@ -116,8 +116,9 @@ def warm_up(model, local_args):
     """
     Warm the model up if using optimization.
     """
+    start = time.perf_counter()
     images = model(**local_args).images
-    bt.logging.debug("Warm up is complete...")
+    bt.logging.debug(f"Warm up is complete after {time.perf_counter() - start}")
 
 
 def nsfw_image_filter(self, images):
