@@ -67,5 +67,8 @@ class StableMiner(BaseMiner):
             )
 
             #### Warm up model
-            output_log("Warming up model with compile...")
+            output_log(
+                ">>> Warming up model with compile... this takes roughly two minutes...",
+                color_key="y",
+            )
             warm_up(self.t2i_model, self.t2i_args)
