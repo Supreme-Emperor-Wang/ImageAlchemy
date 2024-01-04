@@ -32,9 +32,18 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     )
 
     synapse = (
-        ImageGeneration(generation_type=task_type, prompt=prompt, prompt_image=image, seed = random.randint(0, 100_000_000_000))
+        ImageGeneration(
+            generation_type=task_type,
+            prompt=prompt,
+            prompt_image=image,
+            seed=random.randint(0, 100_000_000_000),
+        )
         if image is not None
-        else ImageGeneration(generation_type=task_type, prompt=prompt, seed = random.randint(0, 100_000_000_000))
+        else ImageGeneration(
+            generation_type=task_type,
+            prompt=prompt,
+            seed=random.randint(0, 100_000_000_000),
+        )
     )
 
     output_log(
