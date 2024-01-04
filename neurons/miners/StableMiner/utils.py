@@ -117,7 +117,9 @@ def warm_up(model, local_args):
     Warm the model up if using optimization.
     """
     start = time.perf_counter()
-    images = model(**local_args).images
+    c_args = copy.deepcopy(local_args)
+    c_args["prompt"] = "An alchemist brewing a vibrant glowing potion."
+    images = model(**c_args).images
     bt.logging.debug(f"Warm up is complete after {time.perf_counter() - start}")
 
 
