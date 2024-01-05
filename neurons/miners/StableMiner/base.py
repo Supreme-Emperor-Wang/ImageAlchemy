@@ -130,7 +130,7 @@ class BaseMiner(ABC):
     def get_args(self) -> Dict:
         return {
             "guidance_scale": 7.5,
-            "num_inference_steps": 30,
+            "num_inference_steps": 50,
         }, {"guidance_scale": 5, "strength": 0.6}
 
     def get_config(self) -> "bt.config":
@@ -149,8 +149,6 @@ class BaseMiner(ABC):
         seed = random.randint(0, 100_000_000_000)
         argp.add_argument("--miner.seed", type=int, default=seed)
 
-        argp.add_argument("--miner.guidance_scale", type=float, default=7.5)
-        argp.add_argument("--miner.steps", type=int, default=30)
         argp.add_argument(
             "--miner.model",
             type=str,
@@ -280,13 +278,12 @@ class BaseMiner(ABC):
         ### Generate images & serialize
         for attempt in range(3):
             try:
+                seed = synapse.seed if synapse.seed != -1 else self.config.miner.seed
+                local_args["generator"] = [
+                    torch.Generator(device=self.config.miner.device).manual_seed(seed)
+                ]
                 images = model(
                     **local_args,
-                    generator=[
-                        torch.Generator(device=self.config.miner.device).manual_seed(
-                            synapse.seed
-                        )
-                    ],
                 ).images
                 synapse.images = [
                     bt.Tensor.serialize(self.transform(image)) for image in images
