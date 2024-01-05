@@ -31,18 +31,19 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         color_key="c",
     )
 
+    ### Set seed to -1 so miners will use a random seed by default
     synapse = (
         ImageGeneration(
             generation_type=task_type,
             prompt=prompt,
             prompt_image=image,
-            seed=random.randint(0, 100_000_000_000),
+            seed=-1,
         )
         if image is not None
         else ImageGeneration(
             generation_type=task_type,
             prompt=prompt,
-            seed=random.randint(0, 100_000_000_000),
+            seed=-1,
         )
     )
 
