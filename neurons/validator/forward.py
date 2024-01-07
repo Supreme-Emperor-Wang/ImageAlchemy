@@ -94,15 +94,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     bt.logging.info(f"Received {len(responses)} response(s): {responses}")
 
     # Initialise rewards tensor
-    rewards: torch.FloatTensor = torch.ones(len(responses), dtype=torch.float32).to(
+    rewards: torch.FloatTensor = torch.zeros(len(responses), dtype=torch.float32).to(
         self.device
     )
-    for masking_fn_i in self.masking_functions:
-        mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
-        rewards *= mask_i_normalized.to(self.device)
-        event[masking_fn_i.name] = mask_i.tolist()
-        event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
-        bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
 
     for weight_i, reward_fn_i in zip(self.reward_weights, self.reward_functions):
         reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
@@ -111,18 +105,31 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
         bt.logging.trace(str(reward_fn_i.name), reward_i_normalized.tolist())
 
-    # Compute forward pass rewards, assumes followup_uids and answer_uids are mutually exclusive.
-    # shape: [ metagraph.n ]
+    for masking_fn_i in self.masking_functions:
+        mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
+        rewards *= mask_i_normalized.to(self.device)
+        event[masking_fn_i.name] = mask_i.tolist()
+        event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
+        bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
+
     scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
         0, uids, rewards
     ).to(self.device)
 
-    # Update moving_averaged_scores with rewards produced by this step.
-    # shape: [ metagraph.n ]
-    alpha: float = MOVING_AVERAGE_ALPHA
-    self.moving_averaged_scores: torch.FloatTensor = alpha * scattered_rewards + (
-        1 - alpha
-    ) * self.moving_averaged_scores.to(self.device)
+    bt.logging.trace(f"Scattered rewards: {scattered_rewards}")
+
+    try:
+        bt.logging.trace(
+            f"Before: Moving averaged scores: {self.moving_averaged_scores}"
+        )
+    except:
+        pass
+
+    self.moving_averaged_scores: torch.FloatTensor = (
+        MOVING_AVERAGE_ALPHA * scattered_rewards
+        + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
+    )
+    bt.logging.trace(f"After: Moving averaged scores: {self.moving_averaged_scores}")
     try:
         # Log the step event.
         event.update(
