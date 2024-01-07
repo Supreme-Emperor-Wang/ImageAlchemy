@@ -381,7 +381,7 @@ class ImageRewardModel(BaseRewardModel):
             print(response)
             return 0.0
 
-    def get_rewards(self, responses) -> torch.FloatTensor:
+    def get_rewards(self, responses, rewards) -> torch.FloatTensor:
         return torch.tensor(
             [self.reward(response) for response in responses],
             dtype=torch.float32,
