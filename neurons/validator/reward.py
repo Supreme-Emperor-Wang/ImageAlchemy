@@ -219,7 +219,7 @@ class BaseRewardModel:
             responses[idx] for idx in successful_generations_indices
         ]
         # Reward each completion.
-        successful_rewards = self.get_rewards(successful_generations, rewards)
+        successful_rewards = self.get_rewards(successful_generations)
 
         # Softmax rewards across samples.
         successful_rewards_normalized = self.normalize_rewards(successful_rewards)
