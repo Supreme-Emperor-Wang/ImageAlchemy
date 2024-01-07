@@ -158,22 +158,23 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     # Log the event to wandb.
     wandb_event = copy.deepcopy(event)
-
     file_type = "png"
 
+    def gen_caption(prompt, i):
+        return f"{prompt}\n({event['uids'][i]} | {event['hotkeys'][i]})"
+
     for e, image in enumerate(wandb_event["images"]):
-        if image == []:
-            wandb_event["images"][e] = wandb.Image(
-                torch.full([3, 1024, 1024], 255, dtype=torch.float),
-                caption=prompt,
-                file_type=file_type,
-            )
-        else:
-            wandb_event["images"][e] = wandb.Image(
-                bt.Tensor.deserialize(image),
-                caption=prompt,
-                file_type=file_type,
-            )
+        wandb_img = (
+            torch.full([3, 1024, 1024], 255, dtype=torch.float)
+            if image == []
+            else bt.Tensor.deserialize(image)
+        )
+
+        wandb_event["images"][e] = wandb.Image(
+            wandb_img,
+            caption=gen_caption(prompt, e),
+            file_type=file_type,
+        )
 
     wandb_event = EventSchema.from_dict(wandb_event)
     self.wandb.log(asdict(wandb_event))
