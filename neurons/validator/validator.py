@@ -190,10 +190,11 @@ class StableValidator:
         while True:
             try:
                 # Reduce calls to miner to be approximately 1 per 5 minutes
-                bt.logging.info(
-                    f"Waiting for {self.request_frequency} seconds before querying miners again..."
-                )
-                sleep(self.request_frequency)
+                if self.step > 0:
+                    bt.logging.info(
+                        f"Waiting for {self.request_frequency} seconds before querying miners again..."
+                    )
+                    sleep(self.request_frequency)
 
                 # Get a random number of uids
                 uids = get_random_uids(self, self.dendrite, k=N_NEURONS)
