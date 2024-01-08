@@ -1,23 +1,16 @@
 # Utils for checkpointing and saving the model.
-import asyncio
-import copy
-import os
-import random
-import time
-import traceback
+import asyncio, requests, copy, os, random, time, traceback, torch, wandb
 from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List
 
 import neurons.validator as validator
 import pandas as pd
-import torch
 import torch.nn as nn
 from neurons.constants import VPERMIT_TAO, WANDB_VALIDATOR_PATH
 from neurons.protocol import IsAlive
 
 import bittensor as bt
-import wandb
 
 
 def _ttl_hash_gen(seconds: int):
@@ -199,35 +192,92 @@ def generate_random_prompt(self):
     return new_prompt
 
 
-def generate_random_prompt_gpt(self, model = "gpt-4", prompt = "You are an image prompt generator. Your purpose is to generate a single one sentence prompt that can be fed into Dalle-3."):
-    for _ in range(2):
-        try:
-            response = self.openai_client.chat.completions.create(
-                model=model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": prompt,
-                    },
-                ],
-                temperature=1,
-                max_tokens=256,
-                top_p=1,
-                frequency_penalty=0,
-                presence_penalty=0,
-            )
-            new_prompt = response.choices[0].message.content
-            bt.logging.trace(f"T2I prompt is {new_prompt}")
-            return new_prompt
-
-        except Exception as e:
-            bt.logging.info(f"Error when calling OpenAI: {e}")
-            time.sleep(0.5)
-
-    return None
+def call_openai(client, model, prompt):
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {
+                "role": "system",
+                "content": prompt,
+            },
+        ],
+        temperature=1,
+        max_tokens=256,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+    )
+    response = response.choices[0].message.content
+    return response
 
 
-def generate_followup_prompt_gpt(self, prompt, model = "gpt-3.5-turbo", followup_prompt = "An image has now been generated from your first prompt. What is a second instruction that can be applied to this generated image?"):
+def call_corcel(self, prompt):
+    HEADERS = {
+        "Content-Type": "application/json",
+        "Authorization": f"{self.CORCEL_API_KEY}",
+    }
+    JSON = {
+        "miners_to_query": 1,
+        "top_k_miners_to_query": 40,
+        "ensure_responses": True,
+        "miner_uids": [],
+        "messages": [
+            {
+                "role": "system",
+                "content": prompt,
+            }
+        ],
+        "model": "cortext-ultra",
+        "stream": False,
+    }
+
+    response = None
+
+    try:
+        response = requests.post(
+            "https://api.corcel.io/cortext/text", json=JSON, headers=HEADERS, timeout=10
+        )
+        response = response["choices"][0]["delta"]["content"]
+    except requests.exceptions.ReadTimeout as e:
+        bt.logging.debug(
+            f"Corcel request timed out after 10 seconds... falling back to OpenAI..."
+        )
+
+    return response
+
+
+def generate_random_prompt_gpt(
+    self,
+    model="gpt-4",
+    prompt="You are an image prompt generator. Your purpose is to generate a single one sentence prompt that can be fed into Dalle-3.",
+):
+    response = None
+    ### Generate the prompt from corcel
+    try:
+        response = call_corcel(self, prompt)
+    except Exception as e:
+        bt.logging.debug(f"An unexpected error occurred calling corcel: {e}")
+
+    if not response:
+        for _ in range(2):
+            try:
+                response = call_openai(self.openai_client, model, prompt)
+            except Exception as e:
+                bt.logging.debug(f"An unexpected error occurred calling OpenAI: {e}")
+                time.sleep(1)
+
+    bt.logging.trace(f"T2I prompt is {response}")
+
+    return response
+
+
+def generate_followup_prompt_gpt(
+    self,
+    prompt,
+    model="gpt-4",
+    followup_prompt="An image has now been generated from your first prompt. What is a second instruction that can be applied to this generated image?",
+):
+    ### Update this for next week. Combine this and the method above.
     messages = [
         {"role": "system", "content": "You are an image prompt generator."},
         {"role": "assistant", "content": f"{prompt}"},
