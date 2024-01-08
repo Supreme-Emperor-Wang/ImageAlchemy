@@ -21,7 +21,6 @@ from neurons.validator.reward import (
 )
 from neurons.validator.utils import (
     generate_followup_prompt_gpt,
-    generate_random_prompt,
     generate_random_prompt_gpt,
     get_promptdb_backup,
     get_random_uids,
@@ -56,18 +55,6 @@ class StableValidator:
 
         # Init device.
         self.device = torch.device(self.config.alchemy.device)
-
-        # Init seed
-        self.seed = random.randint(0, 1_000_000)
-        bt.logging.debug(f"Seed: {self.seed}")
-
-        # Init dataset
-        bt.logging.debug("Loading dataset")
-        self.dataset = iter(
-            load_dataset("poloclub/diffusiondb")["train"]
-            .shuffle(seed=self.seed)
-            .to_iterable_dataset()
-        )
 
         # Init prompt generation model
         bt.logging.debug(
