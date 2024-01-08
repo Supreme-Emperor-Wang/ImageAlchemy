@@ -218,7 +218,7 @@ def call_corcel(self, prompt):
     }
     JSON = {
         "miners_to_query": 1,
-        "top_k_miners_to_query": 40,
+        "top_k_miners_to_query": 100,
         "ensure_responses": True,
         "miner_uids": [],
         "messages": [
@@ -237,7 +237,7 @@ def call_corcel(self, prompt):
         response = requests.post(
             "https://api.corcel.io/cortext/text", json=JSON, headers=HEADERS, timeout=10
         )
-        response = response.json()["choices"][0]["delta"]["content"]
+        response = response.json()[0]["choices"][0]["delta"]["content"]
     except requests.exceptions.ReadTimeout as e:
         bt.logging.debug(
             f"Corcel request timed out after 10 seconds... falling back to OpenAI..."
