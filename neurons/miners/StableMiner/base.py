@@ -337,11 +337,31 @@ class BaseMiner(ABC):
         return synapse
 
     def _base_priority(self, synapse) -> float:
-        caller_uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
-        priority = float(self.metagraph.S[caller_uid])
-        bt.logging.trace(
-            f"Prioritizing {synapse.dendrite.hotkey} with value: ", priority
-        )
+        ### If hotkey or coldkey is whitelisted and not found on the metagraph, give a priority of 5,000
+        ### Caller hotkey
+        caller_hotkey = synapse.dendrite.hotkey
+
+        ### Retrieve the coldkey of the caller
+        caller_coldkey = get_coldkey_for_hotkey(self, caller_hotkey)
+
+        if (
+            caller_coldkey in self.coldkey_whitelist
+            or caller_hotkey in self.hotkey_whitelist
+        ):
+            priority = 5000
+            bt.logging.trace(
+                f"Prioritizing whitelisted key {synapse.dendrite.hotkey} with default value: {priority}."
+            )
+
+        try:
+            caller_uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
+            priority = float(self.metagraph.S[caller_uid])
+            bt.logging.trace(
+                f"Prioritizing key {synapse.dendrite.hotkey} with value: {priority}."
+            )
+        except:
+            pass
+
         return priority
 
     def _base_blacklist(
