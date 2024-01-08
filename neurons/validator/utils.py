@@ -214,7 +214,7 @@ def call_openai(client, model, prompt):
 def call_corcel(self, prompt):
     HEADERS = {
         "Content-Type": "application/json",
-        "Authorization": f"{self.CORCEL_API_KEY}",
+        "Authorization": f"{self.corcel_api_key}",
     }
     JSON = {
         "miners_to_query": 1,
