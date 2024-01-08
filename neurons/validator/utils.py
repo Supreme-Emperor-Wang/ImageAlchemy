@@ -252,11 +252,12 @@ def generate_random_prompt_gpt(
     prompt="You are an image prompt generator. Your purpose is to generate a single one sentence prompt that can be fed into Dalle-3.",
 ):
     response = None
-    ### Generate the prompt from corcel
-    try:
-        response = call_corcel(self, prompt)
-    except Exception as e:
-        bt.logging.debug(f"An unexpected error occurred calling corcel: {e}")
+
+    # ### Generate the prompt from corcel
+    # try:
+    #     response = call_corcel(self, prompt)
+    # except Exception as e:
+    #     bt.logging.debug(f"An unexpected error occurred calling corcel: {e}")
 
     if not response:
         for _ in range(2):
