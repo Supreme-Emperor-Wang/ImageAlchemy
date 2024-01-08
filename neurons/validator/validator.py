@@ -77,6 +77,9 @@ class StableValidator:
             "text-generation", model="succinctly/text2image-prompt-generator"
         )
         openai_api_key = os.environ.get("OPENAI_API_KEY")
+        self.corcel_api_key = os.environ.get("CORCEL_API_KEY")
+        if not self.corcel_api_key:
+            raise ValueError("Please set the CORCEL_API_KEY environment variable.")
         if not openai_api_key:
             raise ValueError("Please set the OPENAI_API_KEY environment variable.")
         self.openai_client = OpenAI(api_key=openai_api_key)
