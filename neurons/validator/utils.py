@@ -179,19 +179,6 @@ def cosine_distance(image_embeds, text_embeds):
     return torch.mm(normalized_image_embeds, normalized_text_embeds.t())
 
 
-def generate_random_prompt(self):
-    # Pull a random prompt from the dataset and cut to 1-7 words
-    prompt_trim_length = random.randint(1, 7)
-    old_prompt = " ".join(next(self.dataset)["prompt"].split(" ")[:prompt_trim_length])
-
-    # Generate a new prompt from the truncated prompt using the prompt generation pipeline
-    new_prompt = self.prompt_generation_pipeline(old_prompt, min_length=10)[0][
-        "generated_text"
-    ]
-
-    return new_prompt
-
-
 def call_openai(client, model, prompt):
     response = client.chat.completions.create(
         model=model,
