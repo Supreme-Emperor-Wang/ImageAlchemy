@@ -346,9 +346,10 @@ def reinit_wandb(self):
     init_wandb(self, reinit=True)
 
 
-def get_promptdb_backup(prompt_history=[]):
+def get_promptdb_backup(netuid, prompt_history=[]):
     api = wandb.Api()
-    runs = api.runs(f"tensoralchemists/ImageAlchemyTest")
+    project = "ImageAlchemy" if netuid == 26 else "ImageAlchemyTest"
+    runs = api.runs(f"tensoralchemists/{project}")
     for run in runs:
         if run.historyLineCount >= 100:
             history = run.history()
