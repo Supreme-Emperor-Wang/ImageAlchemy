@@ -116,20 +116,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         0, uids, rewards
     ).to(self.device)
 
-    bt.logging.trace(f"Scattered rewards: {scattered_rewards}")
-
-    try:
-        bt.logging.trace(
-            f"Before: Moving averaged scores: {self.moving_averaged_scores}"
-        )
-    except:
-        pass
-
     self.moving_averaged_scores: torch.FloatTensor = (
         MOVING_AVERAGE_ALPHA * scattered_rewards
         + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
     )
-    bt.logging.trace(f"After: Moving averaged scores: {self.moving_averaged_scores}")
+
     try:
         # Log the step event.
         event.update(
