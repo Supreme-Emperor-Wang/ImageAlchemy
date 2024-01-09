@@ -56,13 +56,6 @@ class StableValidator:
         # Init device.
         self.device = torch.device(self.config.alchemy.device)
 
-        # Init prompt generation model
-        bt.logging.debug(
-            f"Loading prompt generation model on device: {self.config.alchemy.device}"
-        )
-        self.prompt_generation_pipeline = pipeline(
-            "text-generation", model="succinctly/text2image-prompt-generator"
-        )
         openai_api_key = os.environ.get("OPENAI_API_KEY")
         self.corcel_api_key = os.environ.get("CORCEL_API_KEY")
 
