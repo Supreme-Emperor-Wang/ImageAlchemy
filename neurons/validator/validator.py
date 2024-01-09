@@ -107,7 +107,7 @@ class StableValidator:
         self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         bt.logging.debug("Loaded metagraph")
 
-        self.scores = {}
+        self.scores = torch.zeros_like(self.metagraph.S, dtype=torch.float32)
 
         # Init Weights.
         self.moving_averaged_scores = torch.zeros((self.metagraph.n)).to(self.device)
