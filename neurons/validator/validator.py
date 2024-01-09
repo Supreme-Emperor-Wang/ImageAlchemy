@@ -27,6 +27,7 @@ from neurons.validator.utils import (
     init_wandb,
     ttl_get_block,
 )
+import wandb
 from neurons.validator.weights import set_weights
 from openai import OpenAI
 from transformers import pipeline
@@ -66,8 +67,16 @@ class StableValidator:
             raise ValueError("Please set the OPENAI_API_KEY environment variable.")
         self.openai_client = OpenAI(api_key=openai_api_key)
 
+        wandb.login(anonymous="allow")
+
         # Init prompt backup db
-        self.prompt_history_db = get_promptdb_backup()
+        try:
+            self.prompt_history_db = get_promptdb_backup(self.config.netuid)
+        except Exception as e:
+            bt.logging.warning(
+                f"Unexpected error occurred loading the backup prompts: {e}"
+            )
+            self.prompt_history_db = []
         self.prompt_generation_failures = 0
 
         # Init subtensor
@@ -198,9 +207,18 @@ class StableValidator:
                         (self.prompt_generation_failures / len(self.prompt_history_db))
                         > 0.2
                     ):
-                        self.prompt_history_db = get_promptdb_backup(
-                            self.prompt_history_db
-                        )
+                        try:
+                            self.prompt_history_db = get_promptdb_backup(
+                                self.config.netuid, self.prompt_history_db
+                            )
+                        except Exception as e:
+                            bt.logging.warning(
+                                f"Unexpected error occurred loading the backup prompts: {e}"
+                            )
+                            self.prompt_history_db = []
+                            bt.logging.debug("Resetting loop.")
+                            continue
+
                     prompt, followup_prompt = random.choice(self.prompt_history_db)
                     self.prompt_history_db.remove((prompt, followup_prompt))
                     self.prompt_generation_failures += 1
