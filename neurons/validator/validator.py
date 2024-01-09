@@ -67,7 +67,7 @@ class StableValidator:
             raise ValueError("Please set the OPENAI_API_KEY environment variable.")
         self.openai_client = OpenAI(api_key=openai_api_key)
 
-        wandb.login(anonymous="allow")
+        wandb.login(anonymous="must")
 
         # Init prompt backup db
         try:
