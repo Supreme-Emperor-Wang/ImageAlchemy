@@ -320,10 +320,15 @@ def init_wandb(self, reinit=False):
     if not os.path.exists(WANDB_VALIDATOR_PATH):
         os.makedirs(WANDB_VALIDATOR_PATH, exist_ok=True)
 
+    project = "ImageAlchemyTest"
+
+    if self.config.netuid == 26:
+        project = "ImageAlchemy"
+
     self.wandb = wandb.init(
         anonymous="allow",
         reinit=reinit,
-        project="ImageAlchemyTest",
+        project=project,
         entity="tensoralchemists",
         config=wandb_config,
         dir=WANDB_VALIDATOR_PATH,
