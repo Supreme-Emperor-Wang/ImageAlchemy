@@ -252,7 +252,8 @@ def generate_random_prompt_gpt(
                 response = call_openai(self.openai_client, model, prompt)
             except Exception as e:
                 bt.logging.debug(f"An unexpected error occurred calling OpenAI: {e}")
-                time.sleep(1)
+                bt.logging.debug(f"Sleeping for 10 seconds and retrying once...")
+                time.sleep(10)
 
     bt.logging.trace(f"T2I prompt is {response}")
 
