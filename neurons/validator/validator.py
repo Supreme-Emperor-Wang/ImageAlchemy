@@ -158,16 +158,15 @@ class StableValidator:
         bt.logging.debug("Loaded wandb")
 
         # Init manual validator
-        if not self.config.alchemy.disable_manual_validator:
-            bt.logging.debug("loading", "streamlit validator")
-            process = subprocess.Popen(
-                [
-                    "streamlit",
-                    "run",
-                    os.path.join(os.getcwd(), "neurons", "validator", "app.py"),
-                ]
-            )
-        breakpoint()
+        # if not self.config.alchemy.disable_manual_validator:
+        #     bt.logging.debug("loading", "streamlit validator")
+        #     process = subprocess.Popen(
+        #         [
+        #             "streamlit",
+        #             "run",
+        #             os.path.join(os.getcwd(), "neurons", "validator", "app.py"),
+        #         ]
+        #     )
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
         self.coldkey_blacklist = set()
@@ -202,7 +201,7 @@ class StableValidator:
                     bt.logging.info(
                         f"Waiting for {self.request_frequency} seconds before querying miners again..."
                     )
-                    sleep(self.request_frequency)
+                    sleep(0.01)
 
                 # Get a random number of uids
                 uids = get_random_uids(self, self.dendrite, k=N_NEURONS)

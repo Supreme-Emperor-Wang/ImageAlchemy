@@ -94,6 +94,21 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Log the results for monitoring purposes.
     bt.logging.info(f"Received {len(responses)} response(s): {responses}")
 
+    # Save images for manual validator
+    if not self.config.alchemy.disable_manual_validator:
+        bt.logging.info(f"Saving images")
+        i = 0
+        for r in responses:
+            for image in r.images:
+                T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(
+                    f"neurons/validator/images/{i}.png"
+                )
+                i = i + 1
+
+        bt.logging.info(f"Saving prompt")
+        with open("neurons/validator/images/prompt.txt", "w") as f:
+            f.write(prompt)
+
     # Initialise rewards tensor
     rewards: torch.FloatTensor = torch.zeros(len(responses), dtype=torch.float32).to(
         self.device
@@ -112,20 +127,20 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         event[masking_fn_i.name] = mask_i.tolist()
         event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
         bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
-
+    
     if not self.config.alchemy.disable_manual_validator:
         bt.logging.info(f"Waiting for manual vote")
         start_time = time.perf_counter()
 
         while (time.perf_counter() - start_time) < 10:
+            # breakpoint()
             if os.path.exists("neurons/validator/images/vote.txt"):
                 # loop until vote is successfully saved
                 while open("neurons/validator/images/vote.txt", "r").read() == "":
                     continue
 
                 reward_i = open("neurons/validator/images/vote.txt", "r").read()
-                bt.logging.info("Received manual vote")
-                bt.logging.info("MANUAL VOTE = " + reward_i)
+                bt.logging.info(f"Received manual vote for UID {int(reward_i) - 1}")
                 reward_i_normalized: torch.FloatTensor = torch.zeros(
                     len(rewards), dtype=torch.float32
                 ).to(self.device)
@@ -133,7 +148,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
                 rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
 
-                if not self.config.neuron.disable_log_rewards:
+                if not self.config.alchemy.disable_log_rewards:
                     event["human_reward_model"] = reward_i_normalized.tolist()
                     event[
                         "human_reward_model_normalized"

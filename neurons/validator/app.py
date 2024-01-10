@@ -8,6 +8,8 @@ import streamlit as st
 directory = r"neurons/validator/images"
 
 st.title("Subnet 25 Manual Validator")
+prompt_text = st.title("PROMPT:")
+empty_image_text = "AWAITING NEW IMAGE ..."
 
 col1, col2, col3, col4, col5 = st.columns(5)
 
@@ -76,7 +78,7 @@ def input_callback():
             st.session_state.vote_10 = False
 
 
-Title = st.empty()
+
 
 with col1:
     placeholder_1 = st.empty()
@@ -85,24 +87,24 @@ with col1:
     vote_2 = st.checkbox("UID 1", key="vote_2", on_change=input_callback)
 with col2:
     placeholder_3 = st.empty()
-    vote_3 = st.checkbox("UID 2")
+    vote_3 = st.checkbox("UID 2", key="vote_3", on_change=input_callback)
     placeholder_4 = st.empty()
-    vote_4 = st.checkbox("UID 3")
+    vote_4 = st.checkbox("UID 3", key="vote_4", on_change=input_callback)
 with col3:
     placeholder_5 = st.empty()
-    vote_5 = st.checkbox("UID 4")
+    vote_5 = st.checkbox("UID 4", key="vote_5", on_change=input_callback)
     placeholder_6 = st.empty()
-    vote_6 = st.checkbox("UID 5")
+    vote_6 = st.checkbox("UID 5", key="vote_6", on_change=input_callback)
 with col4:
     placeholder_7 = st.empty()
-    vote_7 = st.checkbox("UID 6")
+    vote_7 = st.checkbox("UID 6", key="vote_7", on_change=input_callback)
     placeholder_8 = st.empty()
-    vote_8 = st.checkbox("UID 7")
+    vote_8 = st.checkbox("UID 7", key="vote_8", on_change=input_callback)
 with col5:
     placeholder_9 = st.empty()
-    vote_9 = st.checkbox("UID 8")
+    vote_9 = st.checkbox("UID 8", key="vote_9", on_change=input_callback)
     placeholder_10 = st.empty()
-    vote_10 = st.checkbox("UID 9")
+    vote_10 = st.checkbox("UID 9", key="vote_10", on_change=input_callback)
 
 image_list = [
     placeholder_1,
@@ -126,7 +128,7 @@ while True:
     if images:
         try:
             prompt = open(f"{directory}/prompt.txt", "r").read()
-            Title.text("Prompt: " + f"{prompt}")
+            prompt_text.text("Prompt: " + f"{prompt}")
             for i in range(0, 10):
                 if len(images) > i:
                     image_list[i].image(
@@ -138,8 +140,9 @@ while True:
                     )
         except:
             for i in range(0, 10):
-                image_list[i].text("AWAITING NEW ...")
+                image_list[i].text(empty_image_text)
 
     else:
         for i in range(0, 10):
-            image_list[i].text("AWAITING NEW ...")
+            prompt_text.text(empty_image_text)
+            image_list[i].text("")
