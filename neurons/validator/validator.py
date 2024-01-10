@@ -204,7 +204,13 @@ class StableValidator:
 
                 if prompt is None:
                     bt.logging.warning(f"The prompt was not generated successfully.")
+
+                    ### Prevent loop from forming if the prompt error occurs on the first step
+                    if self.step == 0:
+                        self.step += 1
+
                     continue
+
                 # followup_prompt = generate_followup_prompt_gpt(self, prompt)
                 # if prompt is None:  # or (followup_prompt is None):
                 #     if (self.prompt_generation_failures != 0) and (
