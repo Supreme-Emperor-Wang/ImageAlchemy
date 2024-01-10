@@ -1,4 +1,5 @@
 import copy
+import os
 import random
 import time
 from dataclasses import asdict
@@ -111,6 +112,42 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         event[masking_fn_i.name] = mask_i.tolist()
         event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
         bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
+
+    if not self.config.alchemy.disable_manual_validator:
+        bt.logging.info(f"Waiting for manual vote")
+        start_time = time.perf_counter()
+
+        while (time.perf_counter() - start_time) < 10:
+            if os.path.exists("neurons/validator/images/vote.txt"):
+                # loop until vote is successfully saved
+                while open("neurons/validator/images/vote.txt", "r").read() == "":
+                    continue
+
+                reward_i = open("neurons/validator/images/vote.txt", "r").read()
+                bt.logging.info("Received manual vote")
+                bt.logging.info("MANUAL VOTE = " + reward_i)
+                reward_i_normalized: torch.FloatTensor = torch.zeros(
+                    len(rewards), dtype=torch.float32
+                ).to(self.device)
+                reward_i_normalized[int(reward_i) - 1] = 1.0
+
+                rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
+
+                if not self.config.neuron.disable_log_rewards:
+                    event["human_reward_model"] = reward_i_normalized.tolist()
+                    event[
+                        "human_reward_model_normalized"
+                    ] = reward_i_normalized.tolist()
+
+                break
+        else:
+            bt.logging.info("No manual vote received")
+
+    # Delete contents of images folder except for black image
+    for file in os.listdir("neurons/validator/images"):
+        os.remove(
+            f"neurons/validator/images/{file}"
+        ) if file != "black.png" else "_"
 
     scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
         0, uids, rewards

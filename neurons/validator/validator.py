@@ -3,10 +3,12 @@ import asyncio
 import copy
 import os
 import random
+import subprocess
 from time import sleep
 from traceback import print_exception
 from typing import List
 
+import streamlit
 import torch
 from datasets import load_dataset
 from neurons.constants import ENABLE_IMAGE2IMAGE, EPOCH_LENGTH, N_NEURONS
@@ -134,6 +136,9 @@ class StableValidator:
             [
                 0.95,
                 0.05,
+                1.0
+                if not self.config.alchemy.disable_manual_validator
+                else 0.0,
             ],
             dtype=torch.float32,
         ).to(self.device)
@@ -152,6 +157,17 @@ class StableValidator:
         init_wandb(self)
         bt.logging.debug("Loaded wandb")
 
+        # Init manual validator
+        if not self.config.alchemy.disable_manual_validator:
+            bt.logging.debug("loading", "streamlit validator")
+            process = subprocess.Popen(
+                [
+                    "streamlit",
+                    "run",
+                    os.path.join(os.getcwd(), "neurons", "validator", "app.py"),
+                ]
+            )
+        breakpoint()
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
         self.coldkey_blacklist = set()
