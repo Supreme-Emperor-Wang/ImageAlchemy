@@ -201,50 +201,54 @@ class StableValidator:
 
                 # Generate prompt + followup_prompt
                 prompt = generate_random_prompt_gpt(self)
-                followup_prompt = generate_followup_prompt_gpt(self, prompt)
-                if (prompt is None) or (followup_prompt is None):
-                    if (self.prompt_generation_failures != 0) and (
-                        (self.prompt_generation_failures / len(self.prompt_history_db))
-                        > 0.2
-                    ):
-                        try:
-                            self.prompt_history_db = get_promptdb_backup(
-                                self.config.netuid, self.prompt_history_db
-                            )
-                        except Exception as e:
-                            bt.logging.warning(
-                                f"Unexpected error occurred loading the backup prompts: {e}"
-                            )
-                            self.prompt_history_db = []
-                            bt.logging.debug("Resetting loop.")
-                            continue
 
-                    prompt, followup_prompt = random.choice(self.prompt_history_db)
-                    self.prompt_history_db.remove((prompt, followup_prompt))
-                    self.prompt_generation_failures += 1
+                if prompt is None:
+                    bt.logging.warning(f"The prompt was not generated successfully.")
+                    continue
+                # followup_prompt = generate_followup_prompt_gpt(self, prompt)
+                # if prompt is None:  # or (followup_prompt is None):
+                #     if (self.prompt_generation_failures != 0) and (
+                #         (self.prompt_generation_failures / len(self.prompt_history_db))
+                #         > 0.2
+                #     ):
+                #         try:
+                #             self.prompt_history_db = get_promptdb_backup(
+                #                 self.config.netuid, self.prompt_history_db
+                #             )
+                #         except Exception as e:
+                #             bt.logging.warning(
+                #                 f"Unexpected error occurred loading the backup prompts: {e}"
+                #             )
+                #             self.prompt_history_db = []
+                #             bt.logging.debug("Resetting loop.")
+                #             continue
+
+                #     prompt, followup_prompt = random.choice(self.prompt_history_db)
+                #     self.prompt_history_db.remove((prompt, followup_prompt))
+                #     self.prompt_generation_failures += 1
 
                 # Text to Image Run
                 t2i_event = run_step(
                     self, prompt, axons, uids, task_type="text_to_image"
                 )
-                if ENABLE_IMAGE2IMAGE:
-                    # Image to Image Run
-                    followup_image = [image for image in t2i_event["images"]][
-                        torch.tensor(t2i_event["rewards"]).argmax()
-                    ]
-                    if (
-                        (followup_prompt is not None)
-                        and (followup_image is not None)
-                        and (followup_image != [])
-                    ):
-                        _ = run_step(
-                            self,
-                            followup_prompt,
-                            axons,
-                            uids,
-                            "image_to_image",
-                            followup_image,
-                        )
+                # if ENABLE_IMAGE2IMAGE:
+                #     # Image to Image Run
+                #     followup_image = [image for image in t2i_event["images"]][
+                #         torch.tensor(t2i_event["rewards"]).argmax()
+                #     ]
+                #     if (
+                #         (followup_prompt is not None)
+                #         and (followup_image is not None)
+                #         and (followup_image != [])
+                #     ):
+                #         _ = run_step(
+                #             self,
+                #             followup_prompt,
+                #             axons,
+                #             uids,
+                #             "image_to_image",
+                #             followup_image,
+                #         )
                 # Re-sync with the network. Updates the metagraph.
                 self.sync()
 
