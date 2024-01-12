@@ -263,6 +263,9 @@ def generate_random_prompt_gpt(
                     )
                     bt.logging.debug(f"Sleeping for 10 seconds and retrying once...")
                     time.sleep(10)
+
+                if response:
+                    break
         else:
             bt.logging.warning(
                 "Attempted to use OpenAI as a fallback but the OPENAI_API_KEY is not set."
