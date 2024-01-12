@@ -194,6 +194,7 @@ def call_openai(client, model, prompt):
         frequency_penalty=0,
         presence_penalty=0,
     )
+    bt.logging.trace(f"OpenAI response object: {response}")
     response = response.choices[0].message.content
     return response
 
@@ -205,7 +206,7 @@ def call_corcel(self, prompt):
     }
     JSON = {
         "miners_to_query": 1,
-        "top_k_miners_to_query": 100,
+        "top_k_miners_to_query": 160,
         "ensure_responses": True,
         "miner_uids": [],
         "messages": [
@@ -216,13 +217,16 @@ def call_corcel(self, prompt):
         ],
         "model": "cortext-ultra",
         "stream": False,
+        "top_p": 1.0,
+        "temperature": 1,
+        "max_tokens": 250,
     }
 
     response = None
 
     try:
         response = requests.post(
-            "https://api.corcel.io/cortext/text", json=JSON, headers=HEADERS, timeout=10
+            "https://api.corcel.io/cortext/text", json=JSON, headers=HEADERS, timeout=15
         )
         response = response.json()[0]["choices"][0]["delta"]["content"]
     except requests.exceptions.ReadTimeout as e:
@@ -240,20 +244,29 @@ def generate_random_prompt_gpt(
 ):
     response = None
 
-    # ### Generate the prompt from corcel
-    # try:
-    #     response = call_corcel(self, prompt)
-    # except Exception as e:
-    #     bt.logging.debug(f"An unexpected error occurred calling corcel: {e}")
+    ### Generate the prompt from corcel if we have an API key
+    if self.corcel_api_key:
+        try:
+            response = call_corcel(self, prompt)
+        except Exception as e:
+            bt.logging.debug(f"An unexpected error occurred calling corcel: {e}")
+            bt.logging.debug(f"Falling back to OpenAI if available...")
 
     if not response:
-        for _ in range(2):
-            try:
-                response = call_openai(self.openai_client, model, prompt)
-            except Exception as e:
-                bt.logging.debug(f"An unexpected error occurred calling OpenAI: {e}")
-                bt.logging.debug(f"Sleeping for 10 seconds and retrying once...")
-                time.sleep(10)
+        if self.openai_client:
+            for _ in range(2):
+                try:
+                    response = call_openai(self.openai_client, model, prompt)
+                except Exception as e:
+                    bt.logging.debug(
+                        f"An unexpected error occurred calling OpenAI: {e}"
+                    )
+                    bt.logging.debug(f"Sleeping for 10 seconds and retrying once...")
+                    time.sleep(10)
+        else:
+            bt.logging.warning(
+                "Attempted to use OpenAI as a fallback but the OPENAI_API_KEY is not set."
+            )
 
     bt.logging.trace(f"T2I prompt is {response}")
 

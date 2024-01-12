@@ -57,15 +57,23 @@ class StableValidator:
         # Init device.
         self.device = torch.device(self.config.alchemy.device)
 
+        self.openai_client = None
+
         openai_api_key = os.environ.get("OPENAI_API_KEY")
         self.corcel_api_key = os.environ.get("CORCEL_API_KEY")
 
-        # if not self.corcel_api_key:
-        #     raise ValueError("Please set the CORCEL_API_KEY environment variable.")
+        if not self.corcel_api_key:
+            bt.logging.warning("Please set the CORCEL_API_KEY environment variable.")
 
         if not openai_api_key:
-            raise ValueError("Please set the OPENAI_API_KEY environment variable.")
-        self.openai_client = OpenAI(api_key=openai_api_key)
+            bt.logging.warning("Please set the OPENAI_API_KEY environment variable.")
+        else:
+            self.openai_client = OpenAI(api_key=openai_api_key)
+
+        if not self.corcel_api_key and not openai_api_key:
+            raise ValueError(
+                "You must set either the CORCEL_API_KEY or OPENAI_API_KEY environment variables. It is preferable to use both."
+            )
 
         wandb.login(anonymous="must")
 
