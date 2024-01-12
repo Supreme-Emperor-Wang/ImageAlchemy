@@ -198,6 +198,8 @@ def call_openai(client, model, prompt):
     )
     bt.logging.trace(f"OpenAI response object: {response}")
     response = response.choices[0].message.content
+    if response:
+        bt.logging.info(f"Prompt generated with OpenAI: {response}")
     return response
 
 
@@ -236,6 +238,9 @@ def call_corcel(self, prompt):
             f"Corcel request timed out after 10 seconds... falling back to OpenAI..."
         )
 
+    if response:
+        bt.logging.info(f"Prompt generated with Corcel: {response}")
+
     return response
 
 
@@ -272,8 +277,6 @@ def generate_random_prompt_gpt(
             bt.logging.warning(
                 "Attempted to use OpenAI as a fallback but the OPENAI_API_KEY is not set."
             )
-
-    bt.logging.trace(f"T2I prompt is {response}")
 
     return response
 
