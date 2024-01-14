@@ -181,6 +181,31 @@ def cosine_distance(image_embeds, text_embeds):
     return torch.mm(normalized_image_embeds, normalized_text_embeds.t())
 
 
+def corcel_parse_response(text):
+    split = text.split('"')
+    if len(split) == 3:
+        ### Has quotes
+        split = [x for x in split if x]
+
+        if split:
+            split = split[0]
+        else:
+            bt.logging.debug(f"Returning (X1) default text: {text}")
+            return text
+    elif len(split) == 1:
+        split = split[0]
+    elif len(split) > 3:
+        split = [x for x in split if x]
+        if len(split) > 0:
+            split = split[0]
+    else:
+        bt.logging.trace(f"Split: {split}")
+        bt.logging.debug(f"Returning (X2) default text: {text}")
+        return text
+    bt.logging.debug(f"Returning parsed text: {split}")
+    return split
+
+
 def call_openai(client, model, prompt):
     response = client.chat.completions.create(
         model=model,
@@ -226,6 +251,8 @@ def call_corcel(self, prompt):
         "max_tokens": 250,
     }
 
+    bt.logging.trace(f"Using args: {JSON}")
+
     response = None
 
     try:
@@ -235,7 +262,7 @@ def call_corcel(self, prompt):
         response = response.json()[0]["choices"][0]["delta"]["content"]
     except requests.exceptions.ReadTimeout as e:
         bt.logging.debug(
-            f"Corcel request timed out after 10 seconds... falling back to OpenAI..."
+            f"Corcel request timed out after 15 seconds... falling back to OpenAI..."
         )
 
     if response:
@@ -255,6 +282,9 @@ def generate_random_prompt_gpt(
     if self.corcel_api_key:
         try:
             response = call_corcel(self, prompt)
+            if response:
+                ### Parse response to remove quotes and also adapt the bug with corcel where the output is repeated N times
+                response = corcel_parse_response(response)
         except Exception as e:
             bt.logging.debug(f"An unexpected error occurred calling corcel: {e}")
             bt.logging.debug(f"Falling back to OpenAI if available...")
@@ -277,6 +307,9 @@ def generate_random_prompt_gpt(
             bt.logging.warning(
                 "Attempted to use OpenAI as a fallback but the OPENAI_API_KEY is not set."
             )
+
+    ### Remove any double quotes from the output
+    response = response.replace('"', "")
 
     return response
 
