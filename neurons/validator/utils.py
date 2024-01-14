@@ -309,7 +309,8 @@ def generate_random_prompt_gpt(
             )
 
     ### Remove any double quotes from the output
-    response = response.replace('"', "")
+    if response:
+        response = response.replace('"', "")
 
     return response
 
