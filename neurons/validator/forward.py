@@ -43,6 +43,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         else ImageGeneration(
             generation_type=task_type,
             prompt=prompt,
+            prompt_image=None,
             seed=-1,
         )
     )
