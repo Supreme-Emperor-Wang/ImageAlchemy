@@ -93,7 +93,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     # Log the results for monitoring purposes.
     bt.logging.info(f"Received {len(responses)} response(s): {responses}")
-
     # Save images for manual validator
     if not self.config.alchemy.disable_manual_validator:
         bt.logging.info(f"Saving images")
@@ -103,12 +102,13 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(
                     f"neurons/validator/images/{i}.png"
                 )
+                time.sleep(5)
                 i = i + 1
 
         bt.logging.info(f"Saving prompt")
         with open("neurons/validator/images/prompt.txt", "w") as f:
             f.write(prompt)
-
+            time.sleep(5)
     # Initialise rewards tensor
     rewards: torch.FloatTensor = torch.zeros(len(responses), dtype=torch.float32).to(
         self.device
