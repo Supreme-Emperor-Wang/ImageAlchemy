@@ -7,8 +7,10 @@ from os import listdir
 import pandas as pd
 import streamlit as st
 
-# st.secrets["username"] = "KMFODA"
-# st.secrets["password"] = ";'qQvm3~Pl6£*9WH;@HFn3k*FS]V#B"
+credentials = open("streamlit_credentials.txt", "r").read()
+credentials_split = credentials.split("\n")
+username = credentials_split[0].split("username=")[1]
+password = credentials_split[1].split("password=")[1]
 
 def check_password():
     """Returns `True` if the user had a correct password."""
@@ -28,7 +30,7 @@ def check_password():
         #     st.session_state["password"],
         #     st.secrets.passwords[st.session_state["username"]],
         # ):
-        if (st.session_state["username"] == "KMFODA") and (st.session_state["password"] == ";'qQvm3~Pl6£*9WH;@HFn3k*FS]V#B"):
+        if (st.session_state["username"] == username) and (st.session_state["password"] == password):
             st.session_state["password_correct"] = True
             del st.session_state["password"]  # Don't store the username or password.
             del st.session_state["username"]

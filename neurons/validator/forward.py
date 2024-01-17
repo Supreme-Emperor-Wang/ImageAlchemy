@@ -132,7 +132,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         bt.logging.info(f"Waiting for manual vote")
         start_time = time.perf_counter()
 
-        while (time.perf_counter() - start_time) < 10:
+        while (time.perf_counter() - start_time) < 180:
             # breakpoint()
             if os.path.exists("neurons/validator/images/vote.txt"):
                 # loop until vote is successfully saved

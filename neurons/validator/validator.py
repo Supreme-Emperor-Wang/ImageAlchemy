@@ -31,6 +31,7 @@ from neurons.validator.utils import (
 )
 from neurons.validator.weights import set_weights
 from openai import OpenAI
+from passwordgenerator import pwgenerator
 from transformers import pipeline
 
 import bittensor as bt
@@ -131,13 +132,35 @@ class StableValidator:
         # Init reward function
         self.reward_functions = [ImageRewardModel(), DiversityRewardModel()]
 
+        # Init manual validator
+        # #TODO change directory manually and hardcode the path
+        if self.config.alchemy.enable_manual_validator:
+            bt.logging.debug("setting streamlit credentials")
+            username = self.wallet.hotkey.ss58_address
+            password = pwgenerator.generate()
+            with open('streamlit_credentials.txt', 'w') as f: f.write(f"username={username}\npassword={password}")
+            # Sleep until the credentials file is written
+            sleep(5)
+            bt.logging.debug("Loading Manual Validator")
+            try:
+                process = subprocess.Popen(
+                    [
+                        "streamlit",
+                        "run",
+                        os.path.join(os.getcwd(), "neurons", "validator", "app.py"),
+                    ]
+                )
+            except Exception as e:
+                bt.logging.error(f"Failed to Load Manual Validator due to error: {e}")
+                self.config.alchemy.enable_manual_validator = False
+
         # Init reward function
         self.reward_weights = torch.tensor(
             [
                 0.95,
                 0.05,
                 1.0
-                if not self.config.alchemy.disable_manual_validator
+                if self.config.alchemy.enable_manual_validator
                 else 0.0,
             ],
             dtype=torch.float32,
@@ -157,16 +180,8 @@ class StableValidator:
         init_wandb(self)
         bt.logging.debug("Loaded wandb")
 
-        # Init manual validator
-        # if not self.config.alchemy.disable_manual_validator:
-        #     bt.logging.debug("loading", "streamlit validator")
-        #     process = subprocess.Popen(
-        #         [
-        #             "streamlit",
-        #             "run",
-        #             os.path.join(os.getcwd(), "neurons", "validator", "app.py"),
-        #         ]
-        #     )
+
+
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
         self.coldkey_blacklist = set()
