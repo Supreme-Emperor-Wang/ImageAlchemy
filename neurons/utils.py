@@ -202,7 +202,6 @@ def background_loop(self, is_validator):
             bt.logging.error(
                 f"An error occurred trying to update settings from the cloud: {e}."
             )
-
     #### Clean up the wandb runs and cache folders
     if self.background_steps == 1 or self.background_steps % 300 == 0:
         wandb_path = WANDB_VALIDATOR_PATH if is_validator else WANDB_MINER_PATH
@@ -216,9 +215,7 @@ def background_loop(self, is_validator):
                     if "run-" in x and not "latest-run" in x
                 ]
                 if len(runs) > 0:
-                    cleanup_runs_process = subprocess.Popen(
-                        [f"echo y | wandb sync --clean {wandb_path}"], shell=True
-                    )
+                    cleanup_runs_process = subprocess.call(f"cd {wandb_path} && echo 'y' | wandb sync --clean", shell=True)
                     bt.logging.debug("Cleaned all synced wandb runs.")
                     cleanup_cache_process = subprocess.Popen(
                         ["wandb artifact cache cleanup 5GB"], shell=True
