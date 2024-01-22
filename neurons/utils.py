@@ -211,7 +211,7 @@ def background_loop(self, is_validator):
                 # os.path.basename(path).split("run-")[1].split("-")[0], "%Y%m%d_%H%M%S"
                 runs = [
                     x
-                    for x in os.listdir(wandb_path)
+                    for x in os.listdir(f"{wandb_path}/wandb")
                     if "run-" in x and not "latest-run" in x
                 ]
                 if len(runs) > 0:
