@@ -27,12 +27,12 @@ from neurons.validator.utils import (
     init_wandb,
     ttl_get_block,
 )
-import wandb
 from neurons.validator.weights import set_weights
 from openai import OpenAI
 from transformers import pipeline
 
 import bittensor as bt
+import wandb
 
 
 class StableValidator:
@@ -351,5 +351,9 @@ class StableValidator:
         ) > EPOCH_LENGTH
 
     def should_set_weights(self) -> bool:
-        # Check if enough epoch blocks have elapsed since the last epoch.
-        return (ttl_get_block(self) % self.prev_block) >= EPOCH_LENGTH
+        # Check if all moving_averages_socres are the 0s or 1s
+        if (sum(self.moving_averaged_scores == self.moving_averaged_scores[0]) == len(self.moving_averaged_scores)):
+            return False
+        else:
+            # Check if enough epoch blocks have elapsed since the last epoch.
+            return (ttl_get_block(self) % self.prev_block) >= EPOCH_LENGTH
