@@ -120,20 +120,17 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         event[reward_fn_i.name] = reward_i.tolist()
         event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
         bt.logging.trace(str(reward_fn_i.name), reward_i_normalized.tolist())
-
     for masking_fn_i in self.masking_functions:
         mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
         rewards *= mask_i_normalized.to(self.device)
         event[masking_fn_i.name] = mask_i.tolist()
         event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
         bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
-    
     if not self.config.alchemy.disable_manual_validator:
         bt.logging.info(f"Waiting for manual vote")
         start_time = time.perf_counter()
 
         while (time.perf_counter() - start_time) < 180:
-            # breakpoint()
             if os.path.exists("neurons/validator/images/vote.txt"):
                 # loop until vote is successfully saved
                 while open("neurons/validator/images/vote.txt", "r").read() == "":

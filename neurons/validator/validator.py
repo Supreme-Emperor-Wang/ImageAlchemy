@@ -133,16 +133,17 @@ class StableValidator:
         self.reward_functions = [ImageRewardModel(), DiversityRewardModel()]
 
         # Init manual validator
-        # #TODO change directory manually and hardcode the path
         if self.config.alchemy.enable_manual_validator:
-            bt.logging.debug("setting streamlit credentials")
-            username = self.wallet.hotkey.ss58_address
-            password = pwgenerator.generate()
-            with open('streamlit_credentials.txt', 'w') as f: f.write(f"username={username}\npassword={password}")
-            # Sleep until the credentials file is written
-            sleep(5)
-            bt.logging.debug("Loading Manual Validator")
             try:
+                if 'ImageAlchemy' not in os.getcwd():
+                    raise Exception("Unable to load manual validator please cd into the ImageAlchemy folder before running the validator")
+                bt.logging.debug("setting streamlit credentials")
+                username = self.wallet.hotkey.ss58_address
+                password = pwgenerator.generate()
+                with open('streamlit_credentials.txt', 'w') as f: f.write(f"username={username}\npassword={password}")
+                # Sleep until the credentials file is written
+                sleep(5)
+                bt.logging.debug("Loading Manual Validator")
                 process = subprocess.Popen(
                     [
                         "streamlit",
