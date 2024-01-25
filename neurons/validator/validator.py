@@ -131,13 +131,12 @@ class StableValidator:
         self.step = 0
 
         # Init reward function
-        self.reward_functions = [ImageRewardModel(), DiversityRewardModel()]
+        self.reward_functions = [ImageRewardModel()]
 
         # Init reward function
         self.reward_weights = torch.tensor(
             [
-                0.95,
-                0.05,
+                1.0
             ],
             dtype=torch.float32,
         ).to(self.device)
