@@ -351,7 +351,9 @@ class StableValidator:
 
     def should_set_weights(self) -> bool:
         # Check if all moving_averages_socres are the 0s or 1s
-        if (sum(self.moving_averaged_scores == self.moving_averaged_scores[0]) == len(self.moving_averaged_scores)):
+        ma_scores = self.moving_averaged_scores
+        ma_scores_sum = sum(ma_scores)
+        if any([ma_scores_sum == len(ma_scores), ma_scores_sum == 0]):
             return False
         else:
             # Check if enough epoch blocks have elapsed since the last epoch.
