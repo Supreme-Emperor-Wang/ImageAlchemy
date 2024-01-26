@@ -62,8 +62,8 @@ class StableValidator:
         openai_api_key = os.environ.get("OPENAI_API_KEY")
         self.corcel_api_key = os.environ.get("CORCEL_API_KEY")
 
-        if not self.corcel_api_key:
-            bt.logging.warning("Please set the CORCEL_API_KEY environment variable.")
+        # if not self.corcel_api_key:
+        #     bt.logging.warning("Please set the CORCEL_API_KEY environment variable.")
 
         if not openai_api_key:
             bt.logging.warning("Please set the OPENAI_API_KEY environment variable.")
