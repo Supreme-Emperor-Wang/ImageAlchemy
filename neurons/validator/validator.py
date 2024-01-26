@@ -140,7 +140,11 @@ class StableValidator:
             ],
             dtype=torch.float32,
         ).to(self.device)
+
         self.reward_weights / self.reward_weights.sum(dim=-1).unsqueeze(-1)
+
+        self.reward_names = ["image_reward_model"]
+
 
         # Init masking function
         self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]
