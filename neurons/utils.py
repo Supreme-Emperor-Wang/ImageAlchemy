@@ -276,7 +276,7 @@ def retrieve_public_file(client, bucket_name, source_name):
             file = json.loads(file)
             bt.logging.debug(f"Successfully downloaded {source_name} from {bucket_name}")
         except Exception as e:
-            bt.logging.warning(f"Failed to download {source_name} from {bucket_name}")
+            bt.logging.warning(f"Failed to download {source_name} from {bucket_name}: {e}")
 
 
     except Exception as e:
