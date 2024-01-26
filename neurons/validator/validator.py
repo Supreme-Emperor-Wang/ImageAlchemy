@@ -27,12 +27,12 @@ from neurons.validator.utils import (
     init_wandb,
     ttl_get_block,
 )
-import wandb
 from neurons.validator.weights import set_weights
 from openai import OpenAI
 from transformers import pipeline
 
 import bittensor as bt
+import wandb
 
 
 class StableValidator:
@@ -139,17 +139,20 @@ class StableValidator:
         self.step = 0
 
         # Init reward function
-        self.reward_functions = [ImageRewardModel(), DiversityRewardModel()]
+        self.reward_functions = [ImageRewardModel()]
 
         # Init reward function
         self.reward_weights = torch.tensor(
             [
-                0.95,
-                0.05,
+                1.0
             ],
             dtype=torch.float32,
         ).to(self.device)
+
         self.reward_weights / self.reward_weights.sum(dim=-1).unsqueeze(-1)
+
+        self.reward_names = ["image_reward_model"]
+
 
         # Init masking function
         self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]
@@ -369,5 +372,11 @@ class StableValidator:
         ) > EPOCH_LENGTH
 
     def should_set_weights(self) -> bool:
-        # Check if enough epoch blocks have elapsed since the last epoch.
-        return (ttl_get_block(self) % self.prev_block) >= EPOCH_LENGTH
+        # Check if all moving_averages_socres are the 0s or 1s
+        ma_scores = self.moving_averaged_scores
+        ma_scores_sum = sum(ma_scores)
+        if any([ma_scores_sum == len(ma_scores), ma_scores_sum == 0]):
+            return False
+        else:
+            # Check if enough epoch blocks have elapsed since the last epoch.
+            return (ttl_get_block(self) % self.prev_block) >= EPOCH_LENGTH
