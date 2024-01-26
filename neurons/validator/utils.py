@@ -202,6 +202,7 @@ def corcel_parse_response(text):
         bt.logging.trace(f"Split: {split}")
         bt.logging.debug(f"Returning (X2) default text: {text}")
         return text
+    
     bt.logging.debug(f"Returning parsed text: {split}")
     return split
 
@@ -285,6 +286,8 @@ def generate_random_prompt_gpt(
             if response:
                 ### Parse response to remove quotes and also adapt the bug with corcel where the output is repeated N times
                 response = corcel_parse_response(response)
+                if response.startswith("{"):
+                    response = None
         except Exception as e:
             bt.logging.debug(f"An unexpected error occurred calling corcel: {e}")
             bt.logging.debug(f"Falling back to OpenAI if available...")
