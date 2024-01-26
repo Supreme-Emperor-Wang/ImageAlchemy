@@ -193,6 +193,10 @@ class StableValidator:
     def run(self):
         # Main Validation Loop
         bt.logging.info("Starting validator loop.")
+        
+        # Load Previous Sates
+        self.load_state()
+
         self.step = 0
         while True:
             try:
@@ -201,7 +205,7 @@ class StableValidator:
                     bt.logging.info(
                         f"Waiting for {self.request_frequency} seconds before querying miners again..."
                     )
-                    sleep(self.request_frequency)
+                    sleep(0.1)
 
                 # Get a random number of uids
                 uids = get_random_uids(self, self.dendrite, k=N_NEURONS)
@@ -268,6 +272,9 @@ class StableValidator:
                 #         )
                 # Re-sync with the network. Updates the metagraph.
                 self.sync()
+
+                # Load Previous Sates
+                self.save_state()
 
                 # End the current step and prepare for the next iteration.
                 self.step += 1
@@ -380,3 +387,47 @@ class StableValidator:
         else:
             # Check if enough epoch blocks have elapsed since the last epoch.
             return (ttl_get_block(self) % self.prev_block) >= EPOCH_LENGTH
+        
+    def save_state(self):
+        r"""Save hotkeys, neuron model and moving average scores to filesystem."""
+        bt.logging.info("save_state()")
+        try:
+            neuron_state_dict = {
+                "neuron_weights": self.moving_averaged_scores.to("cpu").tolist(),
+            }
+            torch.save(neuron_state_dict, f"{self.config.alchemy.full_path}/model.torch")
+            bt.logging.success(
+                prefix="Saved model",
+                sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
+            )
+        except Exception as e:
+            bt.logging.warning(f"Failed to save model with error: {e}")
+
+        # empty cache
+        torch.cuda.empty_cache()
+
+
+    def load_state(self):
+        r"""Load hotkeys and moving average scores from filesystem."""
+        bt.logging.info("load_state()")
+        try:
+            state_dict = torch.load(f"{self.config.alchemy.full_path}/model.torch")
+            neuron_weights = torch.tensor(state_dict["neuron_weights"])
+            # Check to ensure that the size of the neruon weights matches the metagraph size.
+            if neuron_weights.shape != (self.metagraph.n,):
+                bt.logging.warning(
+                    f"Neuron weights shape {neuron_weights.shape} does not match metagraph n {self.metagraph.n}"
+                    "Populating new moving_averaged_scores IDs with zeros"
+                )
+                self.moving_averaged_scores[: len(neuron_weights)] = neuron_weights.to(
+                    self.device
+                )
+            # Check for nans in saved state dict
+            elif not torch.isnan(neuron_weights).any():
+                self.moving_averaged_scores = neuron_weights.to(self.device)
+            bt.logging.success(
+                prefix="Reloaded model",
+                sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
+            )
+        except Exception as e:
+            bt.logging.warning(f"Failed to load model with error: {e}")

@@ -1,8 +1,10 @@
-import argparse, os
-import bittensor as bt
+import argparse
+import os
 
 from loguru import logger
 from neurons.constants import EVENTS_RETENTION_SIZE
+
+import bittensor as bt
 
 
 def check_config(cls, config: "bt.Config"):

@@ -140,7 +140,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 "rewards": rewards.tolist(),
             }
         )
-
+        event.update(validator_info)
     except Exception as err:
         bt.logging.error("Error updating event dict", str(err))
 
@@ -166,7 +166,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             caption=gen_caption(prompt, e),
             file_type=file_type,
         )
-
     wandb_event = EventSchema.from_dict(wandb_event)
     self.wandb.log(asdict(wandb_event))
     return event
