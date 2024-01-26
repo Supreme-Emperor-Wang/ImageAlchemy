@@ -190,7 +190,7 @@ class StableValidator:
         self.background_timer.daemon = True
         self.background_timer.start()
 
-    def run(self):
+    async def run(self):
         # Main Validation Loop
         bt.logging.info("Starting validator loop.")
         
@@ -208,7 +208,7 @@ class StableValidator:
                     sleep(0.1)
 
                 # Get a random number of uids
-                uids = get_random_uids(self, self.dendrite, k=N_NEURONS)
+                uids = await get_random_uids(self, self.dendrite, k=N_NEURONS)
 
                 uids = uids.to(self.device)
 
