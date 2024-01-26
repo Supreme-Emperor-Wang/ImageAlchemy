@@ -127,7 +127,7 @@ def background_loop(self, is_validator):
             ### Create client if needed
             if not self.storage_client:
                 self.storage_client = storage.Client.create_anonymous_client()
-                bt.logging.debug("Created anonymous storage client.")
+                bt.logging.info("Created anonymous storage client.")
 
             ### Update the blacklists
             blacklist_for_neuron = retrieve_public_file(
@@ -148,7 +148,7 @@ def background_loop(self, is_validator):
                         if v["type"] == "coldkey"
                     ]
                 )
-                bt.logging.debug("Retrieved the latest blacklists.")
+                bt.logging.info("Retrieved the latest blacklists.")
 
             ### Update the whitelists
             whitelist_for_neuron = retrieve_public_file(
@@ -169,7 +169,7 @@ def background_loop(self, is_validator):
                         if v["type"] == "coldkey"
                     ]
                 )
-                bt.logging.debug("Retrieved the latest whitelists.")
+                bt.logging.info("Retrieved the latest whitelists.")
 
             ### Validator only
             if is_validator:
@@ -177,29 +177,49 @@ def background_loop(self, is_validator):
                 validator_weights = retrieve_public_file(
                     self.storage_client, bucket_name, IA_VALIDATOR_WEIGHT_FILES
                 )
-                self.reward_weights = torch.tensor(
-                    [v for k, v in validator_weights.items() if "manual" not in k],
-                    dtype=torch.float32,
-                ).to(self.device)
-                bt.logging.debug(
-                    f"Retrieved the latest validator weights: {self.reward_weights}"
-                )
+                if validator_weights:
+                    weights_to_add = []
+                    for rw_name in self.reward_names:
+                        if rw_name in validator_weights:
+                            weights_to_add.append(validator_weights[rw_name])
+
+
+                    bt.logging.trace(f"Raw model weights: {weights_to_add}")
+
+                    ### Normalize weights
+                    if sum(weights_to_add) != 1:
+                        weights_to_add = normalize_weights(weights_to_add)
+
+                        bt.logging.trace(f"Normalized model weights: {weights_to_add}")
+
+                    if weights_to_add:
+                        self.reward_weights = torch.tensor(weights_to_add, dtype=torch.float32).to(self.device)
+                        bt.logging.info(
+                            f"Retrieved the latest validator weights: {self.reward_weights}"
+                        )
+
+                    # self.reward_weights = torch.tensor(
+                    #     [v for k, v in validator_weights.items() if "manual" not in k],
+                    #     dtype=torch.float32,
+                    # ).to(self.device)
+                    
 
                 ### Update settings
                 validator_settings: dict = retrieve_public_file(
                     self.storage_client, bucket_name, IA_VALIDATOR_SETTINGS_FILE
                 )
 
-                self.request_frequency = validator_settings.get(
-                    "request_frequency", VALIDATOR_DEFAULT_REQUEST_FREQUENCY
-                )
-                self.query_timeout = validator_settings.get(
-                    "query_timeout", VALIDATOR_DEFAULT_QUERY_TIMEOUT
-                )
+                if validator_settings:
+                    self.request_frequency = validator_settings.get(
+                        "request_frequency", VALIDATOR_DEFAULT_REQUEST_FREQUENCY
+                    )
+                    self.query_timeout = validator_settings.get(
+                        "query_timeout", VALIDATOR_DEFAULT_QUERY_TIMEOUT
+                    )
 
-                bt.logging.debug(
-                    f"Retrieved the latest validator settings: {validator_settings}"
-                )
+                    bt.logging.info(
+                        f"Retrieved the latest validator settings: {validator_settings}"
+                    )
 
         except Exception as e:
             bt.logging.error(
@@ -234,16 +254,31 @@ def background_loop(self, is_validator):
     self.background_steps += 1
 
 
+def normalize_weights(weights):
+    sum_weights = float(sum(weights))
+    normalizer = 1 / sum_weights
+    weights = [weight * normalizer for weight in weights]
+    if sum(weights) < 1:
+        diff = 1 - sum(weights)
+        weights[0] += diff
+
+    return weights
+
+
+
 def retrieve_public_file(client, bucket_name, source_name):
     file = None
     try:
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(source_name)
-        file = blob.download_as_text()
+        try:
+            file = blob.download_as_text()
+            file = json.loads(file)
+            bt.logging.debug(f"Successfully downloaded {source_name} from {bucket_name}")
+        except Exception as e:
+            bt.logging.warning(f"Failed to download {source_name} from {bucket_name}")
 
-        bt.logging.debug(f"Successfully downloaded {source_name} from {bucket_name}")
 
-        file = json.loads(file)
     except Exception as e:
         bt.logging.error(f"An error occurred downloading from Google Cloud: {e}")
 
