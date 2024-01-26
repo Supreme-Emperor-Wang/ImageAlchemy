@@ -186,13 +186,12 @@ def background_loop(self, is_validator):
 
                     bt.logging.trace(f"Raw model weights: {weights_to_add}")
 
-                    ### Normalize weights
-                    if sum(weights_to_add) != 1:
-                        weights_to_add = normalize_weights(weights_to_add)
-
-                        bt.logging.trace(f"Normalized model weights: {weights_to_add}")
-
                     if weights_to_add:
+                        ### Normalize weights
+                        if sum(weights_to_add) != 1:
+                            weights_to_add = normalize_weights(weights_to_add)
+                            bt.logging.trace(f"Normalized model weights: {weights_to_add}")
+
                         self.reward_weights = torch.tensor(weights_to_add, dtype=torch.float32).to(self.device)
                         bt.logging.info(
                             f"Retrieved the latest validator weights: {self.reward_weights}"
