@@ -13,6 +13,7 @@ from neurons.constants import (
     IA_BUCKET_NAME,
     IA_MINER_BLACKLIST,
     IA_MINER_WHITELIST,
+    IA_TEST_BUCKET_NAME,
     IA_VALIDATOR_BLACKLIST,
     IA_VALIDATOR_SETTINGS_FILE,
     IA_VALIDATOR_WEIGHT_FILES,
@@ -94,6 +95,8 @@ def background_loop(self, is_validator):
     whitelist_type = IA_VALIDATOR_WHITELIST if is_validator else IA_MINER_WHITELIST
     blacklist_type = IA_VALIDATOR_BLACKLIST if is_validator else IA_MINER_BLACKLIST
 
+    bucket_name = IA_BUCKET_NAME if self.config.netuid == 26 else IA_TEST_BUCKET_NAME
+
     #### Terminate the miner / validator after deregistration
     if self.background_steps % 1 == 0 and self.background_steps > 1:
         try:
@@ -128,7 +131,7 @@ def background_loop(self, is_validator):
 
             ### Update the blacklists
             blacklist_for_neuron = retrieve_public_file(
-                self.storage_client, IA_BUCKET_NAME, blacklist_type
+                self.storage_client, bucket_name, blacklist_type
             )
             if blacklist_for_neuron:
                 self.hotkey_blacklist = set(
@@ -149,7 +152,7 @@ def background_loop(self, is_validator):
 
             ### Update the whitelists
             whitelist_for_neuron = retrieve_public_file(
-                self.storage_client, IA_BUCKET_NAME, whitelist_type
+                self.storage_client, bucket_name, whitelist_type
             )
             if whitelist_for_neuron:
                 self.hotkey_whitelist = set(
@@ -172,7 +175,7 @@ def background_loop(self, is_validator):
             if is_validator:
                 ### Update weights
                 validator_weights = retrieve_public_file(
-                    self.storage_client, IA_BUCKET_NAME, IA_VALIDATOR_WEIGHT_FILES
+                    self.storage_client, bucket_name, IA_VALIDATOR_WEIGHT_FILES
                 )
                 self.reward_weights = torch.tensor(
                     [v for k, v in validator_weights.items() if "manual" not in k],
@@ -184,7 +187,7 @@ def background_loop(self, is_validator):
 
                 ### Update settings
                 validator_settings: dict = retrieve_public_file(
-                    self.storage_client, IA_BUCKET_NAME, IA_VALIDATOR_SETTINGS_FILE
+                    self.storage_client, bucket_name, IA_VALIDATOR_SETTINGS_FILE
                 )
 
                 self.request_frequency = validator_settings.get(
