@@ -53,11 +53,8 @@ def ttl_get_block(self) -> int:
     return self.subtensor.get_current_block()
 
 
-async def check_uid(loop, dendrite, axon, uid):
+async def check_uid(dendrite, axon, uid):
     try:
-        # response = loop.run_until_complete(
-        #     dendrite(axon, IsAlive(), deserialize=False, timeout=2.3)
-        # )
         response = await dendrite(axon, IsAlive(), deserialize=False, timeout=2.3)
         if response.is_success:
             bt.logging.trace(f"UID {uid} is active.")
@@ -71,7 +68,6 @@ async def check_uid(loop, dendrite, axon, uid):
 
 
 async def check_uid_availability(
-    loop,
     dendrite,
     metagraph: "bt.metagraph.Metagraph",
     uid: int,
@@ -93,7 +89,7 @@ async def check_uid_availability(
         if metagraph.S[uid] > vpermit_tao_limit:
             return False
     # Filter for miners that are processing other responses
-    if not await check_uid(loop, dendrite, metagraph.axons[uid], uid):
+    if not await check_uid(dendrite, metagraph.axons[uid], uid):
         return False
     # Available otherwise.
     return True
@@ -114,18 +110,15 @@ async def get_random_uids(
     candidate_uids = []
     avail_uids = []
 
-    loop = asyncio.get_event_loop()
-    loop = ""
-
     tasks = []
     for uid in range(self.metagraph.n.item()):
         uid_is_available = check_uid_availability(
-            loop, dendrite, self.metagraph, uid, VPERMIT_TAO
+            dendrite, self.metagraph, uid, VPERMIT_TAO
         )
         # The dendrite client queries the network.
         tasks.append(
             check_uid_availability(
-                        loop, dendrite, self.metagraph, uid, VPERMIT_TAO
+                        dendrite, self.metagraph, uid, VPERMIT_TAO
             )
         )
 
