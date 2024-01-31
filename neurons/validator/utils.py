@@ -1,16 +1,24 @@
 # Utils for checkpointing and saving the model.
-import asyncio, requests, copy, os, random, time, traceback, torch, wandb
+import asyncio
+import copy
+import os
+import random
+import time
+import traceback
 from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List
 
 import neurons.validator as validator
 import pandas as pd
+import requests
+import torch
 import torch.nn as nn
 from neurons.constants import VPERMIT_TAO, WANDB_VALIDATOR_PATH
 from neurons.protocol import IsAlive
 
 import bittensor as bt
+import wandb
 
 
 def _ttl_hash_gen(seconds: int):
@@ -41,8 +49,8 @@ def ttl_cache(maxsize: int = 128, typed: bool = False, ttl: int = -1):
 
 # 12 seconds updating block.
 @ttl_cache(maxsize=1, ttl=12)
-def ttl_get_block(self) -> int:
-    return self.subtensor.get_current_block()
+def ttl_get_block(subtensor) -> int:
+    return subtensor.get_current_block()
 
 
 def check_uid(dendrite, axon, uid):

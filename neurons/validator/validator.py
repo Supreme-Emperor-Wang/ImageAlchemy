@@ -10,6 +10,7 @@ from typing import List
 
 import streamlit
 import torch
+from aiohttp import web
 from datasets import load_dataset
 from neurons.constants import ENABLE_IMAGE2IMAGE, EPOCH_LENGTH, N_NEURONS
 from neurons.utils import BackgroundTimer, background_loop, get_defaults
@@ -37,7 +38,7 @@ from transformers import pipeline
 import bittensor as bt
 
 
-class StableValidator:
+class StableValidator(web.Application):
     @classmethod
     def check_config(cls, config: "bt.Config"):
         check_config(cls, config)
@@ -50,7 +51,8 @@ class StableValidator:
     def config(cls):
         return config(cls)
 
-    def __init__(self):
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
         # Init config
         self.config = StableValidator.config()
         self.check_config(self.config)
@@ -87,13 +89,13 @@ class StableValidator:
         # Init wallet.
         self.wallet = bt.wallet(config=self.config)
         self.wallet.create_if_non_existent()
-        if not self.config.wallet._mock:
-            if not self.subtensor.is_hotkey_registered_on_subnet(
-                hotkey_ss58=self.wallet.hotkey.ss58_address, netuid=self.config.netuid
-            ):
-                raise Exception(
-                    f"Wallet not currently registered on netuid {self.config.netuid}, please first register wallet before running"
-                )
+        # if not self.config.wallet._mock:
+        #     if not self.subtensor.is_hotkey_registered_on_subnet(
+        #         hotkey_ss58=self.wallet.hotkey.ss58_address, netuid=self.config.netuid
+        #     ):
+        #         raise Exception(
+        #             f"Wallet not currently registered on netuid {self.config.netuid}, please first register wallet before running"
+        #         )
 
         # Dendrite pool for querying the network during training.
         self.dendrite = bt.dendrite(wallet=self.wallet)
@@ -105,7 +107,7 @@ class StableValidator:
         )  # Make sure not to sync without passing subtensor
         self.metagraph.sync(subtensor=self.subtensor)  # Sync metagraph with subtensor.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
-        self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
+        # self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         bt.logging.debug("Loaded metagraph")
 
         # Init Weights.
@@ -115,10 +117,10 @@ class StableValidator:
         )
 
         # Each validator gets a unique identity (UID) in the network for differentiation.
-        self.my_subnet_uid = self.metagraph.hotkeys.index(
-            self.wallet.hotkey.ss58_address
-        )
-        bt.logging.info(f"Running validator on uid: {self.my_subnet_uid}")
+        # self.my_subnet_uid = self.metagraph.hotkeys.index(
+        #     self.wallet.hotkey.ss58_address
+        # )
+        # bt.logging.info(f"Running validator on uid: {self.my_subnet_uid}")
 
         # Init weights
         self.weights = torch.ones_like(self.metagraph.uids, dtype=torch.float32).to(
@@ -126,7 +128,7 @@ class StableValidator:
         )
 
         # Init prev_block and step
-        self.prev_block = ttl_get_block(self)
+        self.prev_block = ttl_get_block(self.subtensor)
         self.step = 0
 
         # Init reward function
@@ -205,18 +207,18 @@ class StableValidator:
         self.background_timer.daemon = True
         self.background_timer.start()
 
-    def run(self):
+    def run(self, prompt, followup_prompt = None):
         # Main Validation Loop
         bt.logging.info("Starting validator loop.")
         self.step = 0
-        while True:
+        while self.step == 0:
             try:
                 # Reduce calls to miner to be approximately 1 per 5 minutes
-                if self.step > 0:
-                    bt.logging.info(
-                        f"Waiting for {self.request_frequency} seconds before querying miners again..."
-                    )
-                    sleep(0.01)
+                # if self.step > 0:
+                #     bt.logging.info(
+                #         f"Waiting for {self.request_frequency} seconds before querying miners again..."
+                #     )
+                #     sleep(0.01)
 
                 # Get a random number of uids
                 uids = get_random_uids(self, self.dendrite, k=N_NEURONS)
@@ -226,19 +228,19 @@ class StableValidator:
                 axons = [self.metagraph.axons[uid] for uid in uids]
 
                 # Generate prompt + followup_prompt
-                prompt = generate_random_prompt_gpt(self)
-                followup_prompt = generate_followup_prompt_gpt(self, prompt)
-                if (prompt is None) or (followup_prompt is None):
-                    if (self.prompt_generation_failures != 0) and (
-                        (self.prompt_generation_failures / len(self.prompt_history_db))
-                        > 0.2
-                    ):
-                        self.prompt_history_db = get_promptdb_backup(
-                            self.prompt_history_db
-                        )
-                    prompt, followup_prompt = random.choice(self.prompt_history_db)
-                    self.prompt_history_db.remove((prompt, followup_prompt))
-                    self.prompt_generation_failures += 1
+                # prompt = generate_random_prompt_gpt(self)
+                # followup_prompt = generate_followup_prompt_gpt(self, prompt)
+                # if (prompt is None) or (followup_prompt is None):
+                #     if (self.prompt_generation_failures != 0) and (
+                #         (self.prompt_generation_failures / len(self.prompt_history_db))
+                #         > 0.2
+                #     ):
+                #         self.prompt_history_db = get_promptdb_backup(
+                #             self.prompt_history_db
+                #         )
+                #     prompt, followup_prompt = random.choice(self.prompt_history_db)
+                #     self.prompt_history_db.remove((prompt, followup_prompt))
+                #     self.prompt_generation_failures += 1
 
                 # Text to Image Run
                 t2i_event = run_step(
@@ -267,6 +269,8 @@ class StableValidator:
 
                 # End the current step and prepare for the next iteration.
                 self.step += 1
+                
+                return t2i_event
 
             # If we encounter an unexpected error, log it for debugging.
             except Exception as err:
