@@ -74,7 +74,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     validator_info = self.get_validator_info()
     output_log(
-        f"{sh('Stats')} -> Block: {validator_info['block']} | Stake: {validator_info['stake']:.2f} | Rank: {validator_info['rank']:.2f} | VTrust: {validator_info['vtrust']:.2f} | Dividends: {validator_info['dividends']:.2f} | Emissions: {validator_info['emissions']:.2f}",
+        f"{sh('Stats')} -> Block: {validator_info['block']} | Stake: {validator_info['stake']:.4f} | Rank: {validator_info['rank']:.4f} | VTrust: {validator_info['vtrust']:.4f} | Dividends: {validator_info['dividends']:.4f} | Emissions: {validator_info['emissions']:.4f}",
         color_key="c",
     )
     responses = self.loop.run_until_complete(

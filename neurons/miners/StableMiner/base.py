@@ -201,11 +201,11 @@ class BaseMiner(ABC):
     def get_miner_info(self):
         return {
             "block": self.metagraph.block.item(),
-            "stake": self.metagraph.S[self.miner_index],
-            "trust": self.metagraph.T[self.miner_index],
-            "consensus": self.metagraph.C[self.miner_index],
-            "incentive": self.metagraph.I[self.miner_index],
-            "emissions": self.metagraph.E[self.miner_index],
+            "stake": self.metagraph.stake[self.miner_index],
+            "trust": self.metagraph.trust[self.miner_index],
+            "consensus": self.metagraph.consensus[self.miner_index],
+            "incentive": self.metagraph.incentive[self.miner_index],
+            "emissions": self.metagraph.emission[self.miner_index],
         }
 
     def get_miner_index(self):
