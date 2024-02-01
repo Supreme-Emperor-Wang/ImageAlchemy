@@ -317,11 +317,11 @@ class StableValidator:
     def get_validator_info(self):
         return {
             "block": self.metagraph.block.item(),
-            "stake": self.metagraph.S[self.validator_index],
-            "rank": self.metagraph.R[self.validator_index],
-            "vtrust": self.metagraph.T[self.validator_index],
-            "dividends": self.metagraph.C[self.validator_index],
-            "emissions": self.metagraph.E[self.validator_index],
+            "stake": self.metagraph.stake[self.validator_index],
+            "rank": self.metagraph.ranks[self.validator_index],
+            "vtrust": self.metagraph.validator_trust[self.validator_index],
+            "dividends": self.metagraph.dividends[self.validator_index],
+            "emissions": self.metagraph.emission[self.validator_index],
         }
 
     def resync_metagraph(self):
