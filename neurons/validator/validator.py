@@ -4,6 +4,7 @@ import copy
 import os
 import random
 from time import sleep
+import time
 from traceback import print_exception
 from typing import List
 
@@ -47,6 +48,26 @@ class StableValidator:
     @classmethod
     def config(cls):
         return config(cls)
+    
+    def loop_until_registered(self):
+        index = None
+        while True:
+            try:
+                index = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
+            except:
+                pass
+            if index is not None:
+                bt.logging.info(
+                    f"Miner {self.config.wallet.hotkey} is registered with uid {self.metagraph.uids[index]}.",
+                    "g",
+                )
+                break
+            bt.logging.info(
+                f"Miner {self.config.wallet.hotkey} is not registered. Sleeping for 120 seconds...",
+                "r",
+            )
+            time.sleep(120)
+            self.metagraph.sync(lite=True)
 
     def __init__(self):
         # Init config
@@ -94,13 +115,6 @@ class StableValidator:
         # Init wallet.
         self.wallet = bt.wallet(config=self.config)
         self.wallet.create_if_non_existent()
-        if not self.config.wallet._mock:
-            if not self.subtensor.is_hotkey_registered_on_subnet(
-                hotkey_ss58=self.wallet.hotkey.ss58_address, netuid=self.config.netuid
-            ):
-                raise Exception(
-                    f"Wallet not currently registered on netuid {self.config.netuid}, please first register wallet before running"
-                )
 
         # Dendrite pool for querying the network during training.
         self.dendrite = bt.dendrite(wallet=self.wallet)
@@ -112,6 +126,12 @@ class StableValidator:
         )  # Make sure not to sync without passing subtensor
         self.metagraph.sync(subtensor=self.subtensor)  # Sync metagraph with subtensor.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+
+        if not self.config.wallet._mock:
+            #### Wait until the miner is registered
+            self.loop_until_registered()
+
+
         self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         bt.logging.debug("Loaded metagraph")
 
