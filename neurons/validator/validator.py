@@ -58,12 +58,12 @@ class StableValidator:
                 pass
             if index is not None:
                 bt.logging.info(
-                    f"Miner {self.config.wallet.hotkey} is registered with uid {self.metagraph.uids[index]}.",
+                    f"Validator {self.config.wallet.hotkey} is registered with uid {self.metagraph.uids[index]}.",
                     "g",
                 )
                 break
             bt.logging.info(
-                f"Miner {self.config.wallet.hotkey} is not registered. Sleeping for 120 seconds...",
+                f"Validator {self.config.wallet.hotkey} is not registered. Sleeping for 120 seconds...",
                 "r",
             )
             time.sleep(120)
