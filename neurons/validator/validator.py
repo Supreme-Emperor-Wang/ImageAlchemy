@@ -107,7 +107,7 @@ class StableValidator(web.Application):
         )  # Make sure not to sync without passing subtensor
         self.metagraph.sync(subtensor=self.subtensor)  # Sync metagraph with subtensor.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
-        # self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
+        self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         bt.logging.debug("Loaded metagraph")
 
         # Init Weights.
@@ -117,10 +117,10 @@ class StableValidator(web.Application):
         )
 
         # Each validator gets a unique identity (UID) in the network for differentiation.
-        # self.my_subnet_uid = self.metagraph.hotkeys.index(
-        #     self.wallet.hotkey.ss58_address
-        # )
-        # bt.logging.info(f"Running validator on uid: {self.my_subnet_uid}")
+        self.my_subnet_uid = self.metagraph.hotkeys.index(
+            self.wallet.hotkey.ss58_address
+        )
+        bt.logging.info(f"Running validator on uid: {self.my_subnet_uid}")
 
         # Init weights
         self.weights = torch.ones_like(self.metagraph.uids, dtype=torch.float32).to(
@@ -175,14 +175,9 @@ class StableValidator(web.Application):
         # Init sync with the network. Updates the metagraph.
         self.sync()
 
-        # Init the event loop
-        self.loop = asyncio.get_event_loop()
-
         # Init wandb.
         init_wandb(self)
         bt.logging.debug("Loaded wandb")
-
-
 
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
@@ -211,76 +206,75 @@ class StableValidator(web.Application):
         # Main Validation Loop
         bt.logging.info("Starting validator loop.")
         self.step = 0
-        while self.step == 0:
-            try:
-                # Reduce calls to miner to be approximately 1 per 5 minutes
-                # if self.step > 0:
-                #     bt.logging.info(
-                #         f"Waiting for {self.request_frequency} seconds before querying miners again..."
-                #     )
-                #     sleep(0.01)
+        try:
+            # Reduce calls to miner to be approximately 1 per 5 minutes
+            # if self.step > 0:
+            #     bt.logging.info(
+            #         f"Waiting for {self.request_frequency} seconds before querying miners again..."
+            #     )
+            #     sleep(0.01)
 
-                # Get a random number of uids
-                uids = get_random_uids(self, self.dendrite, k=N_NEURONS)
+            # Get a random number of uids
+            uids = get_random_uids(self, self.dendrite, k=N_NEURONS)
 
-                uids = uids.to(self.device)
+            uids = uids.to(self.device)
 
-                axons = [self.metagraph.axons[uid] for uid in uids]
+            axons = [self.metagraph.axons[uid] for uid in uids]
 
-                # Generate prompt + followup_prompt
-                # prompt = generate_random_prompt_gpt(self)
-                # followup_prompt = generate_followup_prompt_gpt(self, prompt)
-                # if (prompt is None) or (followup_prompt is None):
-                #     if (self.prompt_generation_failures != 0) and (
-                #         (self.prompt_generation_failures / len(self.prompt_history_db))
-                #         > 0.2
-                #     ):
-                #         self.prompt_history_db = get_promptdb_backup(
-                #             self.prompt_history_db
-                #         )
-                #     prompt, followup_prompt = random.choice(self.prompt_history_db)
-                #     self.prompt_history_db.remove((prompt, followup_prompt))
-                #     self.prompt_generation_failures += 1
+            # Generate prompt + followup_prompt
+            # prompt = generate_random_prompt_gpt(self)
+            # followup_prompt = generate_followup_prompt_gpt(self, prompt)
+            # if (prompt is None) or (followup_prompt is None):
+            #     if (self.prompt_generation_failures != 0) and (
+            #         (self.prompt_generation_failures / len(self.prompt_history_db))
+            #         > 0.2
+            #     ):
+            #         self.prompt_history_db = get_promptdb_backup(
+            #             self.prompt_history_db
+            #         )
+            #     prompt, followup_prompt = random.choice(self.prompt_history_db)
+            #     self.prompt_history_db.remove((prompt, followup_prompt))
+            #     self.prompt_generation_failures += 1
 
-                # Text to Image Run
-                t2i_event = run_step(
-                    self, prompt, axons, uids, task_type="text_to_image"
-                )
-                if ENABLE_IMAGE2IMAGE:
-                    # Image to Image Run
-                    followup_image = [image for image in t2i_event["images"]][
-                        torch.tensor(t2i_event["rewards"]).argmax()
-                    ]
-                    if (
-                        (followup_prompt is not None)
-                        and (followup_image is not None)
-                        and (followup_image != [])
-                    ):
-                        _ = run_step(
-                            self,
-                            followup_prompt,
-                            axons,
-                            uids,
-                            "image_to_image",
-                            followup_image,
-                        )
-                # Re-sync with the network. Updates the metagraph.
-                self.sync()
+            # Text to Image Run
+            t2i_event = run_step(
+                self, prompt, axons, uids, task_type="text_to_image"
+            )
+            if ENABLE_IMAGE2IMAGE:
+                # Image to Image Run
+                followup_image = [image for image in t2i_event["images"]][
+                    torch.tensor(t2i_event["rewards"]).argmax()
+                ]
+                if (
+                    (followup_prompt is not None)
+                    and (followup_image is not None)
+                    and (followup_image != [])
+                ):
+                    _ = run_step(
+                        self,
+                        followup_prompt,
+                        axons,
+                        uids,
+                        "image_to_image",
+                        followup_image,
+                    )
+            # Re-sync with the network. Updates the metagraph.
+            self.sync()
 
-                # End the current step and prepare for the next iteration.
-                self.step += 1
-                
-                return t2i_event
+            # End the current step and prepare for the next iteration.
+            self.step += 1
+            
+            return t2i_event
 
-            # If we encounter an unexpected error, log it for debugging.
-            except Exception as err:
-                bt.logging.error("Error in training loop", str(err))
-                bt.logging.debug(print_exception(type(err), err, err.__traceback__))
+        # If we encounter an unexpected error, log it for debugging.
+        except Exception as err:
+            bt.logging.error("Error in training loop", str(err))
+            bt.logging.debug(print_exception(type(err), err, err.__traceback__))
 
-            # If the user interrupts the program, gracefully exit.
-            except KeyboardInterrupt:
-                bt.logging.success("Keyboard interrupt detected. Exiting validator.")
-                exit()
+        # If the user interrupts the program, gracefully exit.
+        except KeyboardInterrupt:
+            bt.logging.success("Keyboard interrupt detected. Exiting validator.")
+            exit()
 
     def sync(self):
         """
@@ -294,7 +288,7 @@ class StableValidator(web.Application):
 
         if self.should_set_weights():
             set_weights(self)
-            self.prev_block = ttl_get_block(self)
+            self.prev_block = ttl_get_block(self.subtensor)
 
     def get_validator_index(self):
         """
@@ -367,9 +361,9 @@ class StableValidator(web.Application):
         Check if enough epoch blocks have elapsed since the last checkpoint to sync.
         """
         return (
-            ttl_get_block(self) - self.metagraph.last_update[self.uid]
+            ttl_get_block(self.subtensor) - self.metagraph.last_update[self.uid]
         ) > EPOCH_LENGTH
 
     def should_set_weights(self) -> bool:
         # Check if enough epoch blocks have elapsed since the last epoch.
-        return (ttl_get_block(self) % self.prev_block) >= EPOCH_LENGTH
+        return (ttl_get_block(self.subtensor) % self.prev_block) >= EPOCH_LENGTH

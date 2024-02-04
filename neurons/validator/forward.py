@@ -94,7 +94,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Log the results for monitoring purposes.
     bt.logging.info(f"Received {len(responses)} response(s): {responses}")
     # Save images for manual validator
-    if not self.config.alchemy.disable_manual_validator:
+    if self.config.alchemy.enable_manual_validator:
         bt.logging.info(f"Saving images")
         i = 0
         for r in responses:
@@ -128,11 +128,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
         bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
     
-    if not self.config.alchemy.disable_manual_validator:
+    if self.config.alchemy.enable_manual_validator:
         bt.logging.info(f"Waiting for manual vote")
         start_time = time.perf_counter()
 
-        while (time.perf_counter() - start_time) < 180:
+        while (time.perf_counter() - start_time) < 1:
             # breakpoint()
             if os.path.exists("neurons/validator/images/vote.txt"):
                 # loop until vote is successfully saved
@@ -158,11 +158,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         else:
             bt.logging.info("No manual vote received")
 
-    # Delete contents of images folder except for black image
-    for file in os.listdir("neurons/validator/images"):
-        os.remove(
-            f"neurons/validator/images/{file}"
-        ) if file != "black.png" else "_"
+        # Delete contents of images folder except for black image
+        for file in os.listdir("neurons/validator/images"):
+            os.remove(
+                f"neurons/validator/images/{file}"
+            ) if file != "black.png" else "_"
 
     scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
         0, uids, rewards
@@ -186,7 +186,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         # Log the step event.
         event.update(
             {
-                "block": ttl_get_block(self),
+                "block": ttl_get_block(self.subtensor),
                 "step_length": time.time() - start_time,
                 "prompt_t2i": prompt if task_type == "text_to_image" else None,
                 "prompt_i2i": prompt if task_type == "image_to_image" else None,

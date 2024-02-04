@@ -34,7 +34,7 @@ class ValidatorApplication(web.Application):
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
 
-async def process_image(self, request: web.Request):
+async def process_image(request: web.Request):
     # Check access key
     access_key = request.headers.get("access-key")
     if access_key != EXPECTED_ACCESS_KEY:
@@ -43,8 +43,8 @@ async def process_image(self, request: web.Request):
     try:
         response = await request.json()
         prompt = response['messages'][0]['content']
-        breakpoint()
-        stable_validator = StableValidator().run(prompt)
+        response = validator_app.run(prompt)
+        return web.Response(text=str(response))
     except ValueError:
         return Response(status=400)
 
@@ -59,9 +59,12 @@ if __name__ == "__main__":
     
     validator_app = StableValidator()
     validator_app.add_routes([web.post('/t2i/', process_image)])
+    # validator_app.loop = asyncio.get_event_loop()
+    loop = asyncio.get_event_loop()
+
 
     try:
-        web.run_app(validator_app, port=8000, loop=validator_app.loop)
+        web.run_app(validator_app, port=8000, loop=loop)
     except KeyboardInterrupt:
         bt.logging.info("Keyboard interrupt detected. Exiting validator.")
 
