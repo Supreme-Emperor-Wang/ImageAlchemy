@@ -1,4 +1,6 @@
-import sys, pathlib
+import asyncio
+import pathlib
+import sys
 
 if __name__ == "__main__":
     ### Add the base repository to the path so the validator can access it
@@ -9,4 +11,4 @@ if __name__ == "__main__":
     ### Import StableValidator after fixing paths
     from validator import StableValidator
 
-    StableValidator().run()
+    asyncio.run(StableValidator().run())

@@ -23,6 +23,13 @@ class EventSchema:
     image_reward_model: Optional[List[float]]
     human_reward_model: Optional[List[float]]
 
+    # Bittensor data
+    stake: List[float]
+    rank: List[float]
+    vtrust: List[float]
+    dividends: List[float]
+    emissions: List[float]
+
     set_weights: Optional[List[List[float]]]
 
     @staticmethod
@@ -49,4 +56,9 @@ class EventSchema:
             rewards=event_dict["rewards"],
             **rewards,
             set_weights=None,
+            stake=event_dict["stake"],
+            rank=event_dict["rank"],
+            vtrust=event_dict["vtrust"],
+            dividends=event_dict["dividends"],
+            emissions=event_dict["emissions"],
         )

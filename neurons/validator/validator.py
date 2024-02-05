@@ -4,6 +4,7 @@ import copy
 import os
 import random
 from time import sleep
+import time
 from traceback import print_exception
 from typing import List
 
@@ -47,6 +48,26 @@ class StableValidator:
     @classmethod
     def config(cls):
         return config(cls)
+    
+    def loop_until_registered(self):
+        index = None
+        while True:
+            try:
+                index = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
+            except:
+                pass
+            if index is not None:
+                bt.logging.info(
+                    f"Validator {self.config.wallet.hotkey} is registered with uid {self.metagraph.uids[index]}.",
+                    "g",
+                )
+                break
+            bt.logging.info(
+                f"Validator {self.config.wallet.hotkey} is not registered. Sleeping for 120 seconds...",
+                "r",
+            )
+            time.sleep(120)
+            self.metagraph.sync(lite=True)
 
     def __init__(self):
         # Init config
@@ -94,13 +115,6 @@ class StableValidator:
         # Init wallet.
         self.wallet = bt.wallet(config=self.config)
         self.wallet.create_if_non_existent()
-        if not self.config.wallet._mock:
-            if not self.subtensor.is_hotkey_registered_on_subnet(
-                hotkey_ss58=self.wallet.hotkey.ss58_address, netuid=self.config.netuid
-            ):
-                raise Exception(
-                    f"Wallet not currently registered on netuid {self.config.netuid}, please first register wallet before running"
-                )
 
         # Dendrite pool for querying the network during training.
         self.dendrite = bt.dendrite(wallet=self.wallet)
@@ -112,10 +126,16 @@ class StableValidator:
         )  # Make sure not to sync without passing subtensor
         self.metagraph.sync(subtensor=self.subtensor)  # Sync metagraph with subtensor.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+
+        if not self.config.wallet._mock:
+            #### Wait until the miner is registered
+            self.loop_until_registered()
+
+
         self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         bt.logging.debug("Loaded metagraph")
 
-        self.scores = torch.zeros_like(self.metagraph.S, dtype=torch.float32)
+        self.scores = torch.zeros_like(self.metagraph.stake, dtype=torch.float32)
 
         # Init Weights.
         self.moving_averaged_scores = torch.zeros((self.metagraph.n)).to(self.device)
@@ -190,9 +210,13 @@ class StableValidator:
         self.background_timer.daemon = True
         self.background_timer.start()
 
-    def run(self):
+    async def run(self):
         # Main Validation Loop
         bt.logging.info("Starting validator loop.")
+        
+        # Load Previous Sates
+        self.load_state()
+
         self.step = 0
         while True:
             try:
@@ -201,10 +225,10 @@ class StableValidator:
                     bt.logging.info(
                         f"Waiting for {self.request_frequency} seconds before querying miners again..."
                     )
-                    sleep(self.request_frequency)
+                    sleep(0.1)
 
                 # Get a random number of uids
-                uids = get_random_uids(self, self.dendrite, k=N_NEURONS)
+                uids = await get_random_uids(self, self.dendrite, k=N_NEURONS)
 
                 uids = uids.to(self.device)
 
@@ -269,6 +293,9 @@ class StableValidator:
                 # Re-sync with the network. Updates the metagraph.
                 self.sync()
 
+                # Load Previous Sates
+                self.save_state()
+
                 # End the current step and prepare for the next iteration.
                 self.step += 1
 
@@ -310,11 +337,11 @@ class StableValidator:
     def get_validator_info(self):
         return {
             "block": self.metagraph.block.item(),
-            "stake": self.metagraph.S[self.validator_index],
-            "rank": self.metagraph.R[self.validator_index],
-            "vtrust": self.metagraph.T[self.validator_index],
-            "dividends": self.metagraph.C[self.validator_index],
-            "emissions": self.metagraph.E[self.validator_index],
+            "stake": self.metagraph.stake[self.validator_index],
+            "rank": self.metagraph.ranks[self.validator_index],
+            "vtrust": self.metagraph.validator_trust[self.validator_index],
+            "dividends": self.metagraph.dividends[self.validator_index],
+            "emissions": self.metagraph.emission[self.validator_index],
         }
 
     def resync_metagraph(self):
@@ -380,3 +407,47 @@ class StableValidator:
         else:
             # Check if enough epoch blocks have elapsed since the last epoch.
             return (ttl_get_block(self) % self.prev_block) >= EPOCH_LENGTH
+        
+    def save_state(self):
+        r"""Save hotkeys, neuron model and moving average scores to filesystem."""
+        bt.logging.info("save_state()")
+        try:
+            neuron_state_dict = {
+                "neuron_weights": self.moving_averaged_scores.to("cpu").tolist(),
+            }
+            torch.save(neuron_state_dict, f"{self.config.alchemy.full_path}/model.torch")
+            bt.logging.success(
+                prefix="Saved model",
+                sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
+            )
+        except Exception as e:
+            bt.logging.warning(f"Failed to save model with error: {e}")
+
+        # empty cache
+        torch.cuda.empty_cache()
+
+
+    def load_state(self):
+        r"""Load hotkeys and moving average scores from filesystem."""
+        bt.logging.info("load_state()")
+        try:
+            state_dict = torch.load(f"{self.config.alchemy.full_path}/model.torch")
+            neuron_weights = torch.tensor(state_dict["neuron_weights"])
+            # Check to ensure that the size of the neruon weights matches the metagraph size.
+            if neuron_weights.shape != (self.metagraph.n,):
+                bt.logging.warning(
+                    f"Neuron weights shape {neuron_weights.shape} does not match metagraph n {self.metagraph.n}"
+                    "Populating new moving_averaged_scores IDs with zeros"
+                )
+                self.moving_averaged_scores[: len(neuron_weights)] = neuron_weights.to(
+                    self.device
+                )
+            # Check for nans in saved state dict
+            elif not torch.isnan(neuron_weights).any():
+                self.moving_averaged_scores = neuron_weights.to(self.device)
+            bt.logging.success(
+                prefix="Reloaded model",
+                sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
+            )
+        except Exception as e:
+            bt.logging.warning(f"Failed to load model with error: {e}")

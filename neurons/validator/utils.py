@@ -1,16 +1,24 @@
 # Utils for checkpointing and saving the model.
-import asyncio, requests, copy, os, random, time, traceback, torch, wandb
+import asyncio
+import copy
+import os
+import random
+import time
+import traceback
 from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List
 
 import neurons.validator as validator
 import pandas as pd
+import requests
+import torch
 import torch.nn as nn
 from neurons.constants import VPERMIT_TAO, WANDB_VALIDATOR_PATH
 from neurons.protocol import IsAlive
 
 import bittensor as bt
+import wandb
 
 
 def _ttl_hash_gen(seconds: int):
@@ -45,11 +53,9 @@ def ttl_get_block(self) -> int:
     return self.subtensor.get_current_block()
 
 
-def check_uid(loop, dendrite, axon, uid):
+async def check_uid(dendrite, axon, uid):
     try:
-        response = loop.run_until_complete(
-            dendrite(axon, IsAlive(), deserialize=False, timeout=2.3)
-        )
+        response = await dendrite(axon, IsAlive(), deserialize=False, timeout=2.3)
         if response.is_success:
             bt.logging.trace(f"UID {uid} is active.")
             return True
@@ -61,8 +67,7 @@ def check_uid(loop, dendrite, axon, uid):
         return False
 
 
-def check_uid_availability(
-    loop,
+async def check_uid_availability(
     dendrite,
     metagraph: "bt.metagraph.Metagraph",
     uid: int,
@@ -84,13 +89,13 @@ def check_uid_availability(
         if metagraph.S[uid] > vpermit_tao_limit:
             return False
     # Filter for miners that are processing other responses
-    if not check_uid(loop, dendrite, metagraph.axons[uid], uid):
+    if not await check_uid(dendrite, metagraph.axons[uid], uid):
         return False
     # Available otherwise.
     return True
 
 
-def get_random_uids(
+async def get_random_uids(
     self, dendrite, k: int, exclude: List[int] = None
 ) -> torch.LongTensor:
     """Returns k available random uids from the metagraph.
@@ -105,14 +110,22 @@ def get_random_uids(
     candidate_uids = []
     avail_uids = []
 
-    loop = asyncio.get_event_loop()
-
+    tasks = []
     for uid in range(self.metagraph.n.item()):
         uid_is_available = check_uid_availability(
-            loop, dendrite, self.metagraph, uid, VPERMIT_TAO
+            dendrite, self.metagraph, uid, VPERMIT_TAO
         )
-        uid_is_not_excluded = exclude is None or uid not in exclude
+        # The dendrite client queries the network.
+        tasks.append(
+            check_uid_availability(
+                        dendrite, self.metagraph, uid, VPERMIT_TAO
+            )
+        )
 
+    responses = await asyncio.gather(*tasks)
+
+    for uid, uid_is_available in zip(range(self.metagraph.n.item()), (responses)):
+        uid_is_not_excluded = exclude is None or uid not in exclude
         if (
             uid_is_available
             and (self.metagraph.axons[uid].hotkey not in self.hotkey_blacklist)
