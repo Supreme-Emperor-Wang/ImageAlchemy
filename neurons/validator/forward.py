@@ -75,7 +75,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     validator_info = self.get_validator_info()
     output_log(
-        f"{sh('Stats')} -> Block: {validator_info['block']} | Stake: {validator_info['stake']:.2f} | Rank: {validator_info['rank']:.2f} | VTrust: {validator_info['vtrust']:.2f} | Dividends: {validator_info['dividends']:.2f} | Emissions: {validator_info['emissions']:.2f}",
+        f"{sh('Stats')} -> Block: {validator_info['block']} | Stake: {validator_info['stake']:.4f} | Rank: {validator_info['rank']:.4f} | VTrust: {validator_info['vtrust']:.4f} | Dividends: {validator_info['dividends']:.4f} | Emissions: {validator_info['emissions']:.4f}",
         color_key="c",
     )
     responses = self.loop.run_until_complete(
@@ -168,20 +168,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         0, uids, rewards
     ).to(self.device)
 
-    bt.logging.trace(f"Scattered rewards: {scattered_rewards}")
-
-    try:
-        bt.logging.trace(
-            f"Before: Moving averaged scores: {self.moving_averaged_scores}"
-        )
-    except:
-        pass
-
     self.moving_averaged_scores: torch.FloatTensor = (
         MOVING_AVERAGE_ALPHA * scattered_rewards
         + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
     )
-    bt.logging.trace(f"After: Moving averaged scores: {self.moving_averaged_scores}")
+
     try:
         # Log the step event.
         event.update(
@@ -201,7 +192,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 "rewards": rewards.tolist(),
             }
         )
-
+        event.update(validator_info)
     except Exception as err:
         bt.logging.error("Error updating event dict", str(err))
 
@@ -227,7 +218,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             caption=gen_caption(prompt, e),
             file_type=file_type,
         )
-
     wandb_event = EventSchema.from_dict(wandb_event)
     self.wandb.log(asdict(wandb_event))
     return event

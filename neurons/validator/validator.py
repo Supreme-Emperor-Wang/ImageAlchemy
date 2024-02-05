@@ -4,9 +4,11 @@ import copy
 import os
 import random
 import subprocess
+import time
+import traceback
 from time import sleep
 from traceback import print_exception
-from typing import List
+from typing import List, Tuple
 
 import streamlit
 import torch
@@ -36,7 +38,17 @@ from passwordgenerator import pwgenerator
 from transformers import pipeline
 
 import bittensor as bt
+import wandb
 
+scoring_organic_timeout = 60
+
+async def wait_for_coro_with_limit(coro, timeout: int) -> Tuple[bool, object]:
+    try:
+        result = await asyncio.wait_for(coro, timeout)
+    except asyncio.TimeoutError:
+        bt.logging.error('scoring task timed out')
+        return False, None
+    return True, result
 
 class StableValidator(web.Application):
     @classmethod
@@ -50,6 +62,26 @@ class StableValidator(web.Application):
     @classmethod
     def config(cls):
         return config(cls)
+    
+    def loop_until_registered(self):
+        index = None
+        while True:
+            try:
+                index = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
+            except:
+                pass
+            if index is not None:
+                bt.logging.info(
+                    f"Validator {self.config.wallet.hotkey} is registered with uid {self.metagraph.uids[index]}.",
+                    "g",
+                )
+                break
+            bt.logging.info(
+                f"Validator {self.config.wallet.hotkey} is not registered. Sleeping for 120 seconds...",
+                "r",
+            )
+            time.sleep(120)
+            self.metagraph.sync(lite=True)
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -61,25 +93,34 @@ class StableValidator(web.Application):
         # Init device.
         self.device = torch.device(self.config.alchemy.device)
 
-        # Init prompt generation model
-        bt.logging.debug(
-            f"Loading prompt generation model on device: {self.config.alchemy.device}"
-        )
-        self.prompt_generation_pipeline = pipeline(
-            "text-generation", model="succinctly/text2image-prompt-generator"
-        )
+        self.openai_client = None
+
         openai_api_key = os.environ.get("OPENAI_API_KEY")
         self.corcel_api_key = os.environ.get("CORCEL_API_KEY")
 
         # if not self.corcel_api_key:
-        #     raise ValueError("Please set the CORCEL_API_KEY environment variable.")
+        #     bt.logging.warning("Please set the CORCEL_API_KEY environment variable.")
 
         if not openai_api_key:
-            raise ValueError("Please set the OPENAI_API_KEY environment variable.")
-        self.openai_client = OpenAI(api_key=openai_api_key)
+            bt.logging.warning("Please set the OPENAI_API_KEY environment variable.")
+        else:
+            self.openai_client = OpenAI(api_key=openai_api_key)
+
+        if not self.corcel_api_key and not openai_api_key:
+            raise ValueError(
+                "You must set either the CORCEL_API_KEY or OPENAI_API_KEY environment variables. It is preferable to use both."
+            )
+
+        wandb.login(anonymous="must")
 
         # Init prompt backup db
-        self.prompt_history_db = get_promptdb_backup()
+        try:
+            self.prompt_history_db = get_promptdb_backup(self.config.netuid)
+        except Exception as e:
+            bt.logging.warning(
+                f"Unexpected error occurred loading the backup prompts: {e}"
+            )
+            self.prompt_history_db = []
         self.prompt_generation_failures = 0
 
         # Init subtensor
@@ -89,13 +130,6 @@ class StableValidator(web.Application):
         # Init wallet.
         self.wallet = bt.wallet(config=self.config)
         self.wallet.create_if_non_existent()
-        # if not self.config.wallet._mock:
-        #     if not self.subtensor.is_hotkey_registered_on_subnet(
-        #         hotkey_ss58=self.wallet.hotkey.ss58_address, netuid=self.config.netuid
-        #     ):
-        #         raise Exception(
-        #             f"Wallet not currently registered on netuid {self.config.netuid}, please first register wallet before running"
-        #         )
 
         # Dendrite pool for querying the network during training.
         self.dendrite = bt.dendrite(wallet=self.wallet)
@@ -107,8 +141,16 @@ class StableValidator(web.Application):
         )  # Make sure not to sync without passing subtensor
         self.metagraph.sync(subtensor=self.subtensor)  # Sync metagraph with subtensor.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+
+        if not self.config.wallet._mock:
+            #### Wait until the miner is registered
+            self.loop_until_registered()
+
+
         self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         bt.logging.debug("Loaded metagraph")
+
+        self.scores = torch.zeros_like(self.metagraph.stake, dtype=torch.float32)
 
         # Init Weights.
         self.moving_averaged_scores = torch.zeros((self.metagraph.n)).to(self.device)
@@ -132,7 +174,7 @@ class StableValidator(web.Application):
         self.step = 0
 
         # Init reward function
-        self.reward_functions = [ImageRewardModel(), DiversityRewardModel()]
+        self.reward_functions = [ImageRewardModel()]
 
         # Init manual validator
         # #TODO change directory manually and hardcode the path
@@ -159,15 +201,14 @@ class StableValidator(web.Application):
         # Init reward function
         self.reward_weights = torch.tensor(
             [
-                0.95,
-                0.05,
                 1.0
-                if self.config.alchemy.enable_manual_validator
-                else 0.0,
             ],
             dtype=torch.float32,
         ).to(self.device)
+
         self.reward_weights / self.reward_weights.sum(dim=-1).unsqueeze(-1)
+
+        self.reward_names = ["image_reward_model"]
 
         # Init masking function
         self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]
@@ -202,70 +243,95 @@ class StableValidator(web.Application):
         self.background_timer.daemon = True
         self.background_timer.start()
 
-    def run(self, prompt, followup_prompt = None):
-        # Main Validation Loop
+        # Create set for storing organic tasks
+        self.organic_tasks = set()
+
+    async def run(self):
         bt.logging.info("Starting validator loop.")
         self.step = 0
-        try:
-            # Reduce calls to miner to be approximately 1 per 5 minutes
-            # if self.step > 0:
-            #     bt.logging.info(
-            #         f"Waiting for {self.request_frequency} seconds before querying miners again..."
-            #     )
-            #     sleep(0.01)
 
+        while True:
+            try:
+
+                if self.organic_tasks:
+
+                    completed, _ = await asyncio.wait(self.organic_tasks, timeout=1,
+                                                      return_when=asyncio.FIRST_COMPLETED)
+                    for task in completed:
+                        if task.exception():
+                            bt.logging.error(
+                                f'Encountered in {self.step.score_responses.__name__} task:\n'
+                                f'{"".join(traceback.format_exception(task.exception()))}'
+                            )
+                        else:
+                            success, data = task.result()
+                            if not success:
+                                continue
+                            self.total_scores += data[0]
+                    self.organic_tasks.difference_update(completed)
+
+                else:
+
+                    # Generate synthetic prompt + followup_prompt and run 1 loop
+                    prompt = generate_random_prompt_gpt(self)
+                    followup_prompt = generate_followup_prompt_gpt(self, prompt)
+                    
+                    if (prompt is None) or (followup_prompt is None):
+                        if (self.prompt_generation_failures != 0) and (
+                            (self.prompt_generation_failures / len(self.prompt_history_db))
+                            > 0.2
+                        ):
+                            self.prompt_history_db = get_promptdb_backup(
+                                self.prompt_history_db
+                            )
+                        prompt, followup_prompt = random.choice(self.prompt_history_db)
+                        self.prompt_history_db.remove((prompt, followup_prompt))
+                        self.prompt_generation_failures += 1
+
+                    await self.forward(self, prompt, followup_prompt = None)
+
+            except Exception as e:
+                bt.logging.error(f'Encountered in {self.consume_organic_scoring.__name__} loop:\n{traceback.format_exc()}')
+                await asyncio.sleep(10)
+
+    def register_text_validator_organic_query(self, prompt):
+        self.organic_tasks.add(asyncio.create_task(
+            wait_for_coro_with_limit(
+                self.forward(
+                    prompt = prompt
+                ),
+                scoring_organic_timeout
+            )
+        ))
+
+    async def forward(self, prompt, followup_prompt = None):
+        # Main Validation Loop
+        bt.logging.info("Starting validator loop.")
+        
+        # Load Previous Sates
+        self.load_state()
+
+        try:
             # Get a random number of uids
-            uids = get_random_uids(self, self.dendrite, k=N_NEURONS)
+            uids = await get_random_uids(self, self.dendrite, k=N_NEURONS)
 
             uids = uids.to(self.device)
 
             axons = [self.metagraph.axons[uid] for uid in uids]
 
-            # Generate prompt + followup_prompt
-            # prompt = generate_random_prompt_gpt(self)
-            # followup_prompt = generate_followup_prompt_gpt(self, prompt)
-            # if (prompt is None) or (followup_prompt is None):
-            #     if (self.prompt_generation_failures != 0) and (
-            #         (self.prompt_generation_failures / len(self.prompt_history_db))
-            #         > 0.2
-            #     ):
-            #         self.prompt_history_db = get_promptdb_backup(
-            #             self.prompt_history_db
-            #         )
-            #     prompt, followup_prompt = random.choice(self.prompt_history_db)
-            #     self.prompt_history_db.remove((prompt, followup_prompt))
-            #     self.prompt_generation_failures += 1
-
             # Text to Image Run
             t2i_event = run_step(
                 self, prompt, axons, uids, task_type="text_to_image"
             )
-            if ENABLE_IMAGE2IMAGE:
-                # Image to Image Run
-                followup_image = [image for image in t2i_event["images"]][
-                    torch.tensor(t2i_event["rewards"]).argmax()
-                ]
-                if (
-                    (followup_prompt is not None)
-                    and (followup_image is not None)
-                    and (followup_image != [])
-                ):
-                    _ = run_step(
-                        self,
-                        followup_prompt,
-                        axons,
-                        uids,
-                        "image_to_image",
-                        followup_image,
-                    )
+
             # Re-sync with the network. Updates the metagraph.
             self.sync()
 
             # End the current step and prepare for the next iteration.
             self.step += 1
-            
-            return t2i_event
 
+            return t2i_event
+        
         # If we encounter an unexpected error, log it for debugging.
         except Exception as err:
             bt.logging.error("Error in training loop", str(err))
@@ -304,11 +370,11 @@ class StableValidator(web.Application):
     def get_validator_info(self):
         return {
             "block": self.metagraph.block.item(),
-            "stake": self.metagraph.S[self.validator_index],
-            "rank": self.metagraph.R[self.validator_index],
-            "vtrust": self.metagraph.T[self.validator_index],
-            "dividends": self.metagraph.C[self.validator_index],
-            "emissions": self.metagraph.E[self.validator_index],
+            "stake": self.metagraph.stake[self.validator_index],
+            "rank": self.metagraph.ranks[self.validator_index],
+            "vtrust": self.metagraph.validator_trust[self.validator_index],
+            "dividends": self.metagraph.dividends[self.validator_index],
+            "emissions": self.metagraph.emission[self.validator_index],
         }
 
     def resync_metagraph(self):
@@ -327,6 +393,7 @@ class StableValidator(web.Application):
         bt.logging.info(
             "Metagraph updated, re-syncing hotkeys, dendrite pool and moving averages"
         )
+
         # Zero out all hotkeys that have been replaced.
         for uid, hotkey in enumerate(self.hotkeys):
             if hotkey != self.metagraph.hotkeys[uid]:
@@ -365,5 +432,55 @@ class StableValidator(web.Application):
         ) > EPOCH_LENGTH
 
     def should_set_weights(self) -> bool:
-        # Check if enough epoch blocks have elapsed since the last epoch.
-        return (ttl_get_block(self.subtensor) % self.prev_block) >= EPOCH_LENGTH
+        # Check if all moving_averages_socres are the 0s or 1s
+        ma_scores = self.moving_averaged_scores
+        ma_scores_sum = sum(ma_scores)
+        if any([ma_scores_sum == len(ma_scores), ma_scores_sum == 0]):
+            return False
+        else:
+            # Check if enough epoch blocks have elapsed since the last epoch.
+            return (ttl_get_block(self.subtensor) % self.prev_block) >= EPOCH_LENGTH
+        
+    def save_state(self):
+        r"""Save hotkeys, neuron model and moving average scores to filesystem."""
+        bt.logging.info("save_state()")
+        try:
+            neuron_state_dict = {
+                "neuron_weights": self.moving_averaged_scores.to("cpu").tolist(),
+            }
+            torch.save(neuron_state_dict, f"{self.config.alchemy.full_path}/model.torch")
+            bt.logging.success(
+                prefix="Saved model",
+                sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
+            )
+        except Exception as e:
+            bt.logging.warning(f"Failed to save model with error: {e}")
+
+        # empty cache
+        torch.cuda.empty_cache()
+
+
+    def load_state(self):
+        r"""Load hotkeys and moving average scores from filesystem."""
+        bt.logging.info("load_state()")
+        try:
+            state_dict = torch.load(f"{self.config.alchemy.full_path}/model.torch")
+            neuron_weights = torch.tensor(state_dict["neuron_weights"])
+            # Check to ensure that the size of the neruon weights matches the metagraph size.
+            if neuron_weights.shape != (self.metagraph.n,):
+                bt.logging.warning(
+                    f"Neuron weights shape {neuron_weights.shape} does not match metagraph n {self.metagraph.n}"
+                    "Populating new moving_averaged_scores IDs with zeros"
+                )
+                self.moving_averaged_scores[: len(neuron_weights)] = neuron_weights.to(
+                    self.device
+                )
+            # Check for nans in saved state dict
+            elif not torch.isnan(neuron_weights).any():
+                self.moving_averaged_scores = neuron_weights.to(self.device)
+            bt.logging.success(
+                prefix="Reloaded model",
+                sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
+            )
+        except Exception as e:
+            bt.logging.warning(f"Failed to load model with error: {e}")

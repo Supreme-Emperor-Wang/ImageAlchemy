@@ -53,28 +53,25 @@ def ttl_get_block(subtensor) -> int:
     return subtensor.get_current_block()
 
 
-def check_uid(dendrite, axon, uid):
+async def check_uid(dendrite, axon, uid):
     try:
-        loop = asyncio.get_event_loop()
-        response = loop.run_until_complete(
-            dendrite(axon, IsAlive(), deserialize=False, timeout=2.3)
-        )
+        response = await dendrite(axon, IsAlive(), deserialize=False, timeout=2.3)
         if response.is_success:
             bt.logging.trace(f"UID {uid} is active.")
-            # loop.close()
             return True
         else:
             bt.logging.trace(f"UID {uid} is not active.")
-            # loop.close()
             return False
     except Exception as e:
         bt.logging.error(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
-        # loop.close()
         return False
 
 
-def check_uid_availability(
-    dendrite, metagraph: "bt.metagraph.Metagraph", uid: int, vpermit_tao_limit: int
+async def check_uid_availability(
+    dendrite,
+    metagraph: "bt.metagraph.Metagraph",
+    uid: int,
+    vpermit_tao_limit: int,
 ) -> bool:
     """Check if uid is available. The UID should be available if it is serving and has less than vpermit_tao_limit stake
     Args:
@@ -92,13 +89,13 @@ def check_uid_availability(
         if metagraph.S[uid] > vpermit_tao_limit:
             return False
     # Filter for miners that are processing other responses
-    if not check_uid(dendrite, metagraph.axons[uid], uid):
+    if not await check_uid(dendrite, metagraph.axons[uid], uid):
         return False
     # Available otherwise.
     return True
 
 
-def get_random_uids(
+async def get_random_uids(
     self, dendrite, k: int, exclude: List[int] = None
 ) -> torch.LongTensor:
     """Returns k available random uids from the metagraph.
@@ -113,12 +110,22 @@ def get_random_uids(
     candidate_uids = []
     avail_uids = []
 
+    tasks = []
     for uid in range(self.metagraph.n.item()):
         uid_is_available = check_uid_availability(
             dendrite, self.metagraph, uid, VPERMIT_TAO
         )
-        uid_is_not_excluded = exclude is None or uid not in exclude
+        # The dendrite client queries the network.
+        tasks.append(
+            check_uid_availability(
+                        dendrite, self.metagraph, uid, VPERMIT_TAO
+            )
+        )
 
+    responses = await asyncio.gather(*tasks)
+
+    for uid, uid_is_available in zip(range(self.metagraph.n.item()), (responses)):
+        uid_is_not_excluded = exclude is None or uid not in exclude
         if (
             uid_is_available
             and (self.metagraph.axons[uid].hotkey not in self.hotkey_blacklist)
@@ -187,17 +194,30 @@ def cosine_distance(image_embeds, text_embeds):
     return torch.mm(normalized_image_embeds, normalized_text_embeds.t())
 
 
-def generate_random_prompt(self):
-    # Pull a random prompt from the dataset and cut to 1-7 words
-    prompt_trim_length = random.randint(1, 7)
-    old_prompt = " ".join(next(self.dataset)["prompt"].split(" ")[:prompt_trim_length])
+def corcel_parse_response(text):
+    split = text.split('"')
+    if len(split) == 3:
+        ### Has quotes
+        split = [x for x in split if x]
 
-    # Generate a new prompt from the truncated prompt using the prompt generation pipeline
-    new_prompt = self.prompt_generation_pipeline(old_prompt, min_length=10)[0][
-        "generated_text"
-    ]
-
-    return new_prompt
+        if split:
+            split = split[0]
+        else:
+            bt.logging.debug(f"Returning (X1) default text: {text}")
+            return text
+    elif len(split) == 1:
+        split = split[0]
+    elif len(split) > 3:
+        split = [x for x in split if x]
+        if len(split) > 0:
+            split = split[0]
+    else:
+        bt.logging.trace(f"Split: {split}")
+        bt.logging.debug(f"Returning (X2) default text: {text}")
+        return text
+    
+    bt.logging.debug(f"Returning parsed text: {split}")
+    return split
 
 
 def call_openai(client, model, prompt):
@@ -215,7 +235,10 @@ def call_openai(client, model, prompt):
         frequency_penalty=0,
         presence_penalty=0,
     )
+    bt.logging.trace(f"OpenAI response object: {response}")
     response = response.choices[0].message.content
+    if response:
+        bt.logging.info(f"Prompt generated with OpenAI: {response}")
     return response
 
 
@@ -226,7 +249,7 @@ def call_corcel(self, prompt):
     }
     JSON = {
         "miners_to_query": 1,
-        "top_k_miners_to_query": 100,
+        "top_k_miners_to_query": 160,
         "ensure_responses": True,
         "miner_uids": [],
         "messages": [
@@ -237,19 +260,27 @@ def call_corcel(self, prompt):
         ],
         "model": "cortext-ultra",
         "stream": False,
+        "top_p": 1.0,
+        "temperature": 1,
+        "max_tokens": 250,
     }
+
+    bt.logging.trace(f"Using args: {JSON}")
 
     response = None
 
     try:
         response = requests.post(
-            "https://api.corcel.io/cortext/text", json=JSON, headers=HEADERS, timeout=10
+            "https://api.corcel.io/cortext/text", json=JSON, headers=HEADERS, timeout=15
         )
         response = response.json()[0]["choices"][0]["delta"]["content"]
     except requests.exceptions.ReadTimeout as e:
         bt.logging.debug(
-            f"Corcel request timed out after 10 seconds... falling back to OpenAI..."
+            f"Corcel request timed out after 15 seconds... falling back to OpenAI..."
         )
+
+    if response:
+        bt.logging.info(f"Prompt generated with Corcel: {response}")
 
     return response
 
@@ -261,21 +292,41 @@ def generate_random_prompt_gpt(
 ):
     response = None
 
-    # ### Generate the prompt from corcel
-    # try:
-    #     response = call_corcel(self, prompt)
-    # except Exception as e:
-    #     bt.logging.debug(f"An unexpected error occurred calling corcel: {e}")
+    ### Generate the prompt from corcel if we have an API key
+    if self.corcel_api_key:
+        try:
+            response = call_corcel(self, prompt)
+            if response:
+                ### Parse response to remove quotes and also adapt the bug with corcel where the output is repeated N times
+                response = corcel_parse_response(response)
+                if response.startswith("{"):
+                    response = None
+        except Exception as e:
+            bt.logging.debug(f"An unexpected error occurred calling corcel: {e}")
+            bt.logging.debug(f"Falling back to OpenAI if available...")
 
     if not response:
-        for _ in range(2):
-            try:
-                response = call_openai(self.openai_client, model, prompt)
-            except Exception as e:
-                bt.logging.debug(f"An unexpected error occurred calling OpenAI: {e}")
-                time.sleep(1)
+        if self.openai_client:
+            for _ in range(2):
+                try:
+                    response = call_openai(self.openai_client, model, prompt)
+                except Exception as e:
+                    bt.logging.debug(
+                        f"An unexpected error occurred calling OpenAI: {e}"
+                    )
+                    bt.logging.debug(f"Sleeping for 10 seconds and retrying once...")
+                    time.sleep(10)
 
-    bt.logging.trace(f"T2I prompt is {response}")
+                if response:
+                    break
+        else:
+            bt.logging.warning(
+                "Attempted to use OpenAI as a fallback but the OPENAI_API_KEY is not set."
+            )
+
+    ### Remove any double quotes from the output
+    if response:
+        response = response.replace('"', "")
 
     return response
 
@@ -341,10 +392,15 @@ def init_wandb(self, reinit=False):
     if not os.path.exists(WANDB_VALIDATOR_PATH):
         os.makedirs(WANDB_VALIDATOR_PATH, exist_ok=True)
 
+    project = "ImageAlchemyTest"
+
+    if self.config.netuid == 26:
+        project = "ImageAlchemy"
+
     self.wandb = wandb.init(
         anonymous="allow",
         reinit=reinit,
-        project="ImageAlchemyTest",
+        project=project,
         entity="tensoralchemists",
         config=wandb_config,
         dir=WANDB_VALIDATOR_PATH,
@@ -362,9 +418,10 @@ def reinit_wandb(self):
     init_wandb(self, reinit=True)
 
 
-def get_promptdb_backup(prompt_history=[]):
+def get_promptdb_backup(netuid, prompt_history=[]):
     api = wandb.Api()
-    runs = api.runs(f"tensoralchemists/ImageAlchemyTest")
+    project = "ImageAlchemy" if netuid == 26 else "ImageAlchemyTest"
+    runs = api.runs(f"tensoralchemists/{project}")
     for run in runs:
         if run.historyLineCount >= 100:
             history = run.history()

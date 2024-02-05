@@ -43,8 +43,11 @@ async def process_image(request: web.Request):
     try:
         response = await request.json()
         prompt = response['messages'][0]['content']
-        response = validator_app.run(prompt)
-        return web.json_response(dict(response))
+        validator_app.register_text_validator_organic_query(
+            prompt
+        )
+        # response = await validator_app.run(prompt)
+        return web.Response(text = response)
     except ValueError:
         return Response(status=400)
 
@@ -61,10 +64,7 @@ if __name__ == "__main__":
     validator_app.add_routes([web.post('/t2i/', process_image)])
     # validator_app.loop = asyncio.get_event_loop()
     loop = asyncio.get_event_loop()
-
-
     try:
         web.run_app(validator_app, port=8000, loop=loop)
     except KeyboardInterrupt:
         bt.logging.info("Keyboard interrupt detected. Exiting validator.")
-
