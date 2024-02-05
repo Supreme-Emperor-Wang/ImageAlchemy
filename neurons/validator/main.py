@@ -44,7 +44,7 @@ async def process_image(request: web.Request):
         response = await request.json()
         prompt = response['messages'][0]['content']
         response = validator_app.run(prompt)
-        return web.Response(text=str(response))
+        return web.json_response(dict(response))
     except ValueError:
         return Response(status=400)
 
