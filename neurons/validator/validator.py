@@ -225,7 +225,7 @@ class StableValidator:
                     bt.logging.info(
                         f"Waiting for {self.request_frequency} seconds before querying miners again..."
                     )
-                    sleep(0.1)
+                    sleep(self.request_frequency)
 
                 # Get a random number of uids
                 uids = await get_random_uids(self, self.dendrite, k=N_NEURONS)
