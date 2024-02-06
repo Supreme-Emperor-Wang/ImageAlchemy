@@ -6,7 +6,7 @@ autoRunLoc=$(readlink -f "$0")
 proc_name="image_alchemy_validator" 
 args=()
 version_location="./template/__init__.py"
-version="__version__"
+version="__auto_update_version__"
 
 old_args=$@
 
