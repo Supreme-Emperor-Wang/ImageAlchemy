@@ -94,7 +94,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Log the results for monitoring purposes.
     bt.logging.info(f"Received {len(responses)} response(s): {responses}")
     # Save images for manual validator
-    if not self.config.alchemy.disable_manual_validator:
+    if self.config.alchemy.enable_manual_validator:
         bt.logging.info(f"Saving images")
         i = 0
         for r in responses:
@@ -126,7 +126,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         event[masking_fn_i.name] = mask_i.tolist()
         event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
         bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
-    if not self.config.alchemy.disable_manual_validator:
+    if self.config.alchemy.enable_manual_validator:
         bt.logging.info(f"Waiting for manual vote")
         start_time = time.perf_counter()
 
