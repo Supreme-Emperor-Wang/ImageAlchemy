@@ -13,6 +13,7 @@ from neurons.constants import (
     IA_BUCKET_NAME,
     IA_MINER_BLACKLIST,
     IA_MINER_WHITELIST,
+    IA_TEST_BUCKET_NAME,
     IA_VALIDATOR_BLACKLIST,
     IA_VALIDATOR_SETTINGS_FILE,
     IA_VALIDATOR_WEIGHT_FILES,
@@ -94,10 +95,15 @@ def background_loop(self, is_validator):
     whitelist_type = IA_VALIDATOR_WHITELIST if is_validator else IA_MINER_WHITELIST
     blacklist_type = IA_VALIDATOR_BLACKLIST if is_validator else IA_MINER_BLACKLIST
 
+    bucket_name = IA_BUCKET_NAME if self.config.netuid == 26 else IA_TEST_BUCKET_NAME
+
     #### Terminate the miner / validator after deregistration
     if self.background_steps % 1 == 0 and self.background_steps > 1:
         try:
-            self.metagraph.sync(lite=True)
+            if is_validator:
+                self.metagraph.sync(subtensor=self.subtensor)
+            else:
+                self.metagraph.sync()
             if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
                 bt.logging.debug(f">>> {neuron_type} has deregistered... terminating.")
                 try:
@@ -124,11 +130,11 @@ def background_loop(self, is_validator):
             ### Create client if needed
             if not self.storage_client:
                 self.storage_client = storage.Client.create_anonymous_client()
-                bt.logging.debug("Created anonymous storage client.")
+                bt.logging.info("Created anonymous storage client.")
 
             ### Update the blacklists
             blacklist_for_neuron = retrieve_public_file(
-                self.storage_client, IA_BUCKET_NAME, blacklist_type
+                self.storage_client, bucket_name, blacklist_type
             )
             if blacklist_for_neuron:
                 self.hotkey_blacklist = set(
@@ -145,11 +151,11 @@ def background_loop(self, is_validator):
                         if v["type"] == "coldkey"
                     ]
                 )
-                bt.logging.debug("Retrieved the latest blacklists.")
+                bt.logging.info("Retrieved the latest blacklists.")
 
             ### Update the whitelists
             whitelist_for_neuron = retrieve_public_file(
-                self.storage_client, IA_BUCKET_NAME, whitelist_type
+                self.storage_client, bucket_name, whitelist_type
             )
             if whitelist_for_neuron:
                 self.hotkey_whitelist = set(
@@ -166,43 +172,61 @@ def background_loop(self, is_validator):
                         if v["type"] == "coldkey"
                     ]
                 )
-                bt.logging.debug("Retrieved the latest whitelists.")
+                bt.logging.info("Retrieved the latest whitelists.")
 
             ### Validator only
             if is_validator:
                 ### Update weights
                 validator_weights = retrieve_public_file(
-                    self.storage_client, IA_BUCKET_NAME, IA_VALIDATOR_WEIGHT_FILES
+                    self.storage_client, bucket_name, IA_VALIDATOR_WEIGHT_FILES
                 )
-                self.reward_weights = torch.tensor(
-                    [v for k, v in validator_weights.items() if "manual" not in k],
-                    dtype=torch.float32,
-                ).to(self.device)
-                bt.logging.debug(
-                    f"Retrieved the latest validator weights: {self.reward_weights}"
-                )
+                if validator_weights:
+                    weights_to_add = []
+                    for rw_name in self.reward_names:
+                        if rw_name in validator_weights:
+                            weights_to_add.append(validator_weights[rw_name])
+
+
+                    bt.logging.trace(f"Raw model weights: {weights_to_add}")
+
+                    if weights_to_add:
+                        ### Normalize weights
+                        if sum(weights_to_add) != 1:
+                            weights_to_add = normalize_weights(weights_to_add)
+                            bt.logging.trace(f"Normalized model weights: {weights_to_add}")
+
+                        self.reward_weights = torch.tensor(weights_to_add, dtype=torch.float32).to(self.device)
+                        bt.logging.info(
+                            f"Retrieved the latest validator weights: {self.reward_weights}"
+                        )
+
+                    # self.reward_weights = torch.tensor(
+                    #     [v for k, v in validator_weights.items() if "manual" not in k],
+                    #     dtype=torch.float32,
+                    # ).to(self.device)
+                    
 
                 ### Update settings
                 validator_settings: dict = retrieve_public_file(
-                    self.storage_client, IA_BUCKET_NAME, IA_VALIDATOR_SETTINGS_FILE
+                    self.storage_client, bucket_name, IA_VALIDATOR_SETTINGS_FILE
                 )
 
-                self.request_frequency = validator_settings.get(
-                    "request_frequency", VALIDATOR_DEFAULT_REQUEST_FREQUENCY
-                )
-                self.query_timeout = validator_settings.get(
-                    "query_timeout", VALIDATOR_DEFAULT_QUERY_TIMEOUT
-                )
+                if validator_settings:
+                    self.request_frequency = validator_settings.get(
+                        "request_frequency", VALIDATOR_DEFAULT_REQUEST_FREQUENCY
+                    )
+                    self.query_timeout = validator_settings.get(
+                        "query_timeout", VALIDATOR_DEFAULT_QUERY_TIMEOUT
+                    )
 
-                bt.logging.debug(
-                    f"Retrieved the latest validator settings: {validator_settings}"
-                )
+                    bt.logging.info(
+                        f"Retrieved the latest validator settings: {validator_settings}"
+                    )
 
         except Exception as e:
             bt.logging.error(
                 f"An error occurred trying to update settings from the cloud: {e}."
             )
-
     #### Clean up the wandb runs and cache folders
     if self.background_steps == 1 or self.background_steps % 300 == 0:
         wandb_path = WANDB_VALIDATOR_PATH if is_validator else WANDB_MINER_PATH
@@ -212,13 +236,11 @@ def background_loop(self, is_validator):
                 # os.path.basename(path).split("run-")[1].split("-")[0], "%Y%m%d_%H%M%S"
                 runs = [
                     x
-                    for x in os.listdir(wandb_path)
+                    for x in os.listdir(f"{wandb_path}/wandb")
                     if "run-" in x and not "latest-run" in x
                 ]
                 if len(runs) > 0:
-                    cleanup_runs_process = subprocess.Popen(
-                        [f"echo y | wandb sync --clean {wandb_path}"], shell=True
-                    )
+                    cleanup_runs_process = subprocess.call(f"cd {wandb_path} && echo 'y' | wandb sync --clean", shell=True)
                     bt.logging.debug("Cleaned all synced wandb runs.")
                     cleanup_cache_process = subprocess.Popen(
                         ["wandb artifact cache cleanup 5GB"], shell=True
@@ -234,16 +256,31 @@ def background_loop(self, is_validator):
     self.background_steps += 1
 
 
+def normalize_weights(weights):
+    sum_weights = float(sum(weights))
+    normalizer = 1 / sum_weights
+    weights = [weight * normalizer for weight in weights]
+    if sum(weights) < 1:
+        diff = 1 - sum(weights)
+        weights[0] += diff
+
+    return weights
+
+
+
 def retrieve_public_file(client, bucket_name, source_name):
     file = None
     try:
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(source_name)
-        file = blob.download_as_text()
+        try:
+            file = blob.download_as_text()
+            file = json.loads(file)
+            bt.logging.debug(f"Successfully downloaded {source_name} from {bucket_name}")
+        except Exception as e:
+            bt.logging.warning(f"Failed to download {source_name} from {bucket_name}: {e}")
 
-        bt.logging.debug(f"Successfully downloaded {source_name} from {bucket_name}")
 
-        file = json.loads(file)
     except Exception as e:
         bt.logging.error(f"An error occurred downloading from Google Cloud: {e}")
 

@@ -201,11 +201,11 @@ class BaseMiner(ABC):
     def get_miner_info(self):
         return {
             "block": self.metagraph.block.item(),
-            "stake": self.metagraph.S[self.miner_index],
-            "trust": self.metagraph.T[self.miner_index],
-            "consensus": self.metagraph.C[self.miner_index],
-            "incentive": self.metagraph.I[self.miner_index],
-            "emissions": self.metagraph.E[self.miner_index],
+            "stake": self.metagraph.stake[self.miner_index],
+            "trust": self.metagraph.trust[self.miner_index],
+            "consensus": self.metagraph.consensus[self.miner_index],
+            "incentive": self.metagraph.incentive[self.miner_index],
+            "emissions": self.metagraph.emission[self.miner_index],
         }
 
     def get_miner_index(self):
@@ -452,14 +452,14 @@ class BaseMiner(ABC):
 
             ### Check that the caller has sufficient stake
             if caller_stake < vpermit_tao_limit:
-                output_log(
-                    f"Blacklisted a {synapse_type} request from {caller_hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}.",
-                    color_key="r",
-                    type="debug",
-                )
+                # output_log(
+                #     f"Blacklisted a {synapse_type} request from {caller_hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}.",
+                #     color_key="r",
+                #     type="debug",
+                # )
                 return (
                     True,
-                    f"Blacklisted a {synapse_type} request from {caller_hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}.",
+                    f"Blacklisted a {synapse_type} request from {caller_hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}",
                 )
 
             bt.logging.debug(f"Allowing recognized hotkey {caller_hotkey}")
@@ -523,24 +523,27 @@ class BaseMiner(ABC):
                     ### Retrieve total number of requests
                     total_requests_counted = sum([x[1] for x in top_requestors])
 
-                    ### Sort by count
-                    top_requestors = sorted(
-                        top_requestors, key=lambda x: x[1], reverse=True
-                    )[:10]
+                    try:
+                        ### Sort by count
+                        top_requestors = sorted(
+                            top_requestors, key=lambda x: x[1], reverse=True
+                        )[:10]
 
-                    if len(top_requestors) > 0:
-                        formatted_str = "\n".join(
-                            [
-                                f"Hotkey: {x[0]}, Count: {x[1]} ({((x[1] / total_requests_counted)*100):.2f}%), Average delta: {sum(x[2]) / len(x[2]) if len(x[2]) > 0 else 0:.2f}, Rate limited count: {x[3]}"
-                                for x in top_requestors
-                            ]
-                        )
-                        formatted_str = f"{formatted_str}"
+                        if len(top_requestors) > 0:
+                            formatted_str = "\n".join(
+                                [
+                                    f"Hotkey: {x[0]}, Count: {x[1]} ({((x[1] / total_requests_counted)*100) if total_requests_counted > 0 else 0:.2f}%), Average delta: {sum(x[2]) / len(x[2]) if len(x[2]) > 0 else 0:.2f}, Rate limited count: {x[3]}"
+                                    for x in top_requestors
+                                ]
+                            )
+                            formatted_str = f"{formatted_str}"
 
-                        output_log(
-                            f"{sh('Top Callers')} -> Metrics\n{formatted_str}",
-                            color_key="c",
-                        )
+                            output_log(
+                                f"{sh('Top Callers')} -> Metrics\n{formatted_str}",
+                                color_key="c",
+                            )
+                    except:
+                        pass
 
                 step += 1
                 time.sleep(60)

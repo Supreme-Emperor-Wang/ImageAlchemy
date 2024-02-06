@@ -89,7 +89,7 @@ def do_logs(self, synapse, local_args):
 
     miner_info = self.get_miner_info()
     output_log(
-        f"{sh('Stats')} -> Block: {miner_info['block']} | Stake: {miner_info['stake']:.2f} | Incentive: {miner_info['incentive']:.2f} | Trust: {miner_info['trust']:.2f} | Consensus: {miner_info['consensus']:.2f}.",
+        f"{sh('Stats')} -> Block: {miner_info['block']} | Stake: {miner_info['stake']:.4f} | Incentive: {miner_info['incentive']:.4f} | Trust: {miner_info['trust']:.4f} | Consensus: {miner_info['consensus']:.4f}.",
         color_key="c",
     )
 

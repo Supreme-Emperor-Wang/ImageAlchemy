@@ -29,9 +29,9 @@ def set_weights(self):
     # Calculate the average reward for each uid across non-zero values.
     # Replace any NaN values with 0.
     raw_weights = torch.nn.functional.normalize(self.moving_averaged_scores, p=1, dim=0)
-    bt.logging.trace("raw_weights", raw_weights)
-    bt.logging.trace("top10 values", raw_weights.sort()[0])
-    bt.logging.trace("top10 uids", raw_weights.sort()[1])
+    # bt.logging.trace("raw_weights", raw_weights)
+    # bt.logging.trace("top10 values", raw_weights.sort()[0])
+    # bt.logging.trace("top10 uids", raw_weights.sort()[1])
 
     # Process the raw weights to final_weights via subtensor limitations.
     (
