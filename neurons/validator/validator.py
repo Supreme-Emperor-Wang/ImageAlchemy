@@ -83,12 +83,15 @@ class StableValidator(web.Application):
             time.sleep(120)
             self.metagraph.sync(lite=True)
 
-    def __init__(self, *a, **kw):
+    def __init__(self,loop: asyncio.AbstractEventLoop, *a, **kw):
         super().__init__(*a, **kw)
         # Init config
         self.config = StableValidator.config()
         self.check_config(self.config)
         bt.logging(config=self.config, logging_dir=self.config.alchemy.full_path)
+
+        # Init loop
+        self._loop = loop
 
         # Init device.
         self.device = torch.device(self.config.alchemy.device)
@@ -244,7 +247,8 @@ class StableValidator(web.Application):
         self.background_timer.start()
 
         # Create set for storing organic tasks
-        self.organic_tasks = set()
+        self.task_history = []
+        self._loop.create_task(self.run())
 
     async def run(self):
         bt.logging.info("Starting validator loop.")
@@ -253,24 +257,24 @@ class StableValidator(web.Application):
         while True:
             try:
 
-                if self.organic_tasks:
+                # if self.organic_tasks:
 
-                    completed, _ = await asyncio.wait(self.organic_tasks, timeout=1,
-                                                      return_when=asyncio.FIRST_COMPLETED)
-                    for task in completed:
-                        if task.exception():
-                            bt.logging.error(
-                                f'Encountered in {self.step.score_responses.__name__} task:\n'
-                                f'{"".join(traceback.format_exception(task.exception()))}'
-                            )
-                        else:
-                            success, data = task.result()
-                            if not success:
-                                continue
-                            self.total_scores += data[0]
-                    self.organic_tasks.difference_update(completed)
-
-                else:
+                #     completed, _ = await asyncio.wait(self.organic_tasks, timeout=1,
+                #                                       return_when=asyncio.FIRST_COMPLETED)
+                #     for task in completed:
+                #         if task.exception():
+                #             bt.logging.error(
+                #                 f'Encountered in {self.step.score_responses.__name__} task:\n'
+                #                 f'{"".join(traceback.format_exception(task.exception()))}'
+                #             )
+                #         else:
+                #             success, data = task.result()
+                #             if not success:
+                #                 continue
+                #             self.total_scores += data[0]
+                #     self.organic_tasks.difference_update(completed)
+                
+                if self.task_history == [] or ((time.perf_counter() - self.task_history[-1]['time']) > 120):
 
                     # Generate synthetic prompt + followup_prompt and run 1 loop
                     prompt = generate_random_prompt_gpt(self)
@@ -288,21 +292,21 @@ class StableValidator(web.Application):
                         self.prompt_history_db.remove((prompt, followup_prompt))
                         self.prompt_generation_failures += 1
 
-                    await self.forward(self, prompt, followup_prompt = None)
+                    await self.forward(prompt, followup_prompt = None)
 
             except Exception as e:
-                bt.logging.error(f'Encountered in {self.consume_organic_scoring.__name__} loop:\n{traceback.format_exc()}')
+                bt.logging.error(f'Encountered in {self.run.__name__} loop:\n{traceback.format_exc()}')
                 await asyncio.sleep(10)
 
-    def register_text_validator_organic_query(self, prompt):
-        self.organic_tasks.add(asyncio.create_task(
-            wait_for_coro_with_limit(
-                self.forward(
-                    prompt = prompt
-                ),
-                scoring_organic_timeout
-            )
-        ))
+    # def register_text_validator_organic_query(self, prompt):
+    #     self.organic_tasks.add(asyncio.create_task(
+    #         wait_for_coro_with_limit(
+    #             self.forward(
+    #                 prompt = prompt
+    #             ),
+    #             scoring_organic_timeout
+    #         )
+    #     ))
 
     async def forward(self, prompt, followup_prompt = None):
         # Main Validation Loop
@@ -329,6 +333,9 @@ class StableValidator(web.Application):
 
             # End the current step and prepare for the next iteration.
             self.step += 1
+
+            # Log to taks history
+            self.task_history.append({'prompt': prompt,'time': time.perf_counter()})
 
             return t2i_event
         

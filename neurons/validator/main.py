@@ -41,13 +41,10 @@ async def process_image(request: web.Request):
         return Response(status=401, reason="Invalid access key")
 
     try:
-        response = await request.json()
+        response = request.json()
         prompt = response['messages'][0]['content']
-        validator_app.register_text_validator_organic_query(
-            prompt
-        )
-        # response = await validator_app.run(prompt)
-        return web.Response(text = response)
+        response = await validator_app.run(prompt)
+        return web.Response(text = str(response))
     except ValueError:
         return Response(status=400)
 
@@ -60,10 +57,10 @@ if __name__ == "__main__":
 
     from validator import StableValidator
     
-    validator_app = StableValidator()
+    loop = asyncio.get_event_loop()
+    validator_app = StableValidator(loop)
     validator_app.add_routes([web.post('/t2i/', process_image)])
     # validator_app.loop = asyncio.get_event_loop()
-    loop = asyncio.get_event_loop()
     try:
         web.run_app(validator_app, port=8000, loop=loop)
     except KeyboardInterrupt:
