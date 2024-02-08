@@ -240,7 +240,7 @@ def background_loop(self, is_validator):
                     if "run-" in x and not "latest-run" in x
                 ]
                 if len(runs) > 0:
-                    cleanup_runs_process = subprocess.call(f"cd {wandb_path} && echo 'y' | wandb sync --clean", shell=True)
+                    cleanup_runs_process = subprocess.call(f"cd {wandb_path} && echo 'y' | wandb sync --clean --clean-old-hours 6", shell=True)
                     bt.logging.debug("Cleaned all synced wandb runs.")
                     cleanup_cache_process = subprocess.Popen(
                         ["wandb artifact cache cleanup 5GB"], shell=True
