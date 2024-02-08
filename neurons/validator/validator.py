@@ -50,7 +50,7 @@ async def wait_for_coro_with_limit(coro, timeout: int) -> Tuple[bool, object]:
         return False, None
     return True, result
 
-class StableValidator(web.Application):
+class StableValidator:
     @classmethod
     def check_config(cls, config: "bt.Config"):
         check_config(cls, config)
@@ -91,7 +91,7 @@ class StableValidator(web.Application):
         bt.logging(config=self.config, logging_dir=self.config.alchemy.full_path)
 
         # Init loop
-        self._loop = loop
+        self.loop = loop
 
         # Init device.
         self.device = torch.device(self.config.alchemy.device)
@@ -248,12 +248,12 @@ class StableValidator(web.Application):
 
         # Create set for storing organic tasks
         self.task_history = []
-        # # self._loop.create_task(self.run())
+        self.loop.create_task(self.run())
         # import threading
         # self.synthetic_prompt_scoring  = threading.Thread(target=self.run(), daemon=True, name='synthetic_prompt_scoring')
         # self.synthetic_prompt_scoring.start()
 
-    def run(self):
+    async def run(self):
         bt.logging.info("Starting validator loop.")
         self.step = 0
 
@@ -295,11 +295,13 @@ class StableValidator(web.Application):
                         self.prompt_history_db.remove((prompt, followup_prompt))
                         self.prompt_generation_failures += 1
 
-                    self.loop.run_until_complete(self.forward(prompt, followup_prompt = None))
+                    # self.loop.run_until_complete(self.forward(prompt, followup_prompt = None))
+                    await self.forward(prompt, followup_prompt = None)
 
             except Exception as e:
                 bt.logging.error(f'Encountered in {self.run.__name__} loop:\n{traceback.format_exc()}')
-                time.sleep(10)
+                # time.sleep(10)
+                await asyncio.sleep(10)
 
     # def register_text_validator_organic_query(self, prompt):
     #     self.organic_tasks.add(asyncio.create_task(
