@@ -248,9 +248,12 @@ class StableValidator(web.Application):
 
         # Create set for storing organic tasks
         self.task_history = []
-        self._loop.create_task(self.run())
+        # # self._loop.create_task(self.run())
+        # import threading
+        # self.synthetic_prompt_scoring  = threading.Thread(target=self.run(), daemon=True, name='synthetic_prompt_scoring')
+        # self.synthetic_prompt_scoring.start()
 
-    async def run(self):
+    def run(self):
         bt.logging.info("Starting validator loop.")
         self.step = 0
 
@@ -292,11 +295,11 @@ class StableValidator(web.Application):
                         self.prompt_history_db.remove((prompt, followup_prompt))
                         self.prompt_generation_failures += 1
 
-                    await self.forward(prompt, followup_prompt = None)
+                    self.loop.run_until_complete(self.forward(prompt, followup_prompt = None))
 
             except Exception as e:
                 bt.logging.error(f'Encountered in {self.run.__name__} loop:\n{traceback.format_exc()}')
-                await asyncio.sleep(10)
+                time.sleep(10)
 
     # def register_text_validator_organic_query(self, prompt):
     #     self.organic_tasks.add(asyncio.create_task(

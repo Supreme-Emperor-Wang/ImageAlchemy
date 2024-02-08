@@ -41,9 +41,9 @@ async def process_image(request: web.Request):
         return Response(status=401, reason="Invalid access key")
 
     try:
-        response = request.json()
+        response = await request.json()
         prompt = response['messages'][0]['content']
-        response = await validator_app.run(prompt)
+        response = await validator_app.forward(prompt)
         return web.Response(text = str(response))
     except ValueError:
         return Response(status=400)
