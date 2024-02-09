@@ -265,7 +265,7 @@ class BaseMiner(ABC):
         local_args["target_size"] = (synapse.height, synapse.width)
         local_args["guidance_scale"] = synapse.guidance_scale
         local_args["negative_prompt"] = synapse.negative_prompt
-
+        
         ### Get the model
         model = self.mapping[synapse.generation_type]["model"]
 

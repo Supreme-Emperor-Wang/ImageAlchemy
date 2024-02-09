@@ -15,6 +15,7 @@ import bittensor as bt
 class StableMiner(BaseMiner):
     def __init__(self):
         super().__init__()
+
         #### Load the model
         self.load_models()
 

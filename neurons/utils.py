@@ -12,6 +12,7 @@ from google.cloud import storage
 from neurons.constants import (
     IA_BUCKET_NAME,
     IA_MINER_BLACKLIST,
+    IA_MINER_WARNINGLIST,
     IA_MINER_WHITELIST,
     IA_TEST_BUCKET_NAME,
     IA_VALIDATOR_BLACKLIST,
@@ -86,6 +87,14 @@ class BackgroundTimer(Timer):
         while not self.finished.wait(self.interval):
             self.function(*self.args, **self.kwargs)
 
+def get_coldkey_for_hotkey(self, hotkey):
+    """
+    Look up the coldkey of the caller.
+    """
+    if hotkey in self.metagraph.hotkeys:
+        index = self.metagraph.hotkeys.index(hotkey)
+        return self.metagraph.coldkeys[index]
+    return None
 
 def background_loop(self, is_validator):
     """
@@ -94,8 +103,9 @@ def background_loop(self, is_validator):
     neuron_type = "Validator" if is_validator else "Miner"
     whitelist_type = IA_VALIDATOR_WHITELIST if is_validator else IA_MINER_WHITELIST
     blacklist_type = IA_VALIDATOR_BLACKLIST if is_validator else IA_MINER_BLACKLIST
+    warninglist_type = IA_MINER_WARNINGLIST
 
-    bucket_name = IA_BUCKET_NAME if self.config.netuid == 26 else IA_TEST_BUCKET_NAME
+    bucket_name = IA_TEST_BUCKET_NAME if self.subtensor.network == "test" else IA_BUCKET_NAME
 
     #### Terminate the miner / validator after deregistration
     if self.background_steps % 1 == 0 and self.background_steps > 1:
@@ -172,7 +182,35 @@ def background_loop(self, is_validator):
                         if v["type"] == "coldkey"
                     ]
                 )
-                bt.logging.info("Retrieved the latest whitelists.")
+                bt.logging.info("Retrieved the latest whitelists.") 
+
+            ### Update the warning list
+            warninglist_for_neuron = retrieve_public_file(
+                self.storage_client, bucket_name, warninglist_type
+            )
+            if warninglist_for_neuron:
+                self.hotkey_warninglist =   {
+                        k :[v['reason'],v['resolve_by']]
+                        for k, v in warninglist_for_neuron.items()
+                        if v["type"] == "hotkey"
+                }
+                self.coldkey_whitelist = {
+                        k :[v['reason'],v['resolve_by']]
+                        for k, v in warninglist_for_neuron.items()
+                        if v["type"] == "coldkey"
+                }
+                bt.logging.info("Retrieved the latest warninglists.")
+                if self.wallet.hotkey.ss58_address in self.hotkey_warninglist.keys():
+                    output_log(
+                        f"This hotkey is on the warning list: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][0]} | Date for rectification: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][1]}",
+                        color_key="r",
+                    )
+                coldkey = get_coldkey_for_hotkey(self, self.wallet.coldkey.ss58_address) 
+                if coldkey in self.coldkey_warninglist.keys():
+                    output_log(
+                        f"This coldkey is on the warning list: {self.coldkey_warninglist[coldkey][0]} | Date for rectification: {self.coldkey_warninglist[coldkey][1]}",
+                        color_key="r",
+                    )
 
             ### Validator only
             if is_validator:
@@ -222,6 +260,7 @@ def background_loop(self, is_validator):
                     bt.logging.info(
                         f"Retrieved the latest validator settings: {validator_settings}"
                     )
+        
 
         except Exception as e:
             bt.logging.error(
