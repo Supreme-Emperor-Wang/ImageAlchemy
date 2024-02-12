@@ -170,11 +170,12 @@ class StableValidator:
                 if 'ImageAlchemy' not in os.getcwd():
                     raise Exception("Unable to load manual validator please cd into the ImageAlchemy folder before running the validator")
                 bt.logging.debug("setting streamlit credentials")
-                username = self.wallet.hotkey.ss58_address
-                password = pwgenerator.generate()
-                with open('streamlit_credentials.txt', 'w') as f: f.write(f"username={username}\npassword={password}")
-                # Sleep until the credentials file is written
-                sleep(5)
+                if not os.path.exists('streamlit_credentials.txt'):
+                    username = self.wallet.hotkey.ss58_address
+                    password = pwgenerator.generate()
+                    with open('streamlit_credentials.txt', 'w') as f: f.write(f"username={username}\npassword={password}")
+                    # Sleep until the credentials file is written
+                    sleep(5)
                 bt.logging.debug("Loading Manual Validator")
                 process = subprocess.Popen(
                     [
