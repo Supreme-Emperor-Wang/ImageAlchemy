@@ -9,7 +9,7 @@ import torch
 import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
-from neurons.constants import FOLLOWUP_TIMEOUT, MOVING_AVERAGE_ALPHA
+from neurons.constants import FOLLOWUP_TIMEOUT, MOVING_AVERAGE_ALPHA, MANUAL_VALIDATOR_TIMEOUT
 from neurons.protocol import ImageGeneration
 from neurons.utils import output_log, sh
 from utils import ttl_get_block
@@ -130,7 +130,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         bt.logging.info(f"Waiting for manual vote")
         start_time = time.perf_counter()
 
-        while (time.perf_counter() - start_time) < 180:
+        while (time.perf_counter() - start_time) < MANUAL_VALIDATOR_TIMEOUT:
             if os.path.exists("neurons/validator/images/vote.txt"):
                 # loop until vote is successfully saved
                 while open("neurons/validator/images/vote.txt", "r").read() == "":
