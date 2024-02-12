@@ -10,7 +10,7 @@ WANDB_MINER_PATH = os.path.expanduser("~/.ImageAlchemy/wandb/miner")
 WANDB_VALIDATOR_PATH = os.path.expanduser("~/.ImageAlchemy/wandb/validator")
 
 ### Validator only
-N_NEURONS = 10
+N_NEURONS = 12
 VPERMIT_TAO = 1024
 FOLLOWUP_TIMEOUT = 10
 EPOCH_LENGTH = 5
