@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import concurrent
 import copy
 import os
 import random
@@ -248,36 +249,26 @@ class StableValidator:
 
         # Create set for storing organic tasks
         self.task_history = []
-        self.loop.create_task(self.run())
+        self.thread_executor = concurrent.futures.ThreadPoolExecutor(thread_name_prefix='asyncio')
+        # self.loop.create_task(self.run())
         # import threading
+        # self.loop.create_task(self.consume_organic_scoring())
+        # self.loop.create_task(self.perform_synthetic_scoring_and_update_weights())
         # self.synthetic_prompt_scoring  = threading.Thread(target=self.run(), daemon=True, name='synthetic_prompt_scoring')
         # self.synthetic_prompt_scoring.start()
+
+    async def run_sync_in_async(self, fn):
+        return await self.loop.run_in_executor(self.thread_executor, fn)
 
     async def run(self):
         bt.logging.info("Starting validator loop.")
         self.step = 0
 
         while True:
-            try:
-
-                # if self.organic_tasks:
-
-                #     completed, _ = await asyncio.wait(self.organic_tasks, timeout=1,
-                #                                       return_when=asyncio.FIRST_COMPLETED)
-                #     for task in completed:
-                #         if task.exception():
-                #             bt.logging.error(
-                #                 f'Encountered in {self.step.score_responses.__name__} task:\n'
-                #                 f'{"".join(traceback.format_exception(task.exception()))}'
-                #             )
-                #         else:
-                #             success, data = task.result()
-                #             if not success:
-                #                 continue
-                #             self.total_scores += data[0]
-                #     self.organic_tasks.difference_update(completed)
-                
+            try:                
                 if self.task_history == [] or ((time.perf_counter() - self.task_history[-1]['time']) > 120):
+                    
+                    self.metagraph = await self.run_sync_in_async(lambda: self.subtensor.metagraph(self.config.netuid))
 
                     # Generate synthetic prompt + followup_prompt and run 1 loop
                     prompt = generate_random_prompt_gpt(self)

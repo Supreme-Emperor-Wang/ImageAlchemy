@@ -43,7 +43,7 @@ async def process_image(request: web.Request):
     try:
         response = await request.json()
         prompt = response['messages'][0]['content']
-        response = await validator_app.weight_setter.forward(prompt)
+        response = await validator_api_app.forward(prompt)
         return web.Response(text = str(response))
     except ValueError:
         return Response(status=400)
@@ -67,6 +67,10 @@ if __name__ == "__main__":
     validator_app = ValidatorApplication()
     validator_app.add_routes([web.post('/t2i/', process_image)])
     validator_app.weight_setter = StableValidator(loop)
+    validator_app.weight_setter.loop.create_task(validator_app.weight_setter.run())
+
+    api_loop = asyncio.get_event_loop()
+    validator_api_app = StableValidator(api_loop)
 
     try:
         web.run_app(validator_app, port=8000, loop=loop)
