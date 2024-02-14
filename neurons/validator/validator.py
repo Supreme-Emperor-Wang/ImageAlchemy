@@ -3,11 +3,13 @@ import asyncio
 import copy
 import os
 import random
-from time import sleep
+import subprocess
 import time
+from time import sleep
 from traceback import print_exception
 from typing import List
 
+import streamlit
 import torch
 from datasets import load_dataset
 from neurons.constants import ENABLE_IMAGE2IMAGE, EPOCH_LENGTH, N_NEURONS
@@ -30,6 +32,7 @@ from neurons.validator.utils import (
 )
 from neurons.validator.weights import set_weights
 from openai import OpenAI
+from passwordgenerator import pwgenerator
 from transformers import pipeline
 
 import bittensor as bt
@@ -161,10 +164,35 @@ class StableValidator:
         # Init reward function
         self.reward_functions = [ImageRewardModel()]
 
+        # Init manual validator
+        if self.config.alchemy.enable_manual_validator:
+            try:
+                if 'ImageAlchemy' not in os.getcwd():
+                    raise Exception("Unable to load manual validator please cd into the ImageAlchemy folder before running the validator")
+                bt.logging.debug("setting streamlit credentials")
+                if not os.path.exists('streamlit_credentials.txt'):
+                    username = self.wallet.hotkey.ss58_address
+                    password = pwgenerator.generate()
+                    with open('streamlit_credentials.txt', 'w') as f: f.write(f"username={username}\npassword={password}")
+                    # Sleep until the credentials file is written
+                    sleep(5)
+                bt.logging.debug("Loading Manual Validator")
+                process = subprocess.Popen(
+                    [
+                        "streamlit",
+                        "run",
+                        os.path.join(os.getcwd(), "neurons", "validator", "app.py"),
+                    ]
+                )
+            except Exception as e:
+                bt.logging.error(f"Failed to Load Manual Validator due to error: {e}")
+                self.config.alchemy.enable_manual_validator = False
+
         # Init reward function
         self.reward_weights = torch.tensor(
             [
-                1.0
+                1.0,
+                1.0 if self.config.alchemy.enable_manual_validator else 0.0,
             ],
             dtype=torch.float32,
         ).to(self.device)
@@ -186,6 +214,8 @@ class StableValidator:
         # Init wandb.
         init_wandb(self)
         bt.logging.debug("Loaded wandb")
+
+
 
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
@@ -225,7 +255,7 @@ class StableValidator:
                     bt.logging.info(
                         f"Waiting for {self.request_frequency} seconds before querying miners again..."
                     )
-                    sleep(self.request_frequency)
+                    sleep(0.01)
 
                 # Get a random number of uids
                 uids = await get_random_uids(self, self.dendrite, k=N_NEURONS)
