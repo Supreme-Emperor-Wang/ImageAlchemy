@@ -9,7 +9,11 @@ import torch
 import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
-from neurons.constants import FOLLOWUP_TIMEOUT, MOVING_AVERAGE_ALPHA, MANUAL_VALIDATOR_TIMEOUT
+from neurons.constants import (
+    FOLLOWUP_TIMEOUT,
+    MANUAL_VALIDATOR_TIMEOUT,
+    MOVING_AVERAGE_ALPHA,
+)
 from neurons.protocol import ImageGeneration
 from neurons.utils import output_log, sh
 from utils import ttl_get_block
@@ -126,11 +130,13 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         event[masking_fn_i.name] = mask_i.tolist()
         event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
         bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
+
     if self.config.alchemy.enable_manual_validator:
         bt.logging.info(f"Waiting for manual vote")
         start_time = time.perf_counter()
 
         while (time.perf_counter() - start_time) < MANUAL_VALIDATOR_TIMEOUT:
+            # If manual vote received
             if os.path.exists("neurons/validator/images/vote.txt"):
                 # loop until vote is successfully saved
                 while open("neurons/validator/images/vote.txt", "r").read() == "":
@@ -142,9 +148,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     len(rewards), dtype=torch.float32
                 ).to(self.device)
                 reward_i_normalized[int(reward_i) - 1] = 1.0
-
                 rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
-
                 if not self.config.alchemy.disable_log_rewards:
                     event["human_reward_model"] = reward_i_normalized.tolist()
                     event[
@@ -152,6 +156,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     ] = reward_i_normalized.tolist()
 
                 break
+            # If no manual vote received remove the weight impact of the manual reward
+            else:
+                rewards = rewards / (1-self.reward_weights[-1])
         else:
             bt.logging.info("No manual vote received")
 

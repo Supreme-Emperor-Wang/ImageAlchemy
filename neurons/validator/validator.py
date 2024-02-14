@@ -169,7 +169,7 @@ class StableValidator:
             try:
                 if 'ImageAlchemy' not in os.getcwd():
                     raise Exception("Unable to load manual validator please cd into the ImageAlchemy folder before running the validator")
-                bt.logging.debug("setting streamlit credentials")
+                bt.logging.debug("Setting streamlit credentials")
                 if not os.path.exists('streamlit_credentials.txt'):
                     username = self.wallet.hotkey.ss58_address
                     password = pwgenerator.generate()
@@ -182,6 +182,7 @@ class StableValidator:
                         "streamlit",
                         "run",
                         os.path.join(os.getcwd(), "neurons", "validator", "app.py"),
+                        f"--server.port {self.config.alchemy.streamlit_port}" if self.config.alchemy.streamlit_port is not None else ""
                     ]
                 )
             except Exception as e:
@@ -192,15 +193,14 @@ class StableValidator:
         self.reward_weights = torch.tensor(
             [
                 1.0,
-                1.0 if self.config.alchemy.enable_manual_validator else 0.0,
+                1/3 if self.config.alchemy.enable_manual_validator else 0.0,
             ],
             dtype=torch.float32,
         ).to(self.device)
 
-        self.reward_weights / self.reward_weights.sum(dim=-1).unsqueeze(-1)
+        self.reward_weights = self.reward_weights / self.reward_weights.sum(dim=-1).unsqueeze(-1)
 
         self.reward_names = ["image_reward_model"]
-
 
         # Init masking function
         self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]
@@ -214,8 +214,6 @@ class StableValidator:
         # Init wandb.
         init_wandb(self)
         bt.logging.debug("Loaded wandb")
-
-
 
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
@@ -240,13 +238,12 @@ class StableValidator:
         self.background_timer.daemon = True
         self.background_timer.start()
 
+
     async def run(self):
         # Main Validation Loop
         bt.logging.info("Starting validator loop.")
-        
         # Load Previous Sates
         self.load_state()
-
         self.step = 0
         while True:
             try:
@@ -473,7 +470,7 @@ class StableValidator:
                     self.device
                 )
             # Check for nans in saved state dict
-            elif not torch.isnan(neuron_weights).any():
+            elif (not torch.isnan(neuron_weights).any()) and (not torch.isfinite(neuron_weights).any()):
                 self.moving_averaged_scores = neuron_weights.to(self.device)
             bt.logging.success(
                 prefix="Reloaded model",

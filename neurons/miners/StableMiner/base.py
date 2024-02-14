@@ -263,9 +263,12 @@ class BaseMiner(ABC):
         local_args = copy.deepcopy(self.mapping[synapse.generation_type]["args"])
         local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
         local_args["target_size"] = (synapse.height, synapse.width)
-        local_args["guidance_scale"] = synapse.guidance_scale
-        local_args["negative_prompt"] = synapse.negative_prompt
-        
+        try:
+            local_args["guidance_scale"] = synapse.guidance_scale
+            local_args["negative_prompt"] = synapse.negative_prompt
+        except:
+            bt.logging.info("Validator hasn't provided a guidance_scale or negative_prompt")
+
         ### Get the model
         model = self.mapping[synapse.generation_type]["model"]
 

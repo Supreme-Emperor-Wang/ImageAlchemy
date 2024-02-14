@@ -32,7 +32,7 @@ def set_weights(self):
     # bt.logging.trace("raw_weights", raw_weights)
     # bt.logging.trace("top10 values", raw_weights.sort()[0])
     # bt.logging.trace("top10 uids", raw_weights.sort()[1])
-
+    breakpoint()
     # Process the raw weights to final_weights via subtensor limitations.
     (
         processed_weight_uids,
@@ -47,6 +47,7 @@ def set_weights(self):
     bt.logging.trace("processed_weights", processed_weights)
     bt.logging.trace("processed_weight_uids", processed_weight_uids)
     # Set the weights on chain via our subtensor connection.
+    breakpoint()
     self.subtensor.set_weights(
         wallet=self.wallet,
         netuid=self.config.netuid,
