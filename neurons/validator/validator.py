@@ -165,7 +165,7 @@ class StableValidator:
         self.reward_functions = [ImageRewardModel()]
 
         # Init manual validator
-        if self.config.alchemy.enable_manual_validator:
+        if not self.config.alchemy.disable_manual_validator:
             try:
                 if 'ImageAlchemy' not in os.getcwd():
                     raise Exception("Unable to load manual validator please cd into the ImageAlchemy folder before running the validator")
@@ -193,7 +193,7 @@ class StableValidator:
         self.reward_weights = torch.tensor(
             [
                 1.0,
-                1/3 if self.config.alchemy.enable_manual_validator else 0.0,
+                1/3 if not self.config.alchemy.disable_manual_validator else 0.0,
             ],
             dtype=torch.float32,
         ).to(self.device)
