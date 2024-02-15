@@ -84,15 +84,12 @@ class StableValidator:
             time.sleep(120)
             self.metagraph.sync(lite=True)
 
-    def __init__(self,loop: asyncio.AbstractEventLoop, *a, **kw):
+    def __init__(self,loop: asyncio.AbstractEventLoop = None, *a, **kw):
         super().__init__(*a, **kw)
         # Init config
         self.config = StableValidator.config()
         self.check_config(self.config)
         bt.logging(config=self.config, logging_dir=self.config.alchemy.full_path)
-
-        # Init loop
-        self.loop = loop
 
         # Init device.
         self.device = torch.device(self.config.alchemy.device)
@@ -247,52 +244,61 @@ class StableValidator:
         self.background_timer.daemon = True
         self.background_timer.start()
 
-        # Create set for storing organic tasks
         self.task_history = []
-        self.thread_executor = concurrent.futures.ThreadPoolExecutor(thread_name_prefix='asyncio')
-        # self.loop.create_task(self.run())
-        # import threading
-        # self.loop.create_task(self.consume_organic_scoring())
-        # self.loop.create_task(self.perform_synthetic_scoring_and_update_weights())
-        # self.synthetic_prompt_scoring  = threading.Thread(target=self.run(), daemon=True, name='synthetic_prompt_scoring')
-        # self.synthetic_prompt_scoring.start()
+        self.loop = loop
+        # self.synthetic_loop = BackgroundTimer(300, self.run)
+        # self.synthetic_loop.daemon = True
+        # self.synthetic_loop.start()
+
+        # if loop is not None:
+        #     # Init loop
+        #     self.loop = loop
+
+        #     # Create set for storing organic tasks
+        #     self.task_history = []
+        #     self.thread_executor = concurrent.futures.ThreadPoolExecutor(thread_name_prefix='asyncio')
+        #     self.loop.create_task(self.run())
+        #     # import threading
+        #     # self.loop.create_task(self.consume_organic_scoring())
+        #     # self.loop.create_task(self.perform_synthetic_scoring_and_update_weights())
+        #     # self.synthetic_prompt_scoring  = threading.Thread(target=self.run(), daemon=True, name='synthetic_prompt_scoring')
+        #     # self.synthetic_prompt_scoring.start()
 
     async def run_sync_in_async(self, fn):
         return await self.loop.run_in_executor(self.thread_executor, fn)
 
-    async def run(self):
+    def run(self):
         bt.logging.info("Starting validator loop.")
         self.step = 0
 
-        while True:
-            try:                
-                if self.task_history == [] or ((time.perf_counter() - self.task_history[-1]['time']) > 120):
-                    
-                    self.metagraph = await self.run_sync_in_async(lambda: self.subtensor.metagraph(self.config.netuid))
+        try:                
+            if self.task_history == [] or ((time.perf_counter() - self.task_history[-1]['time']) > 120):
+                
+                # self.metagraph = self self.run_sync_in_async(lambda: self.subtensor.metagraph(self.config.netuid))
 
-                    # Generate synthetic prompt + followup_prompt and run 1 loop
-                    prompt = generate_random_prompt_gpt(self)
-                    followup_prompt = generate_followup_prompt_gpt(self, prompt)
-                    
-                    if (prompt is None) or (followup_prompt is None):
-                        if (self.prompt_generation_failures != 0) and (
-                            (self.prompt_generation_failures / len(self.prompt_history_db))
-                            > 0.2
-                        ):
-                            self.prompt_history_db = get_promptdb_backup(
-                                self.prompt_history_db
-                            )
-                        prompt, followup_prompt = random.choice(self.prompt_history_db)
-                        self.prompt_history_db.remove((prompt, followup_prompt))
-                        self.prompt_generation_failures += 1
+                # Generate synthetic prompt + followup_prompt and run 1 loop
+                prompt = generate_random_prompt_gpt(self)
+                followup_prompt = generate_followup_prompt_gpt(self, prompt)
+                
+                if (prompt is None) or (followup_prompt is None):
+                    if (self.prompt_generation_failures != 0) and (
+                        (self.prompt_generation_failures / len(self.prompt_history_db))
+                        > 0.2
+                    ):
+                        self.prompt_history_db = get_promptdb_backup(
+                            self.prompt_history_db
+                        )
+                    prompt, followup_prompt = random.choice(self.prompt_history_db)
+                    self.prompt_history_db.remove((prompt, followup_prompt))
+                    self.prompt_generation_failures += 1
 
-                    # self.loop.run_until_complete(self.forward(prompt, followup_prompt = None))
-                    await self.forward(prompt, followup_prompt = None)
+                self.loop.run_until_complete(self.forward(prompt, followup_prompt = None))
+                # await self.forward(prompt, followup_prompt = None)
 
-            except Exception as e:
-                bt.logging.error(f'Encountered in {self.run.__name__} loop:\n{traceback.format_exc()}')
-                # time.sleep(10)
-                await asyncio.sleep(10)
+        except Exception as e:
+            bt.logging.error(f'Encountered in {self.run.__name__} loop:\n{traceback.format_exc()}')
+            time.sleep(10)
+            # await asyncio.sleep(10)
 
     # def register_text_validator_organic_query(self, prompt):
     #     self.organic_tasks.add(asyncio.create_task(
