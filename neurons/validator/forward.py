@@ -106,13 +106,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(
                     f"neurons/validator/images/{i}.png"
                 )
-                time.sleep(5)
                 i = i + 1
 
         bt.logging.info(f"Saving prompt")
         with open("neurons/validator/images/prompt.txt", "w") as f:
             f.write(prompt)
-            time.sleep(5)
     # Initialise rewards tensor
     rewards: torch.FloatTensor = torch.zeros(len(responses), dtype=torch.float32).to(
         self.device
@@ -132,15 +130,20 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
 
     if not self.config.alchemy.disable_manual_validator:
-        bt.logging.info(f"Waiting for manual vote")
+        bt.logging.info(f"Waiting {MANUAL_VALIDATOR_TIMEOUT} seconds for manual vote...")
         start_time = time.perf_counter()
 
+        received_vote = False
+
         while (time.perf_counter() - start_time) < MANUAL_VALIDATOR_TIMEOUT:
+            time.sleep(1)
             # If manual vote received
             if os.path.exists("neurons/validator/images/vote.txt"):
                 # loop until vote is successfully saved
                 while open("neurons/validator/images/vote.txt", "r").read() == "":
                     continue
+
+                received_vote = True
 
                 reward_i = open("neurons/validator/images/vote.txt", "r").read()
                 bt.logging.info(f"Received manual vote for UID {int(reward_i) - 1}")
@@ -156,10 +159,10 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     ] = reward_i_normalized.tolist()
 
                 break
-            # If no manual vote received remove the weight impact of the manual reward
-            else:
-                rewards = rewards / (1-self.reward_weights[-1])
-        else:
+
+
+        if not received_vote:
+            rewards = rewards / (1-self.reward_weights[-1])
             bt.logging.info("No manual vote received")
 
     # Delete contents of images folder except for black image
