@@ -246,9 +246,9 @@ class StableValidator:
 
         self.task_history = []
         self.loop = loop
-        # self.synthetic_loop = BackgroundTimer(300, self.run)
-        # self.synthetic_loop.daemon = True
-        # self.synthetic_loop.start()
+        self.synthetic_loop = BackgroundTimer(300, self.loop.run_until_complete(self.run))
+        self.synthetic_loop.daemon = True
+        self.synthetic_loop.start()
 
         # if loop is not None:
         #     # Init loop
@@ -267,7 +267,7 @@ class StableValidator:
     async def run_sync_in_async(self, fn):
         return await self.loop.run_in_executor(self.thread_executor, fn)
 
-    def run(self):
+    async def run(self):
         bt.logging.info("Starting validator loop.")
         self.step = 0
 
@@ -292,8 +292,8 @@ class StableValidator:
                     self.prompt_history_db.remove((prompt, followup_prompt))
                     self.prompt_generation_failures += 1
 
-                self.loop.run_until_complete(self.forward(prompt, followup_prompt = None))
-                # await self.forward(prompt, followup_prompt = None)
+                # self.loop.run_until_complete(self.forward(prompt, followup_prompt = None))
+                await self.forward(prompt, followup_prompt = None)
 
         except Exception as e:
             bt.logging.error(f'Encountered in {self.run.__name__} loop:\n{traceback.format_exc()}')
