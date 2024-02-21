@@ -162,7 +162,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
 
         if not received_vote:
-            rewards = rewards / (1-self.reward_weights[-1])
+            delta = 1-self.reward_weights[-1]
+            if delta != 0:
+                rewards /= delta
+            else:
+                bt.logging.warning("The reward weight difference was 0 which is unexpected.")
             bt.logging.info("No manual vote received")
 
     # Delete contents of images folder except for black image
