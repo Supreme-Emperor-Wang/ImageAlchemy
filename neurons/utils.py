@@ -110,10 +110,10 @@ def background_loop(self, is_validator):
     #### Terminate the miner / validator after deregistration
     if self.background_steps % 1 == 0 and self.background_steps > 1:
         try:
-            if is_validator:
-                self.metagraph.sync(subtensor=self.subtensor)
-            else:
-                self.metagraph.sync()
+            # if is_validator:
+            self.metagraph.sync(subtensor=self.subtensor)
+            # else:
+                # self.metagraph.sync()
             if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
                 bt.logging.debug(f">>> {neuron_type} has deregistered... terminating.")
                 try:

@@ -196,7 +196,7 @@ class BaseMiner(ABC):
                 "r",
             )
             time.sleep(120)
-            self.metagraph.sync(lite=True)
+            self.metagraph.sync(subtensor=self.subtensor)
 
     def get_miner_info(self):
         return {
@@ -499,7 +499,7 @@ class BaseMiner(ABC):
                 time.sleep(120)
 
                 ### Ensure the metagraph is synced before the next registration check
-                self.metagraph.sync(lite=True)
+                self.metagraph.sync(subtensor=self.subtensor)
                 continue
 
             #### Output current statistics and set weights

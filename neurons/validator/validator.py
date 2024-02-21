@@ -70,7 +70,7 @@ class StableValidator:
                 "r",
             )
             time.sleep(120)
-            self.metagraph.sync(lite=True)
+            self.metagraph.sync(subtensor=self.subtensor)
 
     def __init__(self):
         # Init config
@@ -256,7 +256,6 @@ class StableValidator:
 
                 # Get a random number of uids
                 uids = await get_random_uids(self, self.dendrite, k=N_NEURONS)
-
                 uids = uids.to(self.device)
 
                 axons = [self.metagraph.axons[uid] for uid in uids]
