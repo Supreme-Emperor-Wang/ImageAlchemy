@@ -51,8 +51,6 @@ st.markdown("## Prompt:")
 prompt_text = st.empty()
 empty_image_text = "AWAITING NEW IMAGE ..."
 
-# col1, col2, col3, col4, col5 = st.columns(5)
-# col1, col2 = st.columns(2)
 col1, col2, col3 = st.columns(3)
 
 if "vote_1" not in st.session_state:
@@ -74,6 +72,10 @@ if "vote_8" not in st.session_state:
 if "vote_9" not in st.session_state:
     st.session_state.vote_9 = False
 if "vote_10" not in st.session_state:
+    st.session_state.vote_10 = False
+if "vote_11" not in st.session_state:
+    st.session_state.vote_10 = False
+if "vote_12" not in st.session_state:
     st.session_state.vote_10 = False
 
 
@@ -118,36 +120,42 @@ def input_callback():
         with open("neurons/validator/images/vote.txt", "w") as f:
             f.write("10")
             st.session_state.vote_10 = False
-
+    elif st.session_state.vote_11:
+        with open("neurons/validator/images/vote.txt", "w") as f:
+            f.write("11")
+            st.session_state.vote_11 = False
+    elif st.session_state.vote_12:
+        with open("neurons/validator/images/vote.txt", "w") as f:
+            f.write("12")
+            st.session_state.vote_12 = False
 
 with col1:
     placeholder_1 = st.empty()
-    vote_1 = st.checkbox("UID 0", key="vote_1", on_change=input_callback)
+    vote_1 = st.checkbox("UID 1", key="vote_1", on_change=input_callback)
     placeholder_4 = st.empty()
-    vote_4 = st.checkbox("UID 3", key="vote_4", on_change=input_callback)
-# with col2:
+    vote_4 = st.checkbox("UID 4", key="vote_4", on_change=input_callback)
     placeholder_7 = st.empty()
-    vote_7 = st.checkbox("UID 6", key="vote_7", on_change=input_callback)
+    vote_7 = st.checkbox("UID 7", key="vote_7", on_change=input_callback)
+    placeholder_10 = st.empty()
+    vote_10 = st.checkbox("UID 10", key="vote_10", on_change=input_callback)
 with col2:
     placeholder_2 = st.empty()
-    vote_2 = st.checkbox("UID 1", key="vote_2", on_change=input_callback)
-# with col3:
+    vote_2 = st.checkbox("UID 2", key="vote_2", on_change=input_callback)
     placeholder_5 = st.empty()
-    vote_5 = st.checkbox("UID 4", key="vote_5", on_change=input_callback)
-# with col2:
+    vote_5 = st.checkbox("UID 5", key="vote_5", on_change=input_callback)
     placeholder_8 = st.empty()
-    vote_8 = st.checkbox("UID 7", key="vote_8", on_change=input_callback)
+    vote_8 = st.checkbox("UID 8", key="vote_8", on_change=input_callback)
+    placeholder_11 = st.empty()
+    vote_11 = st.checkbox("UID 11", key="vote_11", on_change=input_callback)
 with col3:
     placeholder_3 = st.empty()
-    vote_3 = st.checkbox("UID 2", key="vote_3", on_change=input_callback)
+    vote_3 = st.checkbox("UID 3", key="vote_3", on_change=input_callback)
     placeholder_6 = st.empty()
-    vote_6 = st.checkbox("UID 5", key="vote_6", on_change=input_callback)
-# with col5:
+    vote_6 = st.checkbox("UID 6", key="vote_6", on_change=input_callback)
     placeholder_9 = st.empty()
-    vote_9 = st.checkbox("UID 8", key="vote_9", on_change=input_callback)
-# with col4:    
-#     placeholder_10 = st.empty()
-#     vote_10 = st.checkbox("UID 9", key="vote_10", on_change=input_callback)
+    vote_9 = st.checkbox("UID 9", key="vote_9", on_change=input_callback)
+    placeholder_12 = st.empty()
+    vote_12 = st.checkbox("UID 12", key="vote_12", on_change=input_callback)
 
 image_list = [
     placeholder_1,
@@ -159,7 +167,9 @@ image_list = [
     placeholder_7,
     placeholder_8,
     placeholder_9,
-    # placeholder_10,
+    placeholder_10,
+    placeholder_11,
+    placeholder_12,
 ]
 while True:
     images = [
@@ -173,25 +183,25 @@ while True:
             prompt = open(f"{directory}/prompt.txt", "r").read()
             prompt = prompt.replace('"','')
             prompt_text.markdown(prompt)
-            for i in range(0, 9):
+            for i in range(0, len(image_list)):
                 if len(images) > i:
                     image_list[i].image(
-                        f"{directory}/{images[i]}", caption=f"UID {i}", use_column_width=True,
+                        f"{directory}/{images[i]}", caption=f"UID {i+1}", use_column_width=True,
                     )
                 else:
                     image_list[i].image(
-                        f"{directory}/black.png", caption=f"UID {i}", use_column_width=True,
+                        f"{directory}/black.png", caption=f"UID {i+1}", use_column_width=True,
                     )
         except:
-            for i in range(0, 9):
+            for i in range(0, len(image_list)):
                 prompt_text.markdown(empty_image_text)
                 image_list[i].image(
-                    f"{directory}/black.png", caption=f"UID {i}", use_column_width=True,
+                    f"{directory}/black.png", caption=f"UID {i+1}", use_column_width=True,
                 )
 
     else:
-        for i in range(0, 9):
+        for i in range(0, len(image_list)):
             prompt_text.markdown(empty_image_text)
             image_list[i].image(
-                f"{directory}/black.png", caption=f"UID {i}", use_column_width=True,
+                f"{directory}/black.png", caption=f"UID {i+1}", use_column_width=True,
             )

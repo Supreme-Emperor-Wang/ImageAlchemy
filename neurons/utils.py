@@ -194,7 +194,7 @@ def background_loop(self, is_validator):
                         for k, v in warninglist_for_neuron.items()
                         if v["type"] == "hotkey"
                 }
-                self.coldkey_whitelist = {
+                self.coldkey_warninglist = {
                         k :[v['reason'],v['resolve_by']]
                         for k, v in warninglist_for_neuron.items()
                         if v["type"] == "coldkey"
@@ -205,7 +205,7 @@ def background_loop(self, is_validator):
                         f"This hotkey is on the warning list: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][0]} | Date for rectification: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][1]}",
                         color_key="r",
                     )
-                coldkey = get_coldkey_for_hotkey(self, self.wallet.coldkey.ss58_address) 
+                coldkey = get_coldkey_for_hotkey(self, self.wallet.hotkey.ss58_address) 
                 if coldkey in self.coldkey_warninglist.keys():
                     output_log(
                         f"This coldkey is on the warning list: {self.coldkey_warninglist[coldkey][0]} | Date for rectification: {self.coldkey_warninglist[coldkey][1]}",
@@ -266,8 +266,9 @@ def background_loop(self, is_validator):
             bt.logging.error(
                 f"An error occurred trying to update settings from the cloud: {e}."
             )
+
     #### Clean up the wandb runs and cache folders
-    if self.background_steps == 1 or self.background_steps % 300 == 0:
+    if self.background_steps == 1 or self.background_steps % 36 == 0:
         wandb_path = WANDB_VALIDATOR_PATH if is_validator else WANDB_MINER_PATH
         try:
             if os.path.exists(wandb_path):
@@ -279,7 +280,7 @@ def background_loop(self, is_validator):
                     if "run-" in x and not "latest-run" in x
                 ]
                 if len(runs) > 0:
-                    cleanup_runs_process = subprocess.call(f"cd {wandb_path} && echo 'y' | wandb sync --clean --clean-old-hours 6", shell=True)
+                    cleanup_runs_process = subprocess.call(f"cd {wandb_path} && echo 'y' | wandb sync --clean --clean-old-hours 3", shell=True)
                     bt.logging.debug("Cleaned all synced wandb runs.")
                     cleanup_cache_process = subprocess.Popen(
                         ["wandb artifact cache cleanup 5GB"], shell=True

@@ -326,6 +326,12 @@ class StableValidator:
                 # End the current step and prepare for the next iteration.
                 self.step += 1
 
+                # Assuming each step is 3 minutes restart wandb run ever 3 hours to avoid overloading a validators storgage space
+                if ((self.step) % 60 == 0) and (self.step != 0):
+                    bt.logging.info("Finishing current wandb run and starting a new one every 3 hours")
+                    self.wandb.finish()
+                    init_wandb(self)
+
             # If we encounter an unexpected error, log it for debugging.
             except Exception as err:
                 bt.logging.error("Error in training loop", str(err))
