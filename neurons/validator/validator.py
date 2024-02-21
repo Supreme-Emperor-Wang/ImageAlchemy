@@ -208,6 +208,9 @@ class StableValidator:
         # Init sync with the network. Updates the metagraph.
         self.sync()
 
+        # Serve axon to enable external connections.
+        self.serve_axon()
+
         # Init the event loop
         self.loop = asyncio.get_event_loop()
 
@@ -458,7 +461,6 @@ class StableValidator:
         # empty cache
         torch.cuda.empty_cache()
 
-
     def load_state(self):
         r"""Load hotkeys and moving average scores from filesystem."""
         bt.logging.info("load_state()")
@@ -483,3 +485,33 @@ class StableValidator:
             )
         except Exception as e:
             bt.logging.warning(f"Failed to load model with error: {e}")
+
+    def serve_axon(self):
+        """Serve axon to enable external connections."""
+
+        bt.logging.info("serving ip to chain...")
+        try:
+            self.axon = bt.axon(
+                wallet=self.wallet,
+                ip=bt.utils.networking.get_external_ip(),
+                external_ip=bt.utils.networking.get_external_ip(),
+                config=self.config
+            )
+
+            try:
+                self.subtensor.serve_axon(
+                    netuid=self.config.netuid,
+                    axon=self.axon,
+                )
+                bt.logging.info(
+                    f"Running validator {self.axon} on network: {self.config.subtensor.chain_endpoint} with netuid: {self.config.netuid}"
+                )
+            except Exception as e:
+                bt.logging.error(f"Failed to serve Axon with exception: {e}")
+                pass
+
+        except Exception as e:
+            bt.logging.error(
+                f"Failed to create Axon initialize with exception: {e}"
+            )
+            pass

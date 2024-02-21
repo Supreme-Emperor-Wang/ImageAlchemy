@@ -57,10 +57,8 @@ async def check_uid(dendrite, axon, uid):
     try:
         response = await dendrite(axon, IsAlive(), deserialize=False, timeout=2.3)
         if response.is_success:
-            bt.logging.trace(f"UID {uid} is active.")
             return True
         else:
-            bt.logging.trace(f"UID {uid} is not active.")
             return False
     except Exception as e:
         bt.logging.error(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
@@ -123,6 +121,7 @@ async def get_random_uids(
         )
 
     responses = await asyncio.gather(*tasks)
+    bt.logging.trace({f"UID_{i}": "Active" if response == True else "Inactive" for i, response in enumerate(responses)})
 
     for uid, uid_is_available in zip(range(self.metagraph.n.item()), (responses)):
         uid_is_not_excluded = exclude is None or uid not in exclude
