@@ -322,7 +322,10 @@ class StableValidator:
                 #             followup_image,
                 #         )
                 # Re-sync with the network. Updates the metagraph.
-                self.sync()
+                try:
+                    self.sync()
+                except Exception as e:
+                    bt.logging.warning(f"An unexpected error occurred trying to sync the metagraph: {e}")
 
                 # Load Previous Sates
                 self.save_state()
