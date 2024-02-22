@@ -6,3 +6,5 @@ openai>=1.3.8
 scikit-learn==1.3.2
 google-cloud-storage
 wandb
+passwordgenerator==1.5.1
+streamlit
