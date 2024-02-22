@@ -141,16 +141,38 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             if os.path.exists("neurons/validator/images/vote.txt"):
                 # loop until vote is successfully saved
                 while open("neurons/validator/images/vote.txt", "r").read() == "":
+                    time.sleep(0.05)
                     continue
 
+
+                try:
+                    reward_i = int(open("neurons/validator/images/vote.txt", "r").read())-1
+                except Exception as e:
+                    bt.logging.debug(f"An unexpected error occurred parsing the vote: {e}")
+                    break
+
+
+
+                ### There is a small possibility that not every miner queried will respond.
+                ### If 12 are queried, but only 10 respond, we need to handle the error if
+                ### the user selects the 11th or 12th image (which don't exist)
+                if reward_i >= len(rewards):
+                    bt.logging.debug(f"Received invalid vote for Image {reward_i}: it doesn't exist.")
+                    break
+
+                bt.logging.info(f"Received manual vote for Image {reward_i}")
+
+
+                ### Set to true so we don't normalize the rewards later
                 received_vote = True
 
-                reward_i = open("neurons/validator/images/vote.txt", "r").read()
-                bt.logging.info(f"Received manual vote for UID {int(reward_i) - 1}")
+
+
+
                 reward_i_normalized: torch.FloatTensor = torch.zeros(
                     len(rewards), dtype=torch.float32
                 ).to(self.device)
-                reward_i_normalized[int(reward_i) - 1] = 1.0
+                reward_i_normalized[reward_i] = 1.0
                 rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
                 if not self.config.alchemy.disable_log_rewards:
                     event["human_reward_model"] = reward_i_normalized.tolist()
@@ -167,7 +189,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 rewards /= delta
             else:
                 bt.logging.warning("The reward weight difference was 0 which is unexpected.")
-            bt.logging.info("No manual vote received")
+            bt.logging.info("No valid vote was received")
 
     # Delete contents of images folder except for black image
     for file in os.listdir("neurons/validator/images"):
