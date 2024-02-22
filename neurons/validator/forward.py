@@ -90,8 +90,10 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         )
     )
 
-    r = [x for x in responses if not x.images]
-    responses = [x for x in responses if x.images] + r
+    responses_empty_flag = [1  if not response.images else 0 for response in responses]
+    sorted_index = [item[0] for item in sorted(list(zip(range(0,len(responses_empty_flag)), responses_empty_flag)), key = lambda x: x[1])]
+    uids = torch.tensor([uids[index] for index in sorted_index])
+    responses = [responses[index]for index in sorted_index]
 
     self.stats.total_requests += 1
     event = {"task_type": task_type}
@@ -109,7 +111,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     f"neurons/validator/images/{i}.png"
                 )
                 bt.logging.debug(f"Saving out neurons/validator/images/{i}.png")
-                
+
         bt.logging.info(f"Saving prompt")
         with open("neurons/validator/images/prompt.txt", "w") as f:
             f.write(prompt)
