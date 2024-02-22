@@ -157,10 +157,10 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 ### If 12 are queried, but only 10 respond, we need to handle the error if
                 ### the user selects the 11th or 12th image (which don't exist)
                 if reward_i >= len(rewards):
-                    bt.logging.debug(f"Received invalid vote for Image {reward_i}: it doesn't exist.")
+                    bt.logging.debug(f"Received invalid vote for Image {reward_i+1}: it doesn't exist.")
                     break
 
-                bt.logging.info(f"Received manual vote for Image {reward_i}")
+                bt.logging.info(f"Received manual vote for Image {reward_i+1}")
 
 
                 ### Set to true so we don't normalize the rewards later
