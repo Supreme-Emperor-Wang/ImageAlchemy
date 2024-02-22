@@ -28,6 +28,7 @@ from neurons.validator.utils import (
     get_promptdb_backup,
     get_random_uids,
     init_wandb,
+    reinit_wandb,
     ttl_get_block,
 )
 from neurons.validator.weights import set_weights
@@ -329,10 +330,9 @@ class StableValidator:
                 self.step += 1
 
                 # Assuming each step is 3 minutes restart wandb run ever 3 hours to avoid overloading a validators storgage space
-                if ((self.step) % 60 == 0) and (self.step != 0):
-                    bt.logging.info("Finishing current wandb run and starting a new one every 3 hours")
-                    self.wandb.finish()
-                    init_wandb(self)
+                if self.step % 360 == 0 and self.step != 0:
+                    bt.logging.info("Re-initializing wandb run...")
+                    reinit_wandb(self)
 
             # If we encounter an unexpected error, log it for debugging.
             except Exception as err:
