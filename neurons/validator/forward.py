@@ -71,6 +71,26 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         f"{k.capitalize()}: {f'{v:.2f}' if isinstance(v, float) else v}"
         for k, v in synapse_dict.items()
     ]
+
+    responses = self.loop.run_until_complete(
+        self.dendrite(
+            axons,
+            synapse,
+            timeout=self.query_timeout,
+        )
+    )
+
+    responses_empty_flag = [1 if not response.images else 0 for response in responses]
+    sorted_index = [
+        item[0]
+        for item in sorted(
+            list(zip(range(0, len(responses_empty_flag)), responses_empty_flag)),
+            key=lambda x: x[1],
+        )
+    ]
+    uids = torch.tensor([uids[index] for index in sorted_index]).to(self.device)
+    responses = [responses[index] for index in sorted_index]
+
     output_log(f"{sh('Info')} -> {' | '.join(args_list)}", color_key="m")
     output_log(
         f"{sh('UIDs')} -> {' | '.join([str(uid) for uid in uids.tolist()])}",
@@ -82,18 +102,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         f"{sh('Stats')} -> Block: {validator_info['block']} | Stake: {validator_info['stake']:.4f} | Rank: {validator_info['rank']:.4f} | VTrust: {validator_info['vtrust']:.4f} | Dividends: {validator_info['dividends']:.4f} | Emissions: {validator_info['emissions']:.4f}",
         color_key="c",
     )
-    responses = self.loop.run_until_complete(
-        self.dendrite(
-            axons,
-            synapse,
-            timeout=self.query_timeout,
-        )
-    )
-
-    responses_empty_flag = [1  if not response.images else 0 for response in responses]
-    sorted_index = [item[0] for item in sorted(list(zip(range(0,len(responses_empty_flag)), responses_empty_flag)), key = lambda x: x[1])]
-    uids = torch.tensor([uids[index] for index in sorted_index]).to(self.device)
-    responses = [responses[index]for index in sorted_index]
 
     self.stats.total_requests += 1
     event = {"task_type": task_type}
@@ -134,7 +142,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
 
     if not self.config.alchemy.disable_manual_validator:
-        bt.logging.info(f"Waiting {MANUAL_VALIDATOR_TIMEOUT} seconds for manual vote...")
+        bt.logging.info(
+            f"Waiting {MANUAL_VALIDATOR_TIMEOUT} seconds for manual vote..."
+        )
         start_time = time.perf_counter()
 
         received_vote = False
@@ -148,30 +158,29 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     time.sleep(0.05)
                     continue
 
-
                 try:
-                    reward_i = int(open("neurons/validator/images/vote.txt", "r").read())-1
+                    reward_i = (
+                        int(open("neurons/validator/images/vote.txt", "r").read()) - 1
+                    )
                 except Exception as e:
-                    bt.logging.debug(f"An unexpected error occurred parsing the vote: {e}")
+                    bt.logging.debug(
+                        f"An unexpected error occurred parsing the vote: {e}"
+                    )
                     break
-
-
 
                 ### There is a small possibility that not every miner queried will respond.
                 ### If 12 are queried, but only 10 respond, we need to handle the error if
                 ### the user selects the 11th or 12th image (which don't exist)
                 if reward_i >= len(rewards):
-                    bt.logging.debug(f"Received invalid vote for Image {reward_i+1}: it doesn't exist.")
+                    bt.logging.debug(
+                        f"Received invalid vote for Image {reward_i+1}: it doesn't exist."
+                    )
                     break
 
                 bt.logging.info(f"Received manual vote for Image {reward_i+1}")
 
-
                 ### Set to true so we don't normalize the rewards later
                 received_vote = True
-
-
-
 
                 reward_i_normalized: torch.FloatTensor = torch.zeros(
                     len(rewards), dtype=torch.float32
@@ -180,26 +189,25 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
                 if not self.config.alchemy.disable_log_rewards:
                     event["human_reward_model"] = reward_i_normalized.tolist()
-                    event[
-                        "human_reward_model_normalized"
-                    ] = reward_i_normalized.tolist()
+                    event["human_reward_model_normalized"] = (
+                        reward_i_normalized.tolist()
+                    )
 
                 break
 
-
         if not received_vote:
-            delta = 1-self.reward_weights[-1]
+            delta = 1 - self.reward_weights[-1]
             if delta != 0:
                 rewards /= delta
             else:
-                bt.logging.warning("The reward weight difference was 0 which is unexpected.")
+                bt.logging.warning(
+                    "The reward weight difference was 0 which is unexpected."
+                )
             bt.logging.info("No valid vote was received")
 
     # Delete contents of images folder except for black image
     for file in os.listdir("neurons/validator/images"):
-        os.remove(
-            f"neurons/validator/images/{file}"
-        ) if file != "black.png" else "_"
+        os.remove(f"neurons/validator/images/{file}") if file != "black.png" else "_"
 
     scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
         0, uids, rewards
@@ -221,9 +229,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 "uids": uids.tolist(),
                 "hotkeys": [self.metagraph.axons[uid].hotkey for uid in uids],
                 "images": [
-                    response.images[0]
-                    if (response.images != []) and (reward != 0)
-                    else []
+                    (
+                        response.images[0]
+                        if (response.images != []) and (reward != 0)
+                        else []
+                    )
                     for response, reward in zip(responses, rewards.tolist())
                 ],
                 "rewards": rewards.tolist(),
