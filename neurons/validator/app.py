@@ -61,7 +61,7 @@ st.markdown("### ImageAlchemy Human Validation")
 st.markdown("##### Select what you think is the best image from the batch of images below within 25 seconds ...")
 
 prompt_text = st.empty()
-empty_image_text = "###### AWAITING NEW IMAGES ..."
+empty_image_text = "###### AWAITING NEXT BATCH ..."
 # debug = st.empty()
 
 col1, col2, col3, col4 = st.columns(4)
