@@ -474,6 +474,16 @@ class StableValidator:
         try:
             state_dict = torch.load(f"{self.config.alchemy.full_path}/model.torch")
             neuron_weights = torch.tensor(state_dict["neuron_weights"])
+
+            has_nans = torch.isnan(neuron_weights).any()
+            has_infs = torch.isinf(neuron_weights).any()
+
+            if has_nans:
+                bt.logging.warning(f"Nans found in the model state: {has_nans}")
+
+            if has_infs:
+                bt.logging.warning(f"Infs found in the model state: {has_infs}")
+
             # Check to ensure that the size of the neruon weights matches the metagraph size.
             if neuron_weights.shape != (self.metagraph.n,):
                 bt.logging.warning(
@@ -484,8 +494,12 @@ class StableValidator:
                     self.device
                 )
             # Check for nans in saved state dict
-            elif (not torch.isnan(neuron_weights).any()) and (not torch.isfinite(neuron_weights).any()):
+            elif not any([has_nans, has_infs]):
                 self.moving_averaged_scores = neuron_weights.to(self.device)
+                bt.logging.trace(f"MA scores: {self.moving_averaged_scores}")
+            else:
+                bt.logging.warning("Loaded MA scores from scratch.")
+
             bt.logging.success(
                 prefix="Reloaded model",
                 sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
