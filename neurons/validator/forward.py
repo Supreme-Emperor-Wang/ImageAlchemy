@@ -90,6 +90,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         )
     )
 
+    r = [x for x in responses if not x.images]
+    responses = [x for x in responses if x.images] + r
+
     self.stats.total_requests += 1
     event = {"task_type": task_type}
 
