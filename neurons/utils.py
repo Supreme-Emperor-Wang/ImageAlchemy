@@ -19,6 +19,7 @@ from neurons.constants import (
     IA_VALIDATOR_SETTINGS_FILE,
     IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
+    MANUAL_VALIDATOR_TIMEOUT,
     VALIDATOR_DEFAULT_QUERY_TIMEOUT,
     VALIDATOR_DEFAULT_REQUEST_FREQUENCY,
     WANDB_MINER_PATH,
@@ -256,6 +257,8 @@ def background_loop(self, is_validator):
                     self.request_frequency = validator_settings.get(
                         "request_frequency", VALIDATOR_DEFAULT_REQUEST_FREQUENCY
                     )
+                    if self.config.alchemy.disable_manual_validator:
+                        self.request_frequency += MANUAL_VALIDATOR_TIMEOUT
                     self.query_timeout = validator_settings.get(
                         "query_timeout", VALIDATOR_DEFAULT_QUERY_TIMEOUT
                     )
