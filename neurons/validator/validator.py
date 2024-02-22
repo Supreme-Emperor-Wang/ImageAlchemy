@@ -3,11 +3,13 @@ import asyncio
 import copy
 import os
 import random
-from time import sleep
+import subprocess
 import time
+from time import sleep
 from traceback import print_exception
 from typing import List
 
+import streamlit
 import torch
 from datasets import load_dataset
 from neurons.constants import ENABLE_IMAGE2IMAGE, EPOCH_LENGTH, N_NEURONS
@@ -26,10 +28,12 @@ from neurons.validator.utils import (
     get_promptdb_backup,
     get_random_uids,
     init_wandb,
+    reinit_wandb,
     ttl_get_block,
 )
 from neurons.validator.weights import set_weights
 from openai import OpenAI
+from passwordgenerator import pwgenerator
 from transformers import pipeline
 
 import bittensor as bt
@@ -67,7 +71,7 @@ class StableValidator:
                 "r",
             )
             time.sleep(120)
-            self.metagraph.sync(lite=True)
+            self.metagraph.sync(subtensor=self.subtensor)
 
     def __init__(self):
         # Init config
@@ -161,24 +165,53 @@ class StableValidator:
         # Init reward function
         self.reward_functions = [ImageRewardModel()]
 
+        # Init manual validator
+        if not self.config.alchemy.disable_manual_validator:
+            try:
+                if 'ImageAlchemy' not in os.getcwd():
+                    raise Exception("Unable to load manual validator please cd into the ImageAlchemy folder before running the validator")
+                bt.logging.debug("Setting streamlit credentials")
+                if not os.path.exists('streamlit_credentials.txt'):
+                    username = self.wallet.hotkey.ss58_address
+                    password = pwgenerator.generate()
+                    with open('streamlit_credentials.txt', 'w') as f: f.write(f"username={username}\npassword={password}")
+                    # Sleep until the credentials file is written
+                    sleep(5)
+                bt.logging.debug("Loading Manual Validator")
+                process = subprocess.Popen(
+                    [
+                        "streamlit",
+                        "run",
+                        os.path.join(os.getcwd(), "neurons", "validator", "app.py"),
+                        "--server.port" if self.config.alchemy.streamlit_port is not None else "", 
+                        f"{self.config.alchemy.streamlit_port}" if self.config.alchemy.streamlit_port is not None else ""
+                    ]
+                )
+            except Exception as e:
+                bt.logging.error(f"Failed to Load Manual Validator due to error: {e}")
+                self.config.alchemy.disable_manual_validator = True
+
         # Init reward function
         self.reward_weights = torch.tensor(
             [
-                1.0
+                1.0,
+                1/3 if not self.config.alchemy.disable_manual_validator else 0.0,
             ],
             dtype=torch.float32,
         ).to(self.device)
 
-        self.reward_weights / self.reward_weights.sum(dim=-1).unsqueeze(-1)
+        self.reward_weights = self.reward_weights / self.reward_weights.sum(dim=-1).unsqueeze(-1)
 
-        self.reward_names = ["image_reward_model"]
-
+        self.reward_names = ["image_reward_model", "manual_reward_model"]
 
         # Init masking function
         self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]
 
         # Init sync with the network. Updates the metagraph.
         self.sync()
+
+        # Serve axon to enable external connections.
+        self.serve_axon()
 
         # Init the event loop
         self.loop = asyncio.get_event_loop()
@@ -210,13 +243,12 @@ class StableValidator:
         self.background_timer.daemon = True
         self.background_timer.start()
 
+
     async def run(self):
         # Main Validation Loop
         bt.logging.info("Starting validator loop.")
-        
         # Load Previous Sates
         self.load_state()
-
         self.step = 0
         while True:
             try:
@@ -229,7 +261,6 @@ class StableValidator:
 
                 # Get a random number of uids
                 uids = await get_random_uids(self, self.dendrite, k=N_NEURONS)
-
                 uids = uids.to(self.device)
 
                 axons = [self.metagraph.axons[uid] for uid in uids]
@@ -298,6 +329,14 @@ class StableValidator:
 
                 # End the current step and prepare for the next iteration.
                 self.step += 1
+
+                # Assuming each step is 3 minutes restart wandb run ever 3 hours to avoid overloading a validators storgage space
+                if self.step % 360 == 0 and self.step != 0:
+                    bt.logging.info("Re-initializing wandb run...")
+                    try:
+                        reinit_wandb(self)
+                    except Exception as e:
+                        bt.logging.error(f"An unexpected error occurred reinitializing wandb: {e}")
 
             # If we encounter an unexpected error, log it for debugging.
             except Exception as err:
@@ -426,7 +465,6 @@ class StableValidator:
         # empty cache
         torch.cuda.empty_cache()
 
-
     def load_state(self):
         r"""Load hotkeys and moving average scores from filesystem."""
         bt.logging.info("load_state()")
@@ -443,7 +481,7 @@ class StableValidator:
                     self.device
                 )
             # Check for nans in saved state dict
-            elif not torch.isnan(neuron_weights).any():
+            elif (not torch.isnan(neuron_weights).any()) and (not torch.isfinite(neuron_weights).any()):
                 self.moving_averaged_scores = neuron_weights.to(self.device)
             bt.logging.success(
                 prefix="Reloaded model",
@@ -451,3 +489,33 @@ class StableValidator:
             )
         except Exception as e:
             bt.logging.warning(f"Failed to load model with error: {e}")
+
+    def serve_axon(self):
+        """Serve axon to enable external connections."""
+
+        bt.logging.info("serving ip to chain...")
+        try:
+            self.axon = bt.axon(
+                wallet=self.wallet,
+                ip=bt.utils.networking.get_external_ip(),
+                external_ip=bt.utils.networking.get_external_ip(),
+                config=self.config
+            )
+
+            try:
+                self.subtensor.serve_axon(
+                    netuid=self.config.netuid,
+                    axon=self.axon,
+                )
+                bt.logging.info(
+                    f"Running validator {self.axon} on network: {self.config.subtensor.chain_endpoint} with netuid: {self.config.netuid}"
+                )
+            except Exception as e:
+                bt.logging.error(f"Failed to serve Axon with exception: {e}")
+                pass
+
+        except Exception as e:
+            bt.logging.error(
+                f"Failed to create Axon initialize with exception: {e}"
+            )
+            pass

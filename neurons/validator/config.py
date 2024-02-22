@@ -62,6 +62,18 @@ def add_args(cls, parser):
         help="Device to run the validator on.",
         default="cuda:0",
     )
+    parser.add_argument(
+        "--alchemy.disable_manual_validator",
+        action="store_true",
+        help="If set, we run the manual validator",
+        default=False,
+    )
+    parser.add_argument(
+        "--alchemy.streamlit_port",
+        type=int,
+        help="Port number for streamlit app",
+        default=None,
+    )
 
 
 def config(cls):

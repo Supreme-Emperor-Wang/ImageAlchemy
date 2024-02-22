@@ -12,12 +12,14 @@ from google.cloud import storage
 from neurons.constants import (
     IA_BUCKET_NAME,
     IA_MINER_BLACKLIST,
+    IA_MINER_WARNINGLIST,
     IA_MINER_WHITELIST,
     IA_TEST_BUCKET_NAME,
     IA_VALIDATOR_BLACKLIST,
     IA_VALIDATOR_SETTINGS_FILE,
     IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
+    MANUAL_VALIDATOR_TIMEOUT,
     VALIDATOR_DEFAULT_QUERY_TIMEOUT,
     VALIDATOR_DEFAULT_REQUEST_FREQUENCY,
     WANDB_MINER_PATH,
@@ -86,6 +88,14 @@ class BackgroundTimer(Timer):
         while not self.finished.wait(self.interval):
             self.function(*self.args, **self.kwargs)
 
+def get_coldkey_for_hotkey(self, hotkey):
+    """
+    Look up the coldkey of the caller.
+    """
+    if hotkey in self.metagraph.hotkeys:
+        index = self.metagraph.hotkeys.index(hotkey)
+        return self.metagraph.coldkeys[index]
+    return None
 
 def background_loop(self, is_validator):
     """
@@ -94,16 +104,17 @@ def background_loop(self, is_validator):
     neuron_type = "Validator" if is_validator else "Miner"
     whitelist_type = IA_VALIDATOR_WHITELIST if is_validator else IA_MINER_WHITELIST
     blacklist_type = IA_VALIDATOR_BLACKLIST if is_validator else IA_MINER_BLACKLIST
+    warninglist_type = IA_MINER_WARNINGLIST
 
-    bucket_name = IA_BUCKET_NAME if self.config.netuid == 26 else IA_TEST_BUCKET_NAME
+    bucket_name = IA_TEST_BUCKET_NAME if self.subtensor.network == "test" else IA_BUCKET_NAME
 
     #### Terminate the miner / validator after deregistration
     if self.background_steps % 1 == 0 and self.background_steps > 1:
         try:
-            if is_validator:
-                self.metagraph.sync(subtensor=self.subtensor)
-            else:
-                self.metagraph.sync()
+            # if is_validator:
+            self.metagraph.sync(subtensor=self.subtensor)
+            # else:
+                # self.metagraph.sync()
             if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
                 bt.logging.debug(f">>> {neuron_type} has deregistered... terminating.")
                 try:
@@ -172,7 +183,35 @@ def background_loop(self, is_validator):
                         if v["type"] == "coldkey"
                     ]
                 )
-                bt.logging.info("Retrieved the latest whitelists.")
+                bt.logging.info("Retrieved the latest whitelists.") 
+
+            ### Update the warning list
+            warninglist_for_neuron = retrieve_public_file(
+                self.storage_client, bucket_name, warninglist_type
+            )
+            if warninglist_for_neuron:
+                self.hotkey_warninglist =   {
+                        k :[v['reason'],v['resolve_by']]
+                        for k, v in warninglist_for_neuron.items()
+                        if v["type"] == "hotkey"
+                }
+                self.coldkey_warninglist = {
+                        k :[v['reason'],v['resolve_by']]
+                        for k, v in warninglist_for_neuron.items()
+                        if v["type"] == "coldkey"
+                }
+                bt.logging.info("Retrieved the latest warninglists.")
+                if self.wallet.hotkey.ss58_address in self.hotkey_warninglist.keys():
+                    output_log(
+                        f"This hotkey is on the warning list: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][0]} | Date for rectification: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][1]}",
+                        color_key="r",
+                    )
+                coldkey = get_coldkey_for_hotkey(self, self.wallet.hotkey.ss58_address) 
+                if coldkey in self.coldkey_warninglist.keys():
+                    output_log(
+                        f"This coldkey is on the warning list: {self.coldkey_warninglist[coldkey][0]} | Date for rectification: {self.coldkey_warninglist[coldkey][1]}",
+                        color_key="r",
+                    )
 
             ### Validator only
             if is_validator:
@@ -180,6 +219,9 @@ def background_loop(self, is_validator):
                 validator_weights = retrieve_public_file(
                     self.storage_client, bucket_name, IA_VALIDATOR_WEIGHT_FILES
                 )
+                if "manual_reward_model" in validator_weights and self.config.alchemy.disable_manual_validator:
+                    validator_weights["manual_reward_model"] = 0.0
+
                 if validator_weights:
                     weights_to_add = []
                     for rw_name in self.reward_names:
@@ -215,6 +257,8 @@ def background_loop(self, is_validator):
                     self.request_frequency = validator_settings.get(
                         "request_frequency", VALIDATOR_DEFAULT_REQUEST_FREQUENCY
                     )
+                    if self.config.alchemy.disable_manual_validator:
+                        self.request_frequency += MANUAL_VALIDATOR_TIMEOUT
                     self.query_timeout = validator_settings.get(
                         "query_timeout", VALIDATOR_DEFAULT_QUERY_TIMEOUT
                     )
@@ -222,13 +266,15 @@ def background_loop(self, is_validator):
                     bt.logging.info(
                         f"Retrieved the latest validator settings: {validator_settings}"
                     )
+        
 
         except Exception as e:
             bt.logging.error(
                 f"An error occurred trying to update settings from the cloud: {e}."
             )
+
     #### Clean up the wandb runs and cache folders
-    if self.background_steps == 1 or self.background_steps % 300 == 0:
+    if self.background_steps == 1 or self.background_steps % 36 == 0:
         wandb_path = WANDB_VALIDATOR_PATH if is_validator else WANDB_MINER_PATH
         try:
             if os.path.exists(wandb_path):
@@ -240,7 +286,7 @@ def background_loop(self, is_validator):
                     if "run-" in x and not "latest-run" in x
                 ]
                 if len(runs) > 0:
-                    cleanup_runs_process = subprocess.call(f"cd {wandb_path} && echo 'y' | wandb sync --clean", shell=True)
+                    cleanup_runs_process = subprocess.call(f"cd {wandb_path} && echo 'y' | wandb sync --clean --clean-old-hours 3", shell=True)
                     bt.logging.debug("Cleaned all synced wandb runs.")
                     cleanup_cache_process = subprocess.Popen(
                         ["wandb artifact cache cleanup 5GB"], shell=True

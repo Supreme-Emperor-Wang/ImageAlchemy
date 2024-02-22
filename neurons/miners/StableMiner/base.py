@@ -108,8 +108,9 @@ class BaseMiner(ABC):
         self.axon = (
             bt.axon(
                 wallet=self.wallet,
+                ip=bt.utils.networking.get_external_ip(),
                 external_ip=bt.utils.networking.get_external_ip(),
-                port=self.config.axon.port,
+                config=self.config
             )
             .attach(
                 forward_fn=self.is_alive,
@@ -196,7 +197,7 @@ class BaseMiner(ABC):
                 "r",
             )
             time.sleep(120)
-            self.metagraph.sync(lite=True)
+            self.metagraph.sync(subtensor=self.subtensor)
 
     def get_miner_info(self):
         return {
@@ -263,6 +264,11 @@ class BaseMiner(ABC):
         local_args = copy.deepcopy(self.mapping[synapse.generation_type]["args"])
         local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
         local_args["target_size"] = (synapse.height, synapse.width)
+        try:
+            local_args["guidance_scale"] = synapse.guidance_scale
+            local_args["negative_prompt"] = synapse.negative_prompt
+        except:
+            bt.logging.info("Validator hasn't provided a guidance_scale or negative_prompt")
 
         ### Get the model
         model = self.mapping[synapse.generation_type]["model"]
@@ -295,7 +301,7 @@ class BaseMiner(ABC):
                 break
             except Exception as e:
                 bt.logging.error(
-                    f"Error in attempt number {attempt+1} to generate an image."
+                    f"Error in attempt number {attempt+1} to generate an image: {e}"
                 )
                 asyncio.sleep(5)
                 if attempt == 2:
@@ -494,7 +500,7 @@ class BaseMiner(ABC):
                 time.sleep(120)
 
                 ### Ensure the metagraph is synced before the next registration check
-                self.metagraph.sync(lite=True)
+                self.metagraph.sync(subtensor=self.subtensor)
                 continue
 
             #### Output current statistics and set weights
