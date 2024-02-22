@@ -188,7 +188,7 @@ class StableValidator:
                 )
             except Exception as e:
                 bt.logging.error(f"Failed to Load Manual Validator due to error: {e}")
-                self.config.alchemy.enable_manual_validator = False
+                self.config.alchemy.disable_manual_validator = True
 
         # Init reward function
         self.reward_weights = torch.tensor(

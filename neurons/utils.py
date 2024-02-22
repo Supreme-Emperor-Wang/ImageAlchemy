@@ -218,6 +218,9 @@ def background_loop(self, is_validator):
                 validator_weights = retrieve_public_file(
                     self.storage_client, bucket_name, IA_VALIDATOR_WEIGHT_FILES
                 )
+                if "manual_reward_model" in validator_weights and self.config.alchemy.disable_manual_validator:
+                    validator_weights["manual_reward_model"] = 0.0
+
                 if validator_weights:
                     weights_to_add = []
                     for rw_name in self.reward_names:
