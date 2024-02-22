@@ -100,14 +100,13 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Save images for manual validator
     if not self.config.alchemy.disable_manual_validator:
         bt.logging.info(f"Saving images")
-        i = 0
-        for r in responses:
+        for i, r in enumerate(responses):
             for image in r.images:
                 T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(
                     f"neurons/validator/images/{i}.png"
                 )
-                i = i + 1
-
+                bt.logging.debug(f"Saving out neurons/validator/images/{i}.png")
+                
         bt.logging.info(f"Saving prompt")
         with open("neurons/validator/images/prompt.txt", "w") as f:
             f.write(prompt)
