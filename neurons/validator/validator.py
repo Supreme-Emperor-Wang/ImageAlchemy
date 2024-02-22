@@ -332,7 +332,10 @@ class StableValidator:
                 # Assuming each step is 3 minutes restart wandb run ever 3 hours to avoid overloading a validators storgage space
                 if self.step % 360 == 0 and self.step != 0:
                     bt.logging.info("Re-initializing wandb run...")
-                    reinit_wandb(self)
+                    try:
+                        reinit_wandb(self)
+                    except Exception as e:
+                        bt.logging.error(f"An unexpected error occurred reinitializing wandb: {e}")
 
             # If we encounter an unexpected error, log it for debugging.
             except Exception as err:
