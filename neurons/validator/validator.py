@@ -183,7 +183,8 @@ class StableValidator:
                         "streamlit",
                         "run",
                         os.path.join(os.getcwd(), "neurons", "validator", "app.py"),
-                        f"--server.port {self.config.alchemy.streamlit_port}" if self.config.alchemy.streamlit_port is not None else ""
+                        "--server.port" if self.config.alchemy.streamlit_port is not None else "", 
+                        f"{self.config.alchemy.streamlit_port}" if self.config.alchemy.streamlit_port is not None else ""
                     ]
                 )
             except Exception as e:
