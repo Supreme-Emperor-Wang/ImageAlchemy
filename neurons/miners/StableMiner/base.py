@@ -301,7 +301,7 @@ class BaseMiner(ABC):
                 break
             except Exception as e:
                 bt.logging.error(
-                    f"Error in attempt number {attempt+1} to generate an image."
+                    f"Error in attempt number {attempt+1} to generate an image: {e}"
                 )
                 asyncio.sleep(5)
                 if attempt == 2:
