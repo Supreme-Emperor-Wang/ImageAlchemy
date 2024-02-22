@@ -92,7 +92,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     responses_empty_flag = [1  if not response.images else 0 for response in responses]
     sorted_index = [item[0] for item in sorted(list(zip(range(0,len(responses_empty_flag)), responses_empty_flag)), key = lambda x: x[1])]
-    uids = torch.tensor([uids[index] for index in sorted_index])
+    uids = torch.tensor([uids[index] for index in sorted_index]).to(self.device)
     responses = [responses[index]for index in sorted_index]
 
     self.stats.total_requests += 1
