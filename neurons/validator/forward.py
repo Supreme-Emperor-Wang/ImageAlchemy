@@ -118,7 +118,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(
                     f"neurons/validator/images/{i}.png"
                 )
-                bt.logging.debug(f"Saving out neurons/validator/images/{i}.png")
 
         bt.logging.info(f"Saving prompt")
         with open("neurons/validator/images/prompt.txt", "w") as f:
