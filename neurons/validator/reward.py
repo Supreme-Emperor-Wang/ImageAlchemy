@@ -387,10 +387,6 @@ class ImageRewardModel(BaseRewardModel):
             dtype=torch.float32,
         )
 
-    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
-        return rewards / rewards.sum()
-
-
 class DiversityRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:

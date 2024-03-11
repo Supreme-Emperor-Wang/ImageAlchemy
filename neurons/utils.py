@@ -25,6 +25,7 @@ from neurons.constants import (
     WANDB_MINER_PATH,
     WANDB_VALIDATOR_PATH,
 )
+from neurons.validator.utils import init_wandb
 
 import bittensor as bt
 
@@ -298,6 +299,15 @@ def background_loop(self, is_validator):
             bt.logging.error(
                 f"An error occurred trying to clean wandb artifacts and runs: {e}."
             )
+
+    # Attempt to init wandb if it wasn't sucessfully originally
+    if (self.background_steps % 1 == 0) and (self.wandb_loaded == False):
+        try:
+            init_wandb(self)
+            bt.logging.debug("Loaded wandb")
+        except Exception as e:
+            self.wandb_loaded = False
+            bt.logging.debug("Unable to load wandb. Retrying in 5 minnutes.")
 
     self.background_steps += 1
 

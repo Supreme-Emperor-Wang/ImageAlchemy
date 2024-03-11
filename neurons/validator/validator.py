@@ -147,6 +147,12 @@ class StableValidator:
             f"Loaded moving_averaged_scores: {str(self.moving_averaged_scores)}"
         )
 
+        # Init UID to hotkey mapping
+        self.uid_to_hotkey = {i: axon.hotkey for i, axon in enumerate(self.metagraph.axons)}
+        bt.logging.debug(
+            f"Loaded UID to Hotkey Mapping: {str(self.uid_to_hotkey)}"
+        )
+
         # Each validator gets a unique identity (UID) in the network for differentiation.
         self.my_subnet_uid = self.metagraph.hotkeys.index(
             self.wallet.hotkey.ss58_address
@@ -217,8 +223,12 @@ class StableValidator:
         self.loop = asyncio.get_event_loop()
 
         # Init wandb.
-        init_wandb(self)
-        bt.logging.debug("Loaded wandb")
+        try:
+            init_wandb(self)
+            bt.logging.debug("Loaded wandb")
+        except Exception as e:
+            self.wandb_loaded = False
+            bt.logging.debug("Unable to load wandb. Retrying in 5 minnutes.")
 
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
@@ -364,10 +374,19 @@ class StableValidator:
 
         if self.should_sync_metagraph():
             self.resync_metagraph()
+            self.update_hotkeys()
 
         if self.should_set_weights():
             set_weights(self)
             self.prev_block = ttl_get_block(self)
+
+    def update_hotkeys(self):
+        new_uid_to_hotkey = {i: axon.hotkey for i, axon in enumerate(self.metagraph.axons)}
+        if new_uid_to_hotkey != self.uid_to_hotkey:
+            for uid in new_uid_to_hotkey.keys():
+                if (uid in self.uid_to_hotkey) and (new_uid_to_hotkey[uid] != self.uid_to_hotkey[uid]):
+                    self.uid_to_hotkey[uid] = new_uid_to_hotkey[uid]
+                    self.moving_averaged_scores[uid] = 0
 
     def get_validator_index(self):
         """
@@ -507,10 +526,13 @@ class StableValidator:
                 self.moving_averaged_scores[: len(neuron_weights)] = neuron_weights.to(
                     self.device
                 )
+                self.update_hotkeys()
+
             # Check for nans in saved state dict
             elif not any([has_nans, has_infs]):
                 self.moving_averaged_scores = neuron_weights.to(self.device)
                 bt.logging.trace(f"MA scores: {self.moving_averaged_scores}")
+                self.update_hotkeys()
             else:
                 bt.logging.warning("Loaded MA scores from scratch.")
 
