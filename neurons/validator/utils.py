@@ -63,9 +63,9 @@ async def check_uid(dendrite, axon, uid):
     except Exception as e:
         bt.logging.error(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
         return False
+    
 
-
-async def check_uid_availability(
+def check_uid_availability(
     dendrite,
     metagraph: "bt.metagraph.Metagraph",
     uid: int,
@@ -86,10 +86,10 @@ async def check_uid_availability(
     if metagraph.validator_permit[uid]:
         if metagraph.S[uid] > vpermit_tao_limit:
             return False
-    # Filter for miners that are processing other responses
-    if not await check_uid(dendrite, metagraph.axons[uid], uid):
-        return False
-    # Available otherwise.
+    # # Filter for miners that are processing other responses
+    # if not await check_uid(dendrite, metagraph.axons[uid], uid):
+    #     return False
+    # # Available otherwise.
     return True
 
 
@@ -108,22 +108,11 @@ async def get_random_uids(
     candidate_uids = []
     avail_uids = []
 
-    tasks = []
+    # Filter for only serving miners 
     for uid in range(self.metagraph.n.item()):
         uid_is_available = check_uid_availability(
             dendrite, self.metagraph, uid, VPERMIT_TAO
         )
-        # The dendrite client queries the network.
-        tasks.append(
-            check_uid_availability(
-                        dendrite, self.metagraph, uid, VPERMIT_TAO
-            )
-        )
-
-    responses = await asyncio.gather(*tasks)
-    bt.logging.trace({f"UID_{i}": "Active" if response == True else "Inactive" for i, response in enumerate(responses)})
-
-    for uid, uid_is_available in zip(range(self.metagraph.n.item()), (responses)):
         uid_is_not_excluded = exclude is None or uid not in exclude
         if (
             uid_is_available
@@ -133,10 +122,45 @@ async def get_random_uids(
             avail_uids.append(uid)
             if uid_is_not_excluded:
                 candidate_uids.append(uid)
+    
+    # Sort candidate UIDs by their count history
+    # This prioritises miners that have been queried less than average
+    candidate_uids = [i for i,_ in sorted(zip(candidate_uids, [self.miner_query_history_count[self.metagraph.axons[uid].hotkey] for uid in candidate_uids]))]
+    
+    # Find the first K uids that respond with IsAlive
+    final_uids = []
+    for uid in range(0,len(candidate_uids), int(k*1.5)): 
+        tasks = []
+
+        for u in candidate_uids[uid:uid+k]:
+            tasks.append(
+                check_uid(dendrite, self.metagraph.axons[u], uid)
+            )
+
+        responses = await asyncio.gather(*tasks)
+
+        if True in responses:
+
+            for i, response in enumerate(responses):
+
+                if response and (len(final_uids) < k):
+                    final_uids.append(candidate_uids[uid+i])
+                elif (len(final_uids) >= k):
+                    break
+                else:
+                    continue
+            
+            if (len(final_uids) >= k):
+                break
+        
+        else:
+            continue
+
+    bt.logging.trace({f"UID_{candidate_uid}": "Active" if candidate_uid in final_uids else "Inactive" for i, candidate_uid in enumerate(candidate_uids)})
 
     # Check if candidate_uids contain enough for querying, if not grab all available uids
-    available_uids = candidate_uids
-    if len(candidate_uids) < k:
+    available_uids = final_uids
+    if len(available_uids) < k:
         uids = torch.tensor(available_uids)
     else:
         uids = torch.tensor(random.sample(available_uids, k))

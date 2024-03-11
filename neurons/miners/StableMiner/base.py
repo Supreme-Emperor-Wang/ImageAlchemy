@@ -245,7 +245,7 @@ class BaseMiner(ABC):
             else 0
         )
 
-    def is_alive(self, synapse: IsAlive) -> IsAlive:
+    async def is_alive(self, synapse: IsAlive) -> IsAlive:
         bt.logging.info("IsAlive")
         synapse.completion = "True"
         return synapse
