@@ -83,6 +83,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Log query to hisotry
     for uid in uids: self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = time.perf_counter() 
     for uid in uids: self.miner_query_history_count[self.metagraph.axons[uid].hotkey] += 1
+
     output_log(
         f"{sh('Miner Counts')} -> Max: {max(self.miner_query_history_count.values()):.2f} | Min: {min(self.miner_query_history_count.values()):.2f} | Mean: {sum(self.miner_query_history_count.values()) / len(self.miner_query_history_count.values()):.2f}",
         color_key="y",

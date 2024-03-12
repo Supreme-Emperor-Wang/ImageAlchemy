@@ -9,6 +9,7 @@ from time import sleep
 from traceback import print_exception
 from typing import List
 
+import numpy as np
 import streamlit
 import torch
 from datasets import load_dataset
@@ -245,7 +246,7 @@ class StableValidator:
 
         # Set validator request frequency
         self.request_frequency = 120
-        self.query_timeout = 20
+        self.query_timeout = 16
 
         # Start the generic background loop
         self.storage_client = None
@@ -257,7 +258,7 @@ class StableValidator:
         # Create a Dict for storing miner query histroy
         self.miner_query_history_duration = {self.metagraph.axons[uid].hotkey:float('inf') for uid in range(self.metagraph.n.item())}
         self.miner_query_history_count = {self.metagraph.axons[uid].hotkey:0 for uid in range(self.metagraph.n.item())}
-
+        self.miner_query_history_fail_count = {self.metagraph.axons[uid].hotkey:0 for uid in range(self.metagraph.n.item())}
 
     async def run(self):
         # Main Validation Loop
@@ -388,6 +389,7 @@ class StableValidator:
                 if (uid in self.uid_to_hotkey) and (new_uid_to_hotkey[uid] != self.uid_to_hotkey[uid]):
                     self.uid_to_hotkey[uid] = new_uid_to_hotkey[uid]
                     self.moving_averaged_scores[uid] = 0
+                    self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = int(np.array(list(self.miner_query_history_count.values())).mean())
 
     def get_validator_index(self):
         """
@@ -544,7 +546,6 @@ class StableValidator:
             
             if os.path.isfile(f"{self.config.alchemy.full_path}/history_duration.torch)"):
                 # Load saved history duration dict
-                breakpoint()
                 history_duration_dict = torch.load(f"{self.config.alchemy.full_path}/history_duration.torch")
                 for key in self.miner_query_history_duration.keys():
                     self.miner_query_history_duration[key] = history_duration_dict[key]

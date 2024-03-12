@@ -10,6 +10,7 @@ from math import floor
 from typing import Any, Callable, List
 
 import neurons.validator as validator
+import numpy as np
 import pandas as pd
 import requests
 import torch
@@ -53,12 +54,18 @@ def ttl_get_block(self) -> int:
     return self.subtensor.get_current_block()
 
 
-async def check_uid(dendrite, axon, uid):
+async def check_uid(dendrite, self, uid):
     try:
-        response = await dendrite(axon, IsAlive(), deserialize=False, timeout=1.0)
+        response = await dendrite(self.metagraph.axons[uid], IsAlive(), deserialize=False, timeout=1.0)
         if response.is_success:
             return True
         else:
+            
+            self.miner_query_history_fail_count[self.metagraph.axons[uid].hotkey] += 1
+            # If miner doesn't respond for 3 iterations rest it's count to the average to avoid spamming
+            if self.miner_query_history_fail_count[self.metagraph.axons[uid].hotkey] >= 3:
+                self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = time.perf_counter() 
+                self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = int(np.array(list(self.miner_query_history_count.values())).mean())
             return False
     except Exception as e:
         bt.logging.error(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
@@ -134,7 +141,7 @@ async def get_random_uids(
 
         for u in candidate_uids[uid:uid+k]:
             tasks.append(
-                check_uid(dendrite, self.metagraph.axons[u], uid)
+                check_uid(dendrite, self, u)
             )
 
         responses = await asyncio.gather(*tasks)

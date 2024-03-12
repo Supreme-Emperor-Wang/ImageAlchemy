@@ -267,8 +267,9 @@ class BaseMiner(ABC):
         try:
             local_args["guidance_scale"] = synapse.guidance_scale
             local_args["negative_prompt"] = synapse.negative_prompt
+            local_args["steps"] = synapse.steps
         except:
-            bt.logging.info("Validator hasn't provided a guidance_scale or negative_prompt")
+            bt.logging.info("Validator hasn't provided a guidance_scale or negative_prompt or steps")
 
         ### Get the model
         model = self.mapping[synapse.generation_type]["model"]
