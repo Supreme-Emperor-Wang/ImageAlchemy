@@ -55,7 +55,7 @@ def ttl_get_block(self) -> int:
 
 async def check_uid(dendrite, axon, uid):
     try:
-        response = await dendrite(axon, IsAlive(), deserialize=False, timeout=2.3)
+        response = await dendrite(axon, IsAlive(), deserialize=False, timeout=1.0)
         if response.is_success:
             return True
         else:

@@ -226,6 +226,7 @@ class StableValidator:
         try:
             init_wandb(self)
             bt.logging.debug("Loaded wandb")
+            self.wandb_loaded = True
         except Exception as e:
             self.wandb_loaded = False
             bt.logging.debug("Unable to load wandb. Retrying in 5 minnutes.")
