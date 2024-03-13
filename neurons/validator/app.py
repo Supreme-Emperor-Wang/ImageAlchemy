@@ -6,6 +6,7 @@ from os import listdir
 
 import pandas as pd
 import streamlit as st
+
 st.set_page_config(layout="wide")
 
 credentials = open("streamlit_credentials.txt", "r").read()
@@ -58,7 +59,7 @@ if not check_password():
 directory = r"neurons/validator/images"
 st.markdown("### ImageAlchemy Human Validation")
 # st.markdown("#### Prompt:")
-st.markdown("##### Select what you think is the best image from the batch of images below within 25 seconds ...")
+st.markdown("##### Select what you think is the best image from the batch of images below within 10 seconds ...")
 
 prompt_text = st.empty()
 empty_image_text = "###### AWAITING NEXT BATCH ..."

@@ -56,7 +56,7 @@ def ttl_get_block(self) -> int:
 
 async def check_uid(dendrite, self, uid):
     try:
-        response = await dendrite(self.metagraph.axons[uid], IsAlive(), deserialize=False, timeout=1.0)
+        response = await dendrite(self.metagraph.axons[uid], IsAlive(), deserialize=False, timeout=1.2)
         if response.is_success:
             return True
         else:
@@ -65,7 +65,7 @@ async def check_uid(dendrite, self, uid):
             # If miner doesn't respond for 3 iterations rest it's count to the average to avoid spamming
             if self.miner_query_history_fail_count[self.metagraph.axons[uid].hotkey] >= 3:
                 self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = time.perf_counter() 
-                self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = int(np.array(list(self.miner_query_history_count.values())).mean())
+                self.miner_query_history_count[self.metagraph.axons[uid].hotkey] = int(np.array(list(self.miner_query_history_count.values())).mean())
             return False
     except Exception as e:
         bt.logging.error(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
