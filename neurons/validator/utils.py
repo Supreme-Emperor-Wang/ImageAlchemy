@@ -293,6 +293,7 @@ def call_corcel(self, prompt):
         "top_p": 1.0,
         "temperature": 1,
         "max_tokens": 250,
+        "seed": random.randint(0, 1_000_000)
     }
 
     bt.logging.trace(f"Using args: {JSON}")

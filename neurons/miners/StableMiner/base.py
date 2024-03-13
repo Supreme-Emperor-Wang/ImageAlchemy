@@ -264,12 +264,18 @@ class BaseMiner(ABC):
         local_args = copy.deepcopy(self.mapping[synapse.generation_type]["args"])
         local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
         local_args["target_size"] = (synapse.height, synapse.width)
+        local_args["num_images_per_prompt"] = synapse.num_images_per_prompt
         try:
             local_args["guidance_scale"] = synapse.guidance_scale
             local_args["negative_prompt"] = synapse.negative_prompt
             local_args["steps"] = synapse.steps
         except:
-            bt.logging.info("Validator hasn't provided a guidance_scale or negative_prompt or steps")
+            bt.logging.info("Values for guidance_scale or negative_prompt were not provided.")
+
+        try:
+            local_args["num_inference_steps"] = synapse.steps
+        except:
+            bt.logging.info("Values for steps were not provided.")
 
         ### Get the model
         model = self.mapping[synapse.generation_type]["model"]
@@ -289,9 +295,7 @@ class BaseMiner(ABC):
                 local_args["generator"] = [
                     torch.Generator(device=self.config.miner.device).manual_seed(seed)
                 ]
-                images = model(
-                    **local_args,
-                ).images
+                images = model(**local_args).images
                 synapse.images = [
                     bt.Tensor.serialize(self.transform(image)) for image in images
                 ]
