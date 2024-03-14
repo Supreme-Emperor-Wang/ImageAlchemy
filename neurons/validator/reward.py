@@ -367,7 +367,6 @@ class ImageRewardModel(BaseRewardModel):
                     transforms.ToPILImage()(bt.Tensor.deserialize(image))
                     for image in response.images
                 ]
-
                 _, scores = self.scoring_model.inference_rank(response.prompt, images)
 
                 image_scores = torch.tensor(scores)
@@ -376,9 +375,7 @@ class ImageRewardModel(BaseRewardModel):
                 return mean_image_scores
 
         except Exception as e:
-            print(e)
-            print("error in response:")
-            print(response)
+            bt.logging.info("ImageReward score is 0. No image in response.")
             return 0.0
 
     def get_rewards(self, responses, rewards) -> torch.FloatTensor:
@@ -457,6 +454,7 @@ class DiversityRewardModel(BaseRewardModel):
                 dissimilarity_scores[i] = 1 - max(simmilarity_matrix[i])
         else:
             dissimilarity_scores = torch.tensor([1.0])
+
         if ignored_indices and (len(images) > 1):
             i = 0
             while i < len(rewards):

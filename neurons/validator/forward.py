@@ -9,11 +9,7 @@ import torch
 import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
-from neurons.constants import (
-    FOLLOWUP_TIMEOUT,
-    MANUAL_VALIDATOR_TIMEOUT,
-    MOVING_AVERAGE_ALPHA,
-)
+from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration
 from neurons.utils import output_log, sh
 from utils import ttl_get_block
@@ -81,8 +77,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     )
 
     # Log query to hisotry
-    for uid in uids: self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = time.perf_counter() 
-    for uid in uids: self.miner_query_history_count[self.metagraph.axons[uid].hotkey] += 1
+    try:
+        for uid in uids: self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = time.perf_counter() 
+        for uid in uids: self.miner_query_history_count[self.metagraph.axons[uid].hotkey] += 1
+    except:
+        bt.logging.info("Failed to log miner counts and histories")
 
     output_log(
         f"{sh('Miner Counts')} -> Max: {max(self.miner_query_history_count.values()):.2f} | Min: {min(self.miner_query_history_count.values()):.2f} | Mean: {sum(self.miner_query_history_count.values()) / len(self.miner_query_history_count.values()):.2f}",
@@ -151,13 +150,13 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     if not self.config.alchemy.disable_manual_validator:
         bt.logging.info(
-            f"Waiting {MANUAL_VALIDATOR_TIMEOUT} seconds for manual vote..."
+            f"Waiting {self.manual_validator_timeout} seconds for manual vote..."
         )
         start_time = time.perf_counter()
 
         received_vote = False
 
-        while (time.perf_counter() - start_time) < MANUAL_VALIDATOR_TIMEOUT:
+        while (time.perf_counter() - start_time) < self.manual_validator_timeout:
             time.sleep(1)
             # If manual vote received
             if os.path.exists("neurons/validator/images/vote.txt"):

@@ -56,7 +56,7 @@ def ttl_get_block(self) -> int:
 
 async def check_uid(dendrite, self, uid):
     try:
-        response = await dendrite(self.metagraph.axons[uid], IsAlive(), deserialize=False, timeout=1.2)
+        response = await dendrite(self.metagraph.axons[uid], IsAlive(), deserialize=False, timeout=self.async_timeout)
         if response.is_success:
             return True
         else:
@@ -130,9 +130,9 @@ async def get_random_uids(
             if uid_is_not_excluded:
                 candidate_uids.append(uid)
     
-    # Sort candidate UIDs by their count history
-    # This prioritises miners that have been queried less than average
-    candidate_uids = [i for i,_ in sorted(zip(candidate_uids, [self.miner_query_history_count[self.metagraph.axons[uid].hotkey] for uid in candidate_uids]))]
+    # # Sort candidate UIDs by their count history
+    # # This prioritises miners that have been queried less than average
+    # candidate_uids = [i for i,_ in sorted(zip(candidate_uids, [self.miner_query_history_count[self.metagraph.axons[uid].hotkey] for uid in candidate_uids]))]
     
     # Find the first K uids that respond with IsAlive
     final_uids = []

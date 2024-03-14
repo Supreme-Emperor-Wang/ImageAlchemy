@@ -19,7 +19,6 @@ from neurons.constants import (
     IA_VALIDATOR_SETTINGS_FILE,
     IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
-    MANUAL_VALIDATOR_TIMEOUT,
     VALIDATOR_DEFAULT_QUERY_TIMEOUT,
     VALIDATOR_DEFAULT_REQUEST_FREQUENCY,
     WANDB_MINER_PATH,
@@ -256,13 +255,27 @@ def background_loop(self, is_validator):
 
                 if validator_settings:
                     self.request_frequency = validator_settings.get(
-                        "request_frequency", VALIDATOR_DEFAULT_REQUEST_FREQUENCY
+                        "request_frequency", self.request_frequency
                     )
-                    if self.config.alchemy.disable_manual_validator:
-                        self.request_frequency += MANUAL_VALIDATOR_TIMEOUT
+
                     self.query_timeout = validator_settings.get(
-                        "query_timeout", VALIDATOR_DEFAULT_QUERY_TIMEOUT
+                        "query_timeout", self.query_timeout
                     )
+
+                    self.manual_validator_timeout = validator_settings.get(
+                        "manual_validator_timeout",  self.manual_validator_timeout
+                    )
+
+                    self.async_timeout = validator_settings.get(
+                        "async_timeout", self.async_timeout
+                    )
+
+                    self.epoch_length = validator_settings.get(
+                        "epoch_length", self.epoch_length
+                    )
+
+                    if self.config.alchemy.disable_manual_validator:
+                        self.request_frequency += self.manual_validator_timeout
 
                     bt.logging.info(
                         f"Retrieved the latest validator settings: {validator_settings}"
@@ -301,7 +314,7 @@ def background_loop(self, is_validator):
             )
 
     # Attempt to init wandb if it wasn't sucessfully originally
-    if (self.background_steps % 1 == 0) and (self.wandb_loaded == False):
+    if (self.background_steps % 1 == 0) and is_validator and (self.wandb_loaded == False):
         try:
             init_wandb(self)
             bt.logging.debug("Loaded wandb")

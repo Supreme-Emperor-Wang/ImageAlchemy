@@ -13,7 +13,7 @@ import numpy as np
 import streamlit
 import torch
 from datasets import load_dataset
-from neurons.constants import ENABLE_IMAGE2IMAGE, EPOCH_LENGTH, N_NEURONS
+from neurons.constants import N_NEURONS
 from neurons.utils import BackgroundTimer, background_loop, get_defaults
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
@@ -148,12 +148,6 @@ class StableValidator:
             f"Loaded moving_averaged_scores: {str(self.moving_averaged_scores)}"
         )
 
-        # Init UID to hotkey mapping
-        self.uid_to_hotkey = {i: axon.hotkey for i, axon in enumerate(self.metagraph.axons)}
-        bt.logging.debug(
-            f"Loaded UID to Hotkey Mapping: {str(self.uid_to_hotkey)}"
-        )
-
         # Each validator gets a unique identity (UID) in the network for differentiation.
         self.my_subnet_uid = self.metagraph.hotkeys.index(
             self.wallet.hotkey.ss58_address
@@ -214,6 +208,13 @@ class StableValidator:
         # Init masking function
         self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]
 
+        # Set validator variables
+        self.request_frequency = 35
+        self.query_timeout = 20
+        self.manual_validator_timeout = 10
+        self.async_timeout = 1.2
+        self.epoch_length = 300
+
         # Init sync with the network. Updates the metagraph.
         self.sync()
 
@@ -243,10 +244,6 @@ class StableValidator:
 
         # Get vali index
         self.validator_index = self.get_validator_index()
-
-        # Set validator request frequency
-        self.request_frequency = 120
-        self.query_timeout = 16
 
         # Start the generic background loop
         self.storage_client = None
@@ -293,50 +290,11 @@ class StableValidator:
 
                     continue
 
-                # followup_prompt = generate_followup_prompt_gpt(self, prompt)
-                # if prompt is None:  # or (followup_prompt is None):
-                #     if (self.prompt_generation_failures != 0) and (
-                #         (self.prompt_generation_failures / len(self.prompt_history_db))
-                #         > 0.2
-                #     ):
-                #         try:
-                #             self.prompt_history_db = get_promptdb_backup(
-                #                 self.config.netuid, self.prompt_history_db
-                #             )
-                #         except Exception as e:
-                #             bt.logging.warning(
-                #                 f"Unexpected error occurred loading the backup prompts: {e}"
-                #             )
-                #             self.prompt_history_db = []
-                #             bt.logging.debug("Resetting loop.")
-                #             continue
-
-                #     prompt, followup_prompt = random.choice(self.prompt_history_db)
-                #     self.prompt_history_db.remove((prompt, followup_prompt))
-                #     self.prompt_generation_failures += 1
-
                 # Text to Image Run
                 t2i_event = run_step(
                     self, prompt, axons, uids, task_type="text_to_image"
                 )
-                # if ENABLE_IMAGE2IMAGE:
-                #     # Image to Image Run
-                #     followup_image = [image for image in t2i_event["images"]][
-                #         torch.tensor(t2i_event["rewards"]).argmax()
-                #     ]
-                #     if (
-                #         (followup_prompt is not None)
-                #         and (followup_image is not None)
-                #         and (followup_image != [])
-                #     ):
-                #         _ = run_step(
-                #             self,
-                #             followup_prompt,
-                #             axons,
-                #             uids,
-                #             "image_to_image",
-                #             followup_image,
-                #         )
+
                 # Re-sync with the network. Updates the metagraph.
                 try:
                     self.sync()
@@ -376,20 +334,10 @@ class StableValidator:
 
         if self.should_sync_metagraph():
             self.resync_metagraph()
-            self.update_hotkeys()
 
         if self.should_set_weights():
             set_weights(self)
             self.prev_block = ttl_get_block(self)
-
-    def update_hotkeys(self):
-        new_uid_to_hotkey = {i: axon.hotkey for i, axon in enumerate(self.metagraph.axons)}
-        if new_uid_to_hotkey != self.uid_to_hotkey:
-            for uid in new_uid_to_hotkey.keys():
-                if (uid in self.uid_to_hotkey) and (new_uid_to_hotkey[uid] != self.uid_to_hotkey[uid]):
-                    self.uid_to_hotkey[uid] = new_uid_to_hotkey[uid]
-                    self.moving_averaged_scores[uid] = 0
-                    self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = int(np.array(list(self.miner_query_history_count.values())).mean())
 
     def get_validator_index(self):
         """
@@ -464,7 +412,7 @@ class StableValidator:
         """
         return (
             ttl_get_block(self) - self.metagraph.last_update[self.uid]
-        ) > EPOCH_LENGTH
+        ) > self.epoch_length
 
     def should_set_weights(self) -> bool:
         # Check if all moving_averages_socres are the 0s or 1s
@@ -474,7 +422,7 @@ class StableValidator:
             return False
         else:
             # Check if enough epoch blocks have elapsed since the last epoch.
-            return (ttl_get_block(self) % self.prev_block) >= EPOCH_LENGTH
+            return (ttl_get_block(self) % self.prev_block) >= self.epoch_length
         
     def save_state(self):
         r"""Save hotkeys, neuron model and moving average scores to filesystem."""
@@ -487,16 +435,6 @@ class StableValidator:
             bt.logging.success(
                 prefix="Saved model",
                 sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
-            )
-            torch.save(self.miner_query_history_duration, f"{self.config.alchemy.full_path}/history_duration.torch")
-            bt.logging.success(
-                prefix="Saved model",
-                sufix=f"<blue>{ self.config.alchemy.full_path }/history_duration.torch</blue>",
-            )
-            torch.save(self.miner_query_history_count, f"{self.config.alchemy.full_path}/history_count.torch")
-            bt.logging.success(
-                prefix="Saved model",
-                sufix=f"<blue>{ self.config.alchemy.full_path }/history_count.torch</blue>",
             )
         except Exception as e:
             bt.logging.warning(f"Failed to save model with error: {e}")
@@ -544,29 +482,6 @@ class StableValidator:
                 sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
             )
             
-            if os.path.isfile(f"{self.config.alchemy.full_path}/history_duration.torch)"):
-                # Load saved history duration dict
-                history_duration_dict = torch.load(f"{self.config.alchemy.full_path}/history_duration.torch")
-                for key in self.miner_query_history_duration.keys():
-                    self.miner_query_history_duration[key] = history_duration_dict[key]
-
-                bt.logging.success(
-                    prefix="Reloaded model",
-                    sufix=f"<blue>{ self.config.alchemy.full_path }/history_duration.torch</blue>",
-                )
-
-            if os.path.isfile(f"{self.config.alchemy.full_path}/history_count.torch"):
-            # Load saved history count dict
-
-                history_count_dict = torch.load(f"{self.config.alchemy.full_path}/history_count.torch")
-                for key in self.miner_query_history_count.keys():
-                    self.miner_query_history_count[key] = history_count_dict[key]
-
-                bt.logging.success(
-                    prefix="Reloaded model",
-                    sufix=f"<blue>{ self.config.alchemy.full_path }/history_count.torch</blue>",
-                )
-
         except Exception as e:
             bt.logging.warning(f"Failed to load model with error: {e}")
 
