@@ -111,10 +111,7 @@ def background_loop(self, is_validator):
     #### Terminate the miner / validator after deregistration
     if self.background_steps % 1 == 0 and self.background_steps > 1:
         try:
-            # if is_validator:
             self.metagraph.sync(subtensor=self.subtensor)
-            # else:
-                # self.metagraph.sync()
             if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
                 bt.logging.debug(f">>> {neuron_type} has deregistered... terminating.")
                 try:
@@ -318,9 +315,10 @@ def background_loop(self, is_validator):
         try:
             init_wandb(self)
             bt.logging.debug("Loaded wandb")
+            self.wandb_loaded = True
         except Exception as e:
             self.wandb_loaded = False
-            bt.logging.debug("Unable to load wandb. Retrying in 5 minnutes.")
+            bt.logging.debug("Unable to load wandb. Retrying in 5 minutes.")
 
     self.background_steps += 1
 

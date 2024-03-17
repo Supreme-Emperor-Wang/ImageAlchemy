@@ -60,12 +60,16 @@ async def check_uid(dendrite, self, uid):
         if response.is_success:
             return True
         else:
-            
-            self.miner_query_history_fail_count[self.metagraph.axons[uid].hotkey] += 1
-            # If miner doesn't respond for 3 iterations rest it's count to the average to avoid spamming
-            if self.miner_query_history_fail_count[self.metagraph.axons[uid].hotkey] >= 3:
-                self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = time.perf_counter() 
-                self.miner_query_history_count[self.metagraph.axons[uid].hotkey] = int(np.array(list(self.miner_query_history_count.values())).mean())
+
+            try:
+                key = self.metagraph.axons[uid].hotkey
+                self.miner_query_history_fail_count[key] += 1
+                # If miner doesn't respond for 3 iterations rest it's count to the average to avoid spamming
+                if self.miner_query_history_fail_count[key] >= 3:
+                    self.miner_query_history_duration[key] = time.perf_counter() 
+                    self.miner_query_history_count[key] = int(np.array(list(self.miner_query_history_count.values())).mean())
+            except:
+                pass
             return False
     except Exception as e:
         bt.logging.error(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
@@ -445,7 +449,11 @@ def init_wandb(self, reinit=False):
 
 def reinit_wandb(self):
     """Reinitializes wandb, rolling over the run."""
-    self.wandb.finish()
+    if self.wandb:
+        try:
+            self.wandb.finish()
+        except:
+            pass
     init_wandb(self, reinit=True)
 
 
