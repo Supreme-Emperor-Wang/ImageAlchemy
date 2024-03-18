@@ -15,7 +15,7 @@ import pandas as pd
 import requests
 import torch
 import torch.nn as nn
-from neurons.constants import VPERMIT_TAO, WANDB_VALIDATOR_PATH
+from neurons.constants import N_NEURONS_TO_QUERY, VPERMIT_TAO, WANDB_VALIDATOR_PATH
 from neurons.protocol import IsAlive
 
 import bittensor as bt
@@ -60,12 +60,16 @@ async def check_uid(dendrite, self, uid):
         if response.is_success:
             return True
         else:
-            
-            self.miner_query_history_fail_count[self.metagraph.axons[uid].hotkey] += 1
-            # If miner doesn't respond for 3 iterations rest it's count to the average to avoid spamming
-            if self.miner_query_history_fail_count[self.metagraph.axons[uid].hotkey] >= 3:
-                self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = time.perf_counter() 
-                self.miner_query_history_count[self.metagraph.axons[uid].hotkey] = int(np.array(list(self.miner_query_history_count.values())).mean())
+
+            try:
+                key = self.metagraph.axons[uid].hotkey
+                self.miner_query_history_fail_count[key] += 1
+                # If miner doesn't respond for 3 iterations rest it's count to the average to avoid spamming
+                if self.miner_query_history_fail_count[key] >= 3:
+                    self.miner_query_history_duration[key] = time.perf_counter() 
+                    self.miner_query_history_count[key] = int(np.array(list(self.miner_query_history_count.values())).mean())
+            except:
+                pass
             return False
     except Exception as e:
         bt.logging.error(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
@@ -133,29 +137,54 @@ async def get_random_uids(
     # # Sort candidate UIDs by their count history
     # # This prioritises miners that have been queried less than average
     # candidate_uids = [i for i,_ in sorted(zip(candidate_uids, [self.miner_query_history_count[self.metagraph.axons[uid].hotkey] for uid in candidate_uids]))]
+
+    ### Random sort candidate_uids
+    random.shuffle(candidate_uids)
+                
     
     # Find the first K uids that respond with IsAlive
     final_uids = []
-    for uid in range(0,len(candidate_uids), int(k*1.5)): 
+    t0 = time.perf_counter()
+    attempt_counter = 0
+    avg_num_list = []
+    for uid in range(0,len(candidate_uids), N_NEURONS_TO_QUERY):
         tasks = []
 
-        for u in candidate_uids[uid:uid+k]:
-            tasks.append(
-                check_uid(dendrite, self, u)
-            )
+        bt.logging.debug(f"UIDs in pool: {final_uids}")
+        bt.logging.debug(f"Querying uids: {candidate_uids[uid:uid+N_NEURONS_TO_QUERY]}")
+
+        t1 = time.perf_counter()
+
+        for u in candidate_uids[uid:uid+N_NEURONS_TO_QUERY]:
+            tasks.append(check_uid(dendrite, self, u))
 
         responses = await asyncio.gather(*tasks)
+        attempt_counter += 1
+
+        bt.logging.debug(f"Time to get responses: {time.perf_counter() - t1:.2f}s")
 
         if True in responses:
+
+            t2 = time.perf_counter()
+
+            temp_list = []
 
             for i, response in enumerate(responses):
 
                 if response and (len(final_uids) < k):
                     final_uids.append(candidate_uids[uid+i])
+
+                    temp_list.append(candidate_uids[uid+i])
+
                 elif (len(final_uids) >= k):
                     break
                 else:
                     continue
+
+            bt.logging.debug(f"Added uids: {temp_list} in {time.perf_counter() - t2:.2f}s")
+
+            avg_num_list.append(len(temp_list))
+
             
             if (len(final_uids) >= k):
                 break
@@ -163,14 +192,18 @@ async def get_random_uids(
         else:
             continue
 
-    bt.logging.trace({f"UID_{candidate_uid}": "Active" if candidate_uid in final_uids else "Inactive" for i, candidate_uid in enumerate(candidate_uids)})
+    sum_avg = 0
+    try:
+        sum_avg = sum(avg_num_list) / attempt_counter
+    except:
+        pass
 
-    # Check if candidate_uids contain enough for querying, if not grab all available uids
-    available_uids = final_uids
-    if len(available_uids) < k:
-        uids = torch.tensor(available_uids)
-    else:
-        uids = torch.tensor(random.sample(available_uids, k))
+    bt.logging.debug(f"Time to find all {len(final_uids)} uids: {time.perf_counter() - t0:.2f}s in {attempt_counter} attempts | Avg active UIDs per attempt: {sum_avg:.2f}")
+
+    # bt.logging.trace({f"UID_{candidate_uid}": "Active" if candidate_uid in final_uids else "Inactive" for i, candidate_uid in enumerate(candidate_uids)})
+
+    uids = torch.tensor(final_uids) if len(final_uids) < k else torch.tensor(random.sample(final_uids, k))
+
     return uids
 
 
@@ -445,7 +478,11 @@ def init_wandb(self, reinit=False):
 
 def reinit_wandb(self):
     """Reinitializes wandb, rolling over the run."""
-    self.wandb.finish()
+    if self.wandb:
+        try:
+            self.wandb.finish()
+        except:
+            pass
     init_wandb(self, reinit=True)
 
 

@@ -1,4 +1,4 @@
-bittensor>=6.4.1
+bittensor>=6.9.3
 torch
 image-reward==1.5
 clip==0.2.0

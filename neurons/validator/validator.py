@@ -144,9 +144,9 @@ class StableValidator:
 
         # Init Weights.
         self.moving_averaged_scores = torch.zeros((self.metagraph.n)).to(self.device)
-        bt.logging.debug(
-            f"Loaded moving_averaged_scores: {str(self.moving_averaged_scores)}"
-        )
+        # bt.logging.debug(
+        #     f"Loaded moving_averaged_scores: {str(self.moving_averaged_scores)}"
+        # )
 
         # Each validator gets a unique identity (UID) in the network for differentiation.
         self.my_subnet_uid = self.metagraph.hotkeys.index(
@@ -252,10 +252,19 @@ class StableValidator:
         self.background_timer.daemon = True
         self.background_timer.start()
 
-        # Create a Dict for storing miner query histroy
-        self.miner_query_history_duration = {self.metagraph.axons[uid].hotkey:float('inf') for uid in range(self.metagraph.n.item())}
-        self.miner_query_history_count = {self.metagraph.axons[uid].hotkey:0 for uid in range(self.metagraph.n.item())}
-        self.miner_query_history_fail_count = {self.metagraph.axons[uid].hotkey:0 for uid in range(self.metagraph.n.item())}
+        # Create a Dict for storing miner query history
+        try:
+            self.miner_query_history_duration = {self.metagraph.axons[uid].hotkey:float('inf') for uid in range(self.metagraph.n.item())}
+        except:
+            pass
+        try:
+            self.miner_query_history_count = {self.metagraph.axons[uid].hotkey:0 for uid in range(self.metagraph.n.item())}
+        except:
+            pass
+        try:
+            self.miner_query_history_fail_count = {self.metagraph.axons[uid].hotkey:0 for uid in range(self.metagraph.n.item())}
+        except:
+            pass
 
     async def run(self):
         # Main Validation Loop
@@ -307,13 +316,15 @@ class StableValidator:
                 # End the current step and prepare for the next iteration.
                 self.step += 1
 
-                # Assuming each step is 3 minutes restart wandb run ever 3 hours to avoid overloading a validators storgage space
+                # Assuming each step is 3 minutes restart wandb run ever 3 hours to avoid overloading a validators storage space
                 if self.step % 360 == 0 and self.step != 0:
                     bt.logging.info("Re-initializing wandb run...")
                     try:
                         reinit_wandb(self)
+                        self.wandb_loaded = True
                     except Exception as e:
                         bt.logging.error(f"An unexpected error occurred reinitializing wandb: {e}")
+                        self.wandb_loaded = False
 
             # If we encounter an unexpected error, log it for debugging.
             except Exception as err:
@@ -467,13 +478,13 @@ class StableValidator:
                 self.moving_averaged_scores[: len(neuron_weights)] = neuron_weights.to(
                     self.device
                 )
-                self.update_hotkeys()
+                # self.update_hotkeys()
 
             # Check for nans in saved state dict
             elif not any([has_nans, has_infs]):
                 self.moving_averaged_scores = neuron_weights.to(self.device)
                 bt.logging.trace(f"MA scores: {self.moving_averaged_scores}")
-                self.update_hotkeys()
+                # self.update_hotkeys()
             else:
                 bt.logging.warning("Loaded MA scores from scratch.")
 

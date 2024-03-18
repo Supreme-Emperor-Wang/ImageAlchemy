@@ -276,8 +276,8 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     try:
         self.wandb.log(asdict(wandb_event))
-        bt.logging.debug("Logged event to wandb")
+        bt.logging.debug("Logged event to wandb.")
     except Exception as e:
-        bt.logging.debug(f"Unable to log event to wandb due to the following error: : {e}")
+        bt.logging.debug(f"Unable to log event to wandb due to the following error: {e}")
 
     return event

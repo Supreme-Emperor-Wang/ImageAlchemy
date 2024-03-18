@@ -268,7 +268,6 @@ class BaseMiner(ABC):
         try:
             local_args["guidance_scale"] = synapse.guidance_scale
             local_args["negative_prompt"] = synapse.negative_prompt
-            local_args["steps"] = synapse.steps
         except:
             bt.logging.info("Values for guidance_scale or negative_prompt were not provided.")
 

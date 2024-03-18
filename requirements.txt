@@ -1,4 +1,4 @@
-bittensor>=6.1.0
+bittensor>=6.9.3
 torch>=2.1.0
 torchvision>=0.16.1
 diffusers>=0.24.0
