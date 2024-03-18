@@ -151,14 +151,12 @@ async def get_random_uids(
         tasks = []
 
         bt.logging.debug(f"UIDs in pool: {final_uids}")
-        bt.logging.debug(f"Querying uids: {candidate_uids[uid:uid+k]}")
+        bt.logging.debug(f"Querying uids: {candidate_uids[uid:uid+N_NEURONS_TO_QUERY]}")
 
         t1 = time.perf_counter()
 
-        for u in candidate_uids[uid:uid+k]:
-            tasks.append(
-                check_uid(dendrite, self, u)
-            )
+        for u in candidate_uids[uid:uid+N_NEURONS_TO_QUERY]:
+            tasks.append(check_uid(dendrite, self, u))
 
         responses = await asyncio.gather(*tasks)
         attempt_counter += 1
@@ -174,9 +172,8 @@ async def get_random_uids(
             for i, response in enumerate(responses):
 
                 if response and (len(final_uids) < k):
-
                     final_uids.append(candidate_uids[uid+i])
-                    
+
                     temp_list.append(candidate_uids[uid+i])
 
                 elif (len(final_uids) >= k):
