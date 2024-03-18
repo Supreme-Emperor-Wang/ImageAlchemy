@@ -488,6 +488,11 @@ class StableValidator:
             else:
                 bt.logging.warning("Loaded MA scores from scratch.")
 
+            # Zero out any negative scores
+            for i, average in enumerate(self.moving_averaged_scores): 
+                if average < 0: 
+                    self.moving_averaged_scores[i] = 0
+
             bt.logging.success(
                 prefix="Reloaded model",
                 sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
