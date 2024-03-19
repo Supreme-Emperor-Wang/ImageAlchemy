@@ -54,10 +54,12 @@ def ttl_get_block(self) -> int:
     return self.subtensor.get_current_block()
 
 
-async def check_uid(dendrite, self, uid):
+async def check_uid(dendrite, self, uid, response_times):
     try:
+        t1 = time.perf_counter()
         response = await dendrite(self.metagraph.axons[uid], IsAlive(), deserialize=False, timeout=self.async_timeout)
         if response.is_success:
+            response_times.append(time.perf_counter() - t1)
             return True
         else:
 
@@ -155,13 +157,20 @@ async def get_random_uids(
 
         t1 = time.perf_counter()
 
+        times_list = []
+
         for u in candidate_uids[uid:uid+N_NEURONS_TO_QUERY]:
-            tasks.append(check_uid(dendrite, self, u))
+            tasks.append(check_uid(dendrite, self, u, times_list))
 
         responses = await asyncio.gather(*tasks)
         attempt_counter += 1
 
         bt.logging.debug(f"Time to get responses: {time.perf_counter() - t1:.2f}s")
+
+        list_slice = times_list[-25:]
+        time_sum = sum(list_slice)
+
+        bt.logging.debug(f"Number of times stored: {len(times_list)} | Average successful response across {len(list_slice)} samples: {time_sum / len(list_slice) if len(list_slice) > 0 else 0:.2f}")
 
         if True in responses:
 
