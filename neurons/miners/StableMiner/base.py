@@ -263,11 +263,14 @@ class BaseMiner(ABC):
         ### Set up args
         local_args = copy.deepcopy(self.mapping[synapse.generation_type]["args"])
         local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
-        local_args["target_size"] = (synapse.height, synapse.width)
+        local_args["width"] = synapse.width
+        local_args["height"] = synapse.height
         local_args["num_images_per_prompt"] = synapse.num_images_per_prompt
         try:
             local_args["guidance_scale"] = synapse.guidance_scale
-            local_args["negative_prompt"] = synapse.negative_prompt
+
+            if synapse.negative_prompt:
+                local_args["negative_prompt"] = [synapse.negative_prompt]
         except:
             bt.logging.info("Values for guidance_scale or negative_prompt were not provided.")
 
@@ -295,6 +298,7 @@ class BaseMiner(ABC):
                     torch.Generator(device=self.config.miner.device).manual_seed(seed)
                 ]
                 images = model(**local_args).images
+                
                 synapse.images = [
                     bt.Tensor.serialize(self.transform(image)) for image in images
                 ]
@@ -305,9 +309,9 @@ class BaseMiner(ABC):
                 break
             except Exception as e:
                 bt.logging.error(
-                    f"Error in attempt number {attempt+1} to generate an image: {e}"
+                    f"Error in attempt number {attempt+1} to generate an image: {e}... sleeping for 5 seconds..."
                 )
-                asyncio.sleep(5)
+                await asyncio.sleep(5)
                 if attempt == 2:
                     images = []
                     synapse.images = []
