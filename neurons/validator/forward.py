@@ -117,8 +117,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     start_time = time.time()
     
     # Log the results for monitoring purposes.
-    formatted_responses = [{'negative_prompt':response.negative_prompt, 'prompt_image': response.prompt_image, 'num_images_per_prompt': response.num_images_per_prompt, 'height': response.height, 'width': response.width, 'seed': response.seed, 'steps': response.steps, 'guidance_scale': response.guidance_scale, 'generation_type': response.generation_type,'images':[image.shape for image in response.images]} for response in responses]
-    bt.logging.info(f"Received {len(responses)} response(s) for the prompt '{prompt}': {formatted_responses}")
+    try:
+        formatted_responses = [{'negative_prompt':response.negative_prompt, 'prompt_image': response.prompt_image, 'num_images_per_prompt': response.num_images_per_prompt, 'height': response.height, 'width': response.width, 'seed': response.seed, 'steps': response.steps, 'guidance_scale': response.guidance_scale, 'generation_type': response.generation_type,'images':[image.shape for image in response.images]} for response in responses]
+        bt.logging.info(f"Received {len(responses)} response(s) for the prompt '{prompt}': {formatted_responses}")
+    except Exception as e:
+        bt.logging.warning(f"Failed to log formatted responses: {e}")
 
     # Save images for manual validator
     if not self.config.alchemy.disable_manual_validator:
