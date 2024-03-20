@@ -9,10 +9,11 @@ from time import sleep
 from traceback import print_exception
 from typing import List
 
+import numpy as np
 import streamlit
 import torch
 from datasets import load_dataset
-from neurons.constants import ENABLE_IMAGE2IMAGE, EPOCH_LENGTH, N_NEURONS
+from neurons.constants import N_NEURONS
 from neurons.utils import BackgroundTimer, background_loop, get_defaults
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
@@ -143,9 +144,9 @@ class StableValidator:
 
         # Init Weights.
         self.moving_averaged_scores = torch.zeros((self.metagraph.n)).to(self.device)
-        bt.logging.debug(
-            f"Loaded moving_averaged_scores: {str(self.moving_averaged_scores)}"
-        )
+        # bt.logging.debug(
+        #     f"Loaded moving_averaged_scores: {str(self.moving_averaged_scores)}"
+        # )
 
         # Each validator gets a unique identity (UID) in the network for differentiation.
         self.my_subnet_uid = self.metagraph.hotkeys.index(
@@ -207,6 +208,13 @@ class StableValidator:
         # Init masking function
         self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]
 
+        # Set validator variables
+        self.request_frequency = 35
+        self.query_timeout = 20
+        self.manual_validator_timeout = 10
+        self.async_timeout = 1.2
+        self.epoch_length = 300
+
         # Init sync with the network. Updates the metagraph.
         self.sync()
 
@@ -217,8 +225,13 @@ class StableValidator:
         self.loop = asyncio.get_event_loop()
 
         # Init wandb.
-        init_wandb(self)
-        bt.logging.debug("Loaded wandb")
+        try:
+            init_wandb(self)
+            bt.logging.debug("Loaded wandb")
+            self.wandb_loaded = True
+        except Exception as e:
+            self.wandb_loaded = False
+            bt.logging.debug("Unable to load wandb. Retrying in 5 minnutes.")
 
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
@@ -232,10 +245,6 @@ class StableValidator:
         # Get vali index
         self.validator_index = self.get_validator_index()
 
-        # Set validator request frequency
-        self.request_frequency = 120
-        self.query_timeout = 20
-
         # Start the generic background loop
         self.storage_client = None
         self.background_steps = 1
@@ -243,6 +252,19 @@ class StableValidator:
         self.background_timer.daemon = True
         self.background_timer.start()
 
+        # Create a Dict for storing miner query history
+        try:
+            self.miner_query_history_duration = {self.metagraph.axons[uid].hotkey:float('inf') for uid in range(self.metagraph.n.item())}
+        except:
+            pass
+        try:
+            self.miner_query_history_count = {self.metagraph.axons[uid].hotkey:0 for uid in range(self.metagraph.n.item())}
+        except:
+            pass
+        try:
+            self.miner_query_history_fail_count = {self.metagraph.axons[uid].hotkey:0 for uid in range(self.metagraph.n.item())}
+        except:
+            pass
 
     async def run(self):
         # Main Validation Loop
@@ -277,50 +299,11 @@ class StableValidator:
 
                     continue
 
-                # followup_prompt = generate_followup_prompt_gpt(self, prompt)
-                # if prompt is None:  # or (followup_prompt is None):
-                #     if (self.prompt_generation_failures != 0) and (
-                #         (self.prompt_generation_failures / len(self.prompt_history_db))
-                #         > 0.2
-                #     ):
-                #         try:
-                #             self.prompt_history_db = get_promptdb_backup(
-                #                 self.config.netuid, self.prompt_history_db
-                #             )
-                #         except Exception as e:
-                #             bt.logging.warning(
-                #                 f"Unexpected error occurred loading the backup prompts: {e}"
-                #             )
-                #             self.prompt_history_db = []
-                #             bt.logging.debug("Resetting loop.")
-                #             continue
-
-                #     prompt, followup_prompt = random.choice(self.prompt_history_db)
-                #     self.prompt_history_db.remove((prompt, followup_prompt))
-                #     self.prompt_generation_failures += 1
-
                 # Text to Image Run
                 t2i_event = run_step(
                     self, prompt, axons, uids, task_type="text_to_image"
                 )
-                # if ENABLE_IMAGE2IMAGE:
-                #     # Image to Image Run
-                #     followup_image = [image for image in t2i_event["images"]][
-                #         torch.tensor(t2i_event["rewards"]).argmax()
-                #     ]
-                #     if (
-                #         (followup_prompt is not None)
-                #         and (followup_image is not None)
-                #         and (followup_image != [])
-                #     ):
-                #         _ = run_step(
-                #             self,
-                #             followup_prompt,
-                #             axons,
-                #             uids,
-                #             "image_to_image",
-                #             followup_image,
-                #         )
+
                 # Re-sync with the network. Updates the metagraph.
                 try:
                     self.sync()
@@ -333,13 +316,15 @@ class StableValidator:
                 # End the current step and prepare for the next iteration.
                 self.step += 1
 
-                # Assuming each step is 3 minutes restart wandb run ever 3 hours to avoid overloading a validators storgage space
+                # Assuming each step is 3 minutes restart wandb run ever 3 hours to avoid overloading a validators storage space
                 if self.step % 360 == 0 and self.step != 0:
                     bt.logging.info("Re-initializing wandb run...")
                     try:
                         reinit_wandb(self)
+                        self.wandb_loaded = True
                     except Exception as e:
                         bt.logging.error(f"An unexpected error occurred reinitializing wandb: {e}")
+                        self.wandb_loaded = False
 
             # If we encounter an unexpected error, log it for debugging.
             except Exception as err:
@@ -438,7 +423,7 @@ class StableValidator:
         """
         return (
             ttl_get_block(self) - self.metagraph.last_update[self.uid]
-        ) > EPOCH_LENGTH
+        ) > self.epoch_length
 
     def should_set_weights(self) -> bool:
         # Check if all moving_averages_socres are the 0s or 1s
@@ -448,7 +433,7 @@ class StableValidator:
             return False
         else:
             # Check if enough epoch blocks have elapsed since the last epoch.
-            return (ttl_get_block(self) % self.prev_block) >= EPOCH_LENGTH
+            return (ttl_get_block(self) % self.prev_block) >= self.epoch_length
         
     def save_state(self):
         r"""Save hotkeys, neuron model and moving average scores to filesystem."""
@@ -493,17 +478,26 @@ class StableValidator:
                 self.moving_averaged_scores[: len(neuron_weights)] = neuron_weights.to(
                     self.device
                 )
+                # self.update_hotkeys()
+
             # Check for nans in saved state dict
             elif not any([has_nans, has_infs]):
                 self.moving_averaged_scores = neuron_weights.to(self.device)
                 bt.logging.trace(f"MA scores: {self.moving_averaged_scores}")
+                # self.update_hotkeys()
             else:
                 bt.logging.warning("Loaded MA scores from scratch.")
+
+            # Zero out any negative scores
+            for i, average in enumerate(self.moving_averaged_scores): 
+                if average < 0: 
+                    self.moving_averaged_scores[i] = 0
 
             bt.logging.success(
                 prefix="Reloaded model",
                 sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
             )
+            
         except Exception as e:
             bt.logging.warning(f"Failed to load model with error: {e}")
 

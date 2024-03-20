@@ -9,11 +9,7 @@ import torch
 import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
-from neurons.constants import (
-    FOLLOWUP_TIMEOUT,
-    MANUAL_VALIDATOR_TIMEOUT,
-    MOVING_AVERAGE_ALPHA,
-)
+from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration
 from neurons.utils import output_log, sh
 from utils import ttl_get_block
@@ -80,6 +76,18 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         )
     )
 
+    # Log query to hisotry
+    try:
+        for uid in uids: self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = time.perf_counter() 
+        for uid in uids: self.miner_query_history_count[self.metagraph.axons[uid].hotkey] += 1
+    except:
+        bt.logging.info("Failed to log miner counts and histories")
+
+    output_log(
+        f"{sh('Miner Counts')} -> Max: {max(self.miner_query_history_count.values()):.2f} | Min: {min(self.miner_query_history_count.values()):.2f} | Mean: {sum(self.miner_query_history_count.values()) / len(self.miner_query_history_count.values()):.2f}",
+        color_key="y",
+    )
+
     responses_empty_flag = [1 if not response.images else 0 for response in responses]
     sorted_index = [
         item[0]
@@ -107,9 +115,14 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     event = {"task_type": task_type}
 
     start_time = time.time()
-
+    
     # Log the results for monitoring purposes.
-    bt.logging.info(f"Received {len(responses)} response(s): {responses}")
+    try:
+        formatted_responses = [{'negative_prompt':response.negative_prompt, 'prompt_image': response.prompt_image, 'num_images_per_prompt': response.num_images_per_prompt, 'height': response.height, 'width': response.width, 'seed': response.seed, 'steps': response.steps, 'guidance_scale': response.guidance_scale, 'generation_type': response.generation_type,'images':[image.shape for image in response.images]} for response in responses]
+        bt.logging.info(f"Received {len(responses)} response(s) for the prompt '{prompt}': {formatted_responses}")
+    except Exception as e:
+        bt.logging.warning(f"Failed to log formatted responses: {e}")
+
     # Save images for manual validator
     if not self.config.alchemy.disable_manual_validator:
         bt.logging.info(f"Saving images")
@@ -142,13 +155,13 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     if not self.config.alchemy.disable_manual_validator:
         bt.logging.info(
-            f"Waiting {MANUAL_VALIDATOR_TIMEOUT} seconds for manual vote..."
+            f"Waiting {self.manual_validator_timeout} seconds for manual vote..."
         )
         start_time = time.perf_counter()
 
         received_vote = False
 
-        while (time.perf_counter() - start_time) < MANUAL_VALIDATOR_TIMEOUT:
+        while (time.perf_counter() - start_time) < self.manual_validator_timeout:
             time.sleep(1)
             # If manual vote received
             if os.path.exists("neurons/validator/images/vote.txt"):
@@ -265,5 +278,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             file_type=file_type,
         )
     wandb_event = EventSchema.from_dict(wandb_event)
-    self.wandb.log(asdict(wandb_event))
+
+    try:
+        self.wandb.log(asdict(wandb_event))
+        bt.logging.debug("Logged event to wandb.")
+    except Exception as e:
+        bt.logging.debug(f"Unable to log event to wandb due to the following error: {e}")
+
     return event
