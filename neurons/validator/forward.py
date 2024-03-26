@@ -227,6 +227,10 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
     )
 
+    for i, average in enumerate(self.moving_averaged_scores):
+        if (self.metagraph.axons[i].hotkey in self.hotkey_blacklist) or (self.metagraph.axons[i].coldkey in self.coldkey_blacklist):
+            self.moving_averaged_scores[i] = 0
+
     try:
         # Log the step event.
         event.update(
