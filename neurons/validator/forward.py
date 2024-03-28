@@ -231,6 +231,15 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     )
 
     try:
+
+        for i, average in enumerate(self.moving_averaged_scores):
+            if (self.metagraph.axons[i].hotkey in self.hotkey_blacklist) or (self.metagraph.axons[i].coldkey in self.coldkey_blacklist):
+                self.moving_averaged_scores[i] = 0
+
+    except Exception as e:
+        bt.logging.warning(f"An unexpected error occurred (E1): {e}")
+
+    try:
         # Log the step event.
         event.update(
             {
