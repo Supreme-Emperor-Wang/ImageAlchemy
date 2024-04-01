@@ -11,8 +11,10 @@ st.set_page_config(layout="wide")
 
 credentials = open("streamlit_credentials.txt", "r").read()
 credentials_split = credentials.split("\n")
-username = credentials_split[0].split("username=")[1]
-password = credentials_split[1].split("password=")[1]
+
+hashkey = credentials_split[0].split("hashkey=")[1]
+username = credentials_split[1].split("username=")[1]
+password = credentials_split[2].split("password=")[1]
 
 css = """
 <style>
@@ -22,6 +24,25 @@ css = """
 """
 # img {max-height: 400px; max-width: 400px}
 st.markdown(css, unsafe_allow_html=True)
+
+
+def constant_time_compare(val1, val2):
+    """
+    Returns True if the two strings are equal, False otherwise.
+    The time taken is constant and independent of the number of characters
+    that match.
+    """
+    if not isinstance(val1, bytes):
+        val1 = val1.encode()
+    if not isinstance(val2, bytes):
+        val2 = val2.encode()
+
+    # Use an arbitrary key to prevent the values being leaked via timing.
+    key = hashkey
+    hmac1 = hmac.new(key, msg=val1, digestmod="sha256").digest()
+    hmac2 = hmac.new(key, msg=val2, digestmod="sha256").digest()
+
+    return hmac.compare_digest(hmac1, hmac2)
 
 
 def check_password():
@@ -36,24 +57,24 @@ def check_password():
 
     def password_entered():
         """Checks whether a password entered by the user is correct."""
-        if (st.session_state["username"] == username) and (
-            st.session_state["password"] == password
-        ):
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]  # Don't store the username or password.
-            del st.session_state["username"]
-        else:
-            st.session_state["password_correct"] = False
+        username_correct = constant_time_compare(st.session_state["username"], username)
+        password_correct = constant_time_compare(st.session_state["password"], password)
 
-    # Return True if the username + password is validated.
-    if st.session_state.get("password_correct", False):
-        return True
+        st.session_state["password_correct"] = username_correct and password_correct
 
-    # Show inputs for username + password.
-    login_form()
-    if "password_correct" in st.session_state:
-        st.error("😕 User not known or password incorrect")
-    return False
+        # Don't store the username or password in the session
+        del st.session_state["password"]
+        del st.session_state["username"]
+
+        # Username + password validated and all ok
+        if st.session_state.get("password_correct", False):
+            return True
+
+        # Return to login
+        login_form()
+        if "password_correct" in st.session_state:
+            st.error("😕 User not known or password incorrect")
+        return False
 
 
 if not check_password():
