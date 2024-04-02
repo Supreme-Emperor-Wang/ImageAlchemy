@@ -217,9 +217,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 )
             bt.logging.info("No valid vote was received")
 
-    # Delete contents of images folder except for black image
-    for file in os.listdir("neurons/validator/images"):
-        os.remove(f"neurons/validator/images/{file}") if file != "black.png" else "_"
+        # Delete contents of images folder except for black image
+        for file in os.listdir("neurons/validator/images"):
+            os.remove(f"neurons/validator/images/{file}") if file != "black.png" else "_"
 
     scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
         0, uids, rewards
