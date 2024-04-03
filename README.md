@@ -1,14 +1,25 @@
 <div align="center">
 
 # **Image Alchemy** <!-- omit in toc -->
-[![Discord Chat](https://img.shields.io/discord/308323056592486420.svg)](https://discord.gg/WYEUxCeEys)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
 
 </div>
 
-## Running miners and validators on the testnet
+## Join our Discord and check our setup channel
+https://discord.gg/tensoralchemy
 
-Mining guide:
+
+## Mainnet docs
+
+Miner guide:
+https://docs.google.com/document/d/15nb9Cu8HTdq_wqpo-OO17OnE5wdZBTJVXPqOVk7i8MQ/edit?usp=sharing
+
+Validator guide:
+https://docs.google.com/document/d/1ZJoglHVcra5X6-rcsJpIeHPrJfPXkjDfA11V8GXwzVc/edit?usp=sharing
+
+## Testnet docs
+
+Miner guide:
 https://docs.google.com/document/d/1FzZe5EskEV0Q6BkOuVkqCrIEexzQZd_134eT74B7hPA/edit?usp=sharing
 
 Validator guide:
