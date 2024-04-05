@@ -1,10 +1,14 @@
+import base64
 import copy
 import os
 import random
 import time
+import uuid
 from dataclasses import asdict
 from datetime import datetime
+from io import BytesIO
 
+import requests
 import torch
 import torchvision.transforms as T
 from event import EventSchema
@@ -231,6 +235,44 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
     )
 
+    max_retries = 3
+    backoff = 2
+    for attempt in range(0, max_retries):
+        try:
+
+            human_voting_scores = requests.post(
+                "http://34.127.88.22:6321/get_scores",
+                json={
+                    "hotkeys": self.hotkeys,
+                }
+            )
+
+            if (human_voting_scores.status_code != 200) and (attempt == max_retries):
+                
+                bt.logging.info(f"Failed to retrieve the manual validator scores {attempt+1} times. Skipping until the next step.")
+                break
+
+            elif attempt != max_retries:
+                
+                continue
+
+            else:
+                
+                human_voting_scores = human_voting_scores.json()['scores']
+
+                scattered_human_rewards: torch.FloatTensor = torch.zeros(len(self.moving_averaged_scores)).to(self.device).scatter(
+                    0, torch.tensor([self.hotkeys.index(hotkey) for hotkey in human_voting_scores.keys()]).to(self.device), torch.tensor(list(human_voting_scores.values())).to(self.device)
+                ).to(self.device)
+                
+                self.moving_averaged_scores: torch.FloatTensor = (
+                    MOVING_AVERAGE_ALPHA * scattered_human_rewards
+                    + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
+                )
+                break
+                
+        except Exception as e:
+            bt.logging.info(f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds.")
+
     try:
 
         for i, average in enumerate(self.moving_averaged_scores):
@@ -264,6 +306,30 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         event.update(validator_info)
     except Exception as err:
         bt.logging.error("Error updating event dict", str(err))
+
+    images = []
+    for response, reward in zip(responses, rewards.tolist()): 
+        if (response.images != []) and (reward != 0):
+            im_file = BytesIO()
+            T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])).save(im_file, format="JPEG")
+            im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
+            im_b64 = base64.b64encode(im_bytes)
+            images.append(str(im_b64))
+        else:
+            im_file = BytesIO()
+            T.transforms.ToPILImage()(torch.full([3, 1024, 1024], 255, dtype=torch.float)).save(im_file, format="JPEG")
+            im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
+            im_b64 = base64.b64encode(im_bytes)
+            images.append(str(im_b64))
+
+    # Update batches to be sent to the human validation platform
+    self.batches.append({
+        "id" : str(uuid.uuid4()),
+        "validator": str(self.wallet.hotkey.ss58_address),
+        "uids" : uids.tolist(),
+        "hotkeys" : [self.metagraph.hotkeys[uid] for uid in uids],
+        "images" : images,
+    })
 
     bt.logging.debug(f"Events: {str(event)}")
     logger.log("EVENTS", "events", **event)
