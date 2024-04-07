@@ -248,10 +248,13 @@ class StableValidator:
         # Start the generic background loop
         self.storage_client = None
         self.background_steps = 1
-        self.background_timer = BackgroundTimer(300, background_loop, [self, True])
-        self.background_timer.daemon = True
-        self.background_timer.start()
+        # self.background_timer = BackgroundTimer(10, background_loop, [self, True])
+        # self.background_timer.daemon = True
+        # self.background_timer.start()
 
+        # Start the batch streaming background loop
+        self.batches = []
+        
         # Create a Dict for storing miner query history
         try:
             self.miner_query_history_duration = {self.metagraph.axons[uid].hotkey:float('inf') for uid in range(self.metagraph.n.item())}
@@ -303,7 +306,7 @@ class StableValidator:
                 t2i_event = run_step(
                     self, prompt, axons, uids, task_type="text_to_image"
                 )
-
+                break
                 # Re-sync with the network. Updates the metagraph.
                 try:
                     self.sync()
@@ -335,6 +338,9 @@ class StableValidator:
             except KeyboardInterrupt:
                 bt.logging.success("Keyboard interrupt detected. Exiting validator.")
                 exit()
+
+        while True:
+            background_loop(self, True)
 
     def sync(self):
         """

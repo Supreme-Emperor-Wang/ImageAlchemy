@@ -3,10 +3,12 @@ import json
 import os
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Timer
 
+import requests
 import torch
 from google.cloud import storage
 from neurons.constants import (
@@ -131,6 +133,34 @@ def background_loop(self, is_validator):
             bt.logging.error(
                 f">>> An unexpected error occurred syncing the metagraph: {e}"
             )
+            
+    #### Send new batches to the manual validator
+    if (self.background_steps % 1 == 0) and (neuron_type == "Validator") and (self.batches != []):
+        max_retries = 3
+        backoff = 2
+        for batch in self.batches:
+            for attempt in range(0, max_retries):
+                try:
+                    response = requests.post("http://34.173.80.163:5000/api/submit_batch", data=json.dumps(batch), headers={"Content-Type": "application/json"})
+                    bt.logging.info(f"Successfully posted batch {batch['id']}")
+                except Exception as e:
+                    if attempt != max_retries:
+                        bt.logging.info(f"Attempt number {attempt+1} failed to send batch {batch['id']}. Retrying in {backoff} seconds.")
+                        time.sleep(backoff)
+                        continue
+                    else:
+                        bt.logging.info(f"Attempted to post batch {batch['id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch")
+                        break
+
+                if response.status_code == 200:
+                    self.btaches.remove(batch)
+                    break
+                else:
+                    if attempt != max_retries:
+                        bt.logging.info(f"Attempt number {attempt+1} failed to send batch {batch['id']}. Retrying in {backoff} seconds.")
+                        time.sleep(backoff)
+                    else:
+                        bt.logging.info(f"Attempted to post batch {batch['id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch")
 
     #### Update the whitelists and blacklists
     if self.background_steps % 1 == 0:
@@ -310,7 +340,7 @@ def background_loop(self, is_validator):
                 f"An error occurred trying to clean wandb artifacts and runs: {e}."
             )
 
-    # Attempt to init wandb if it wasn't sucessfully originally
+    #### Attempt to init wandb if it wasn't sucessfully originally
     if (self.background_steps % 1 == 0) and is_validator and (self.wandb_loaded == False):
         try:
             init_wandb(self)
