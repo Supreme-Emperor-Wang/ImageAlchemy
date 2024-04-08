@@ -248,9 +248,9 @@ class StableValidator:
         # Start the generic background loop
         self.storage_client = None
         self.background_steps = 1
-        # self.background_timer = BackgroundTimer(10, background_loop, [self, True])
-        # self.background_timer.daemon = True
-        # self.background_timer.start()
+        self.background_timer = BackgroundTimer(10, background_loop, [self, True])
+        self.background_timer.daemon = True
+        self.background_timer.start()
 
         # Start the batch streaming background loop
         self.batches = []
@@ -306,7 +306,6 @@ class StableValidator:
                 t2i_event = run_step(
                     self, prompt, axons, uids, task_type="text_to_image"
                 )
-                break
                 # Re-sync with the network. Updates the metagraph.
                 try:
                     self.sync()

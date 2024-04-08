@@ -13,7 +13,7 @@ import torch
 import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
-from neurons.constants import MOVING_AVERAGE_ALPHA
+from neurons.constants import MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
 from neurons.protocol import ImageGeneration
 from neurons.utils import output_log, sh
 from utils import ttl_get_block
@@ -241,10 +241,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         try:
 
             human_voting_scores = requests.post(
-                "http://34.127.88.22:6321/get_scores",
-                json={
-                    "hotkeys": self.hotkeys,
-                }
+                "http://34.173.80.163:5000/api/get_votes",
             )
 
             if (human_voting_scores.status_code != 200) and (attempt == max_retries):
@@ -258,15 +255,12 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
             else:
                 
-                human_voting_scores = human_voting_scores.json()['scores']
-
-                scattered_human_rewards: torch.FloatTensor = torch.zeros(len(self.moving_averaged_scores)).to(self.device).scatter(
-                    0, torch.tensor([self.hotkeys.index(hotkey) for hotkey in human_voting_scores.keys()]).to(self.device), torch.tensor(list(human_voting_scores.values())).to(self.device)
-                ).to(self.device)
+                human_voting_bot_scores = human_voting_scores.json()['scores']
+                human_voting_bot_scores = torch.tensor([human_voting_bot_scores[key] for key in self.hotkeys]).to(self.device)
                 
                 self.moving_averaged_scores: torch.FloatTensor = (
-                    MOVING_AVERAGE_ALPHA * scattered_human_rewards
-                    + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
+                    MOVING_AVERAGE_BETA * human_voting_bot_scores
+                    + (1 - MOVING_AVERAGE_BETA) * self.moving_averaged_scores.to(self.device)
                 )
                 break
                 
@@ -311,13 +305,13 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     for response, reward in zip(responses, rewards.tolist()): 
         if (response.images != []) and (reward != 0):
             im_file = BytesIO()
-            T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])).save(im_file, format="JPEG")
+            T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])).save(im_file, format="PNG")
             im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
             im_b64 = base64.b64encode(im_bytes)
             images.append(str(im_b64))
         else:
             im_file = BytesIO()
-            T.transforms.ToPILImage()(torch.full([3, 1024, 1024], 255, dtype=torch.float)).save(im_file, format="JPEG")
+            T.transforms.ToPILImage()(torch.full([3, 1024, 1024], 255, dtype=torch.float)).save(im_file, format="PNG")
             im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
             im_b64 = base64.b64encode(im_bytes)
             images.append(str(im_b64))
