@@ -320,6 +320,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     self.batches.append({
         "id" : str(uuid.uuid4()),
         "validator": str(self.wallet.hotkey.ss58_address),
+        "prompt": prompt,
         "uids" : uids.tolist(),
         "hotkeys" : [self.metagraph.hotkeys[uid] for uid in uids],
         "images" : images,
