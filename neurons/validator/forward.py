@@ -239,9 +239,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     backoff = 2
     for attempt in range(0, max_retries):
         try:
+            api_host = "34.173.80.163:5000/api"
 
-            human_voting_scores = requests.post(
-                "http://34.173.80.163:5000/api/get_votes",
+            human_voting_scores = requests.get(
+                f"http://{api_host}/get_votes",
+                # headers = await auth_headers(api_host)
             )
 
             if (human_voting_scores.status_code != 200) and (attempt == max_retries):
@@ -255,11 +257,12 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
             else:
                 
-                human_voting_bot_scores = human_voting_scores.json()['scores']
+                human_voting_bot_scores = human_voting_scores.json()
                 human_voting_bot_scores = torch.tensor([human_voting_bot_scores[key] for key in self.hotkeys]).to(self.device)
-                
+                human_voting_bot_scores = torch.nn.functional.normalize(human_voting_bot_scores)
+     
                 self.moving_averaged_scores: torch.FloatTensor = (
-                    MOVING_AVERAGE_BETA * human_voting_bot_scores
+                    MOVING_AVERAGE_BETA * (0.02*human_voting_bot_scores)
                     + (1 - MOVING_AVERAGE_BETA) * self.moving_averaged_scores.to(self.device)
                 )
                 break

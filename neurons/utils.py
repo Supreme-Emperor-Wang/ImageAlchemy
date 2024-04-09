@@ -153,7 +153,7 @@ def background_loop(self, is_validator):
                         break
 
                 if response.status_code == 200:
-                    self.btaches.remove(batch)
+                    self.batches.remove(batch)
                     break
                 else:
                     if attempt != max_retries:
