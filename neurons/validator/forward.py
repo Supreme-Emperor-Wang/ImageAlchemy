@@ -234,7 +234,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         MOVING_AVERAGE_ALPHA * scattered_rewards
         + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
     )
-
+    
+    bt.logging.info(f"{self.moving_averaged_scores}")
+    
     max_retries = 3
     backoff = 2
     for attempt in range(0, max_retries):
@@ -251,21 +253,37 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 bt.logging.info(f"Failed to retrieve the manual validator scores {attempt+1} times. Skipping until the next step.")
                 break
 
-            elif attempt != max_retries:
+            elif (human_voting_scores.status_code != 200) and (attempt != max_retries):
                 
                 continue
 
             else:
                 
-                human_voting_bot_scores = human_voting_scores.json()
-                human_voting_bot_scores = torch.tensor([human_voting_bot_scores[key] for key in self.hotkeys]).to(self.device)
-                human_voting_bot_scores = torch.nn.functional.normalize(human_voting_bot_scores)
-     
-                self.moving_averaged_scores: torch.FloatTensor = (
-                    MOVING_AVERAGE_BETA * (0.02*human_voting_bot_scores)
-                    + (1 - MOVING_AVERAGE_BETA) * self.moving_averaged_scores.to(self.device)
-                )
-                break
+                human_voting_bot_round_scores = human_voting_scores.json()
+                
+                human_voting_bot_scores = {}
+
+                for inner_dict in human_voting_bot_round_scores.values():
+                    for key, value in inner_dict.items():
+                        if key in human_voting_bot_scores:
+                            human_voting_bot_scores[key] += value
+                        else:
+                            human_voting_bot_scores[key] = value
+                
+                human_voting_bot_scores = torch.tensor([human_voting_bot_scores[key] if key in human_voting_bot_scores.keys() else 0 for key in self.hotkeys]).to(self.device)
+                
+                if (human_voting_bot_scores.sum() == 0):
+                    
+                    continue
+                
+                else:
+                    human_voting_bot_scores = torch.nn.functional.normalize(human_voting_bot_scores)
+
+                    self.moving_averaged_scores: torch.FloatTensor = (
+                        MOVING_AVERAGE_BETA * (0.02*human_voting_bot_scores)
+                        + (1 - MOVING_AVERAGE_BETA) * self.moving_averaged_scores.to(self.device)
+                    )
+                    break
                 
         except Exception as e:
             bt.logging.info(f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds.")
@@ -298,6 +316,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     for response, reward in zip(responses, rewards.tolist())
                 ],
                 "rewards": rewards.tolist(),
+                # "moving_averages": self.moving_averaged_scores
             }
         )
         event.update(validator_info)
@@ -318,18 +337,19 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
             im_b64 = base64.b64encode(im_bytes)
             images.append(str(im_b64))
-
+    
     # Update batches to be sent to the human validation platform
     self.batches.append({
-        "id" : str(uuid.uuid4()),
-        "validator": str(self.wallet.hotkey.ss58_address),
+        "batch_id": str(uuid.uuid4()),
+        "validator_hotkey": str(self.wallet.hotkey.ss58_address),
         "prompt": prompt,
-        "uids" : uids.tolist(),
-        "hotkeys" : [self.metagraph.hotkeys[uid] for uid in uids],
-        "images" : images,
+        "nsfw_scores":event["nsfw_filter"],
+        "miner_hotkeys" : [self.metagraph.hotkeys[uid] for uid in uids],
+        "miner_coldkeys" : [self.metagraph.coldkeys[uid] for uid in uids],
+        "computes" : images,
     })
 
-    bt.logging.debug(f"Events: {str(event)}")
+    bt.logging.info(f"Events: {str(event)}")
     logger.log("EVENTS", "events", **event)
 
     # Log the event to wandb.

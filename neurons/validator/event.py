@@ -61,4 +61,5 @@ class EventSchema:
             vtrust=event_dict["vtrust"],
             dividends=event_dict["dividends"],
             emissions=event_dict["emissions"],
+            moving_averages=event_dict["moving_averages"]
         )

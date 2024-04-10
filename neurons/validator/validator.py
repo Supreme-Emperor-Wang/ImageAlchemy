@@ -245,15 +245,15 @@ class StableValidator:
         # Get vali index
         self.validator_index = self.get_validator_index()
 
+        # Start the batch streaming background loop
+        self.batches = []
+
         # Start the generic background loop
         self.storage_client = None
         self.background_steps = 1
         self.background_timer = BackgroundTimer(300, background_loop, [self, True])
         self.background_timer.daemon = True
         self.background_timer.start()
-
-        # Start the batch streaming background loop
-        self.batches = []
         
         # Create a Dict for storing miner query history
         try:

@@ -133,7 +133,7 @@ def background_loop(self, is_validator):
             bt.logging.error(
                 f">>> An unexpected error occurred syncing the metagraph: {e}"
             )
-            
+    
     #### Send new batches to the Human Validation Bot
     if (self.background_steps % 1 == 0) and (neuron_type == "Validator") and (self.batches != []):
         max_retries = 3
@@ -142,14 +142,14 @@ def background_loop(self, is_validator):
             for attempt in range(0, max_retries):
                 try:
                     response = requests.post("http://34.173.80.163:5000/api/submit_batch", data=json.dumps(batch), headers={"Content-Type": "application/json"}, timeout = 30)
-                    bt.logging.info(f"Successfully posted batch {batch['id']}")
+                    bt.logging.info(f"Successfully posted batch {batch['batch_id']}")
                 except Exception as e:
                     if attempt != max_retries:
-                        bt.logging.info(f"Attempt number {attempt+1} failed to send batch {batch['id']}. Retrying in {backoff} seconds.")
+                        bt.logging.info(f"Attempt number {attempt+1} failed to send batch {batch['batch_id']}. Retrying in {backoff} seconds.")
                         time.sleep(backoff)
                         continue
                     else:
-                        bt.logging.info(f"Attempted to post batch {batch['id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch")
+                        bt.logging.info(f"Attempted to post batch {batch['batch_id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch")
                         break
 
                 if response.status_code == 200:
