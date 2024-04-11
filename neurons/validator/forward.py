@@ -248,12 +248,15 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         0, uids, rewards
     ).to(self.device)
 
+
+    print(f"Before: Moving average scores: {self.moving_averaged_scores}")
+
     self.moving_averaged_scores: torch.FloatTensor = (
         MOVING_AVERAGE_ALPHA * scattered_rewards
         + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
     )
 
-    print(f"{self.moving_averaged_scores}")
+    print(f"After: Moving average scores: {self.moving_averaged_scores}")
 
     max_retries = 3
     backoff = 2
@@ -306,10 +309,15 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     continue
 
                 else:
+                    print(f"Raw human bot votes: {human_voting_bot_scores}")
+
                     human_voting_bot_scores = torch.nn.functional.normalize(
                         human_voting_bot_scores
                     )
 
+                    print(f"Normalized human bot scores: {human_voting_bot_scores}")
+
+                    print(f"Before HV: Moving average scores: {self.moving_averaged_scores}")
                     self.moving_averaged_scores: (
                         torch.FloatTensor
                     ) = MOVING_AVERAGE_BETA * (0.02 * human_voting_bot_scores) + (
@@ -317,11 +325,13 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     ) * self.moving_averaged_scores.to(
                         self.device
                     )
+
+                    print(f"After HV: Moving average scores: {self.moving_averaged_scores}")
                     break
 
         except Exception as e:
             print(
-                f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds."
+                f"Encountered the following error retrieving the human validation bot scores: {e}. Retrying in {backoff} seconds."
             )
 
     try:
@@ -432,3 +442,4 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         print(f"Unable to log event to wandb due to the following error: {e}")
 
     return event
+
