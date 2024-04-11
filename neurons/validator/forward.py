@@ -13,7 +13,7 @@ import torch
 import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
-from neurons.constants import MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
+from neurons.constants import HVB_MAINNET_IP, MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
 from neurons.protocol import ImageGeneration
 from neurons.utils import output_log, sh
 from utils import ttl_get_block
@@ -260,7 +260,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     print("Querying for human votes...")
     for attempt in range(0, max_retries):
         try:
-            api_host = "34.68.182.152:5000/api"
+            api_host = f"{HVB_MAINNET_IP}:5000/api"
 
             human_voting_scores = requests.get(
                 f"http://{api_host}/get_votes", timeout=2
