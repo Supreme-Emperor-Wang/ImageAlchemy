@@ -144,6 +144,7 @@ def background_loop(self, is_validator):
             max_retries = 3
             backoff = 2
             batches_for_deletion = []
+            invalid_batches = []
             for batch in self.batches:
                 for attempt in range(0, max_retries):
                     try:
@@ -158,7 +159,12 @@ def background_loop(self, is_validator):
                             batches_for_deletion.append(batch)
                             break
                         else:
-                            print(f"{response.json()=}")
+                            response_data = response.json()
+                            error = response_data.get("error")
+                            if error and "Submitted compute count must be greater than" in error:
+                                invalid_batches.append(batch)
+                            
+                            print(f"{response_data=}")
                             raise Exception(f"Failed to post batch. Status code: {response.status_code}")
                     except Exception as e:
                         if attempt != max_retries:
@@ -173,18 +179,11 @@ def background_loop(self, is_validator):
                             )
                             break
 
-                    # if response.status_code == 200:
-                        
-                    # else:
-                    #     if attempt != max_retries:
-                    #         print(
-                    #             f"Attempt number {attempt+1} failed to send batch {batch.get('batch_id')}. Retrying in {backoff} seconds."
-                    #         )
-                    #         time.sleep(backoff)
-                    #     else:
-                    #         print(
-                    #             f"Attempted to post batch {batch.get('batch_id')} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch"
-                    #         )
+            ### Delete any invalid batches
+            for batch in invalid_batches:
+                print(f"Removing invalid batch: {batch['batch_id']}")
+                self.batches.remove(batch)
+
             ### Delete any successful batches
             for batch in batches_for_deletion:
                 print(f"Removing successful batch: {batch['batch_id']}")
