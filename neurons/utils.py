@@ -143,6 +143,7 @@ def background_loop(self, is_validator):
         if (self.background_steps % 1 == 0) and is_validator and (self.batches != []):
             max_retries = 3
             backoff = 2
+            batches_for_deletion = []
             for batch in self.batches:
                 for attempt in range(0, max_retries):
                     try:
@@ -154,8 +155,10 @@ def background_loop(self, is_validator):
                         )
                         if response.status_code == 200:
                             print(f"Successfully posted batch {batch['batch_id']}")
+                            batches_for_deletion.append(batch)
+                            break
                         else:
-                            print(response.json())
+                            print(f"{response.json()=}")
                             raise Exception(f"Failed to post batch. Status code: {response.status_code}")
                     except Exception as e:
                         if attempt != max_retries:
@@ -170,19 +173,23 @@ def background_loop(self, is_validator):
                             )
                             break
 
-                    if response.status_code == 200:
-                        self.batches.remove(batch)
-                        break
-                    else:
-                        if attempt != max_retries:
-                            print(
-                                f"Attempt number {attempt+1} failed to send batch {batch.get('batch_id')}. Retrying in {backoff} seconds."
-                            )
-                            time.sleep(backoff)
-                        else:
-                            print(
-                                f"Attempted to post batch {batch.get('batch_id')} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch"
-                            )
+                    # if response.status_code == 200:
+                        
+                    # else:
+                    #     if attempt != max_retries:
+                    #         print(
+                    #             f"Attempt number {attempt+1} failed to send batch {batch.get('batch_id')}. Retrying in {backoff} seconds."
+                    #         )
+                    #         time.sleep(backoff)
+                    #     else:
+                    #         print(
+                    #             f"Attempted to post batch {batch.get('batch_id')} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch"
+                    #         )
+            ### Delete any successful batches
+            for batch in batches_for_deletion:
+                print(f"Removing successful batch: {batch['batch_id']}")
+                self.batches.remove(batch)
+
     except Exception as e:
         print(f"An error occurred trying to submit a batch: {e}")
 
