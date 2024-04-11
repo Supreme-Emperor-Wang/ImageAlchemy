@@ -85,7 +85,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         for uid in uids: self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = time.perf_counter() 
         for uid in uids: self.miner_query_history_count[self.metagraph.axons[uid].hotkey] += 1
     except:
-        bt.logging.info("Failed to log miner counts and histories")
+        print("Failed to log miner counts and histories")
 
     output_log(
         f"{sh('Miner Counts')} -> Max: {max(self.miner_query_history_count.values()):.2f} | Min: {min(self.miner_query_history_count.values()):.2f} | Mean: {sum(self.miner_query_history_count.values()) / len(self.miner_query_history_count.values()):.2f}",
@@ -123,20 +123,20 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Log the results for monitoring purposes.
     try:
         formatted_responses = [{'negative_prompt':response.negative_prompt, 'prompt_image': response.prompt_image, 'num_images_per_prompt': response.num_images_per_prompt, 'height': response.height, 'width': response.width, 'seed': response.seed, 'steps': response.steps, 'guidance_scale': response.guidance_scale, 'generation_type': response.generation_type,'images':[image.shape for image in response.images]} for response in responses]
-        bt.logging.info(f"Received {len(responses)} response(s) for the prompt '{prompt}': {formatted_responses}")
+        print(f"Received {len(responses)} response(s) for the prompt '{prompt}': {formatted_responses}")
     except Exception as e:
-        bt.logging.warning(f"Failed to log formatted responses: {e}")
+        print(f"Failed to log formatted responses: {e}")
 
     # Save images for manual validator
     if not self.config.alchemy.disable_manual_validator:
-        bt.logging.info(f"Saving images")
+        print(f"Saving images")
         for i, r in enumerate(responses):
             for image in r.images:
                 T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(
                     f"neurons/validator/images/{i}.png"
                 )
 
-        bt.logging.info(f"Saving prompt")
+        print(f"Saving prompt")
         with open("neurons/validator/images/prompt.txt", "w") as f:
             f.write(prompt)
     # Initialise rewards tensor
@@ -149,16 +149,16 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         rewards += weight_i * reward_i_normalized.to(self.device)
         event[reward_fn_i.name] = reward_i.tolist()
         event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
-        bt.logging.trace(str(reward_fn_i.name), reward_i_normalized.tolist())
+        print(str(reward_fn_i.name), reward_i_normalized.tolist())
     for masking_fn_i in self.masking_functions:
         mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
         rewards *= mask_i_normalized.to(self.device)
         event[masking_fn_i.name] = mask_i.tolist()
         event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
-        bt.logging.trace(str(masking_fn_i.name), mask_i_normalized.tolist())
+        print(str(masking_fn_i.name), mask_i_normalized.tolist())
 
     if not self.config.alchemy.disable_manual_validator:
-        bt.logging.info(
+        print(
             f"Waiting {self.manual_validator_timeout} seconds for manual vote..."
         )
         start_time = time.perf_counter()
@@ -179,7 +179,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                         int(open("neurons/validator/images/vote.txt", "r").read()) - 1
                     )
                 except Exception as e:
-                    bt.logging.debug(
+                    print(
                         f"An unexpected error occurred parsing the vote: {e}"
                     )
                     break
@@ -188,12 +188,12 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 ### If 12 are queried, but only 10 respond, we need to handle the error if
                 ### the user selects the 11th or 12th image (which don't exist)
                 if reward_i >= len(rewards):
-                    bt.logging.debug(
+                    print(
                         f"Received invalid vote for Image {reward_i+1}: it doesn't exist."
                     )
                     break
 
-                bt.logging.info(f"Received manual vote for Image {reward_i+1}")
+                print(f"Received manual vote for Image {reward_i+1}")
 
                 ### Set to true so we don't normalize the rewards later
                 received_vote = True
@@ -216,10 +216,10 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             if delta != 0:
                 rewards /= delta
             else:
-                bt.logging.warning(
+                print(
                     "The reward weight difference was 0 which is unexpected."
                 )
-            bt.logging.info("No valid vote was received")
+            print("No valid vote was received")
 
         # Delete contents of images folder except for black image
         if os.path.exists("neurons/validator/images"):
@@ -235,22 +235,20 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
     )
     
-    bt.logging.info(f"{self.moving_averaged_scores}")
+    print(f"{self.moving_averaged_scores}")
     
     max_retries = 3
     backoff = 2
+    print("Querying for human votes...")
     for attempt in range(0, max_retries):
         try:
-            api_host = "34.173.80.163:5000/api"
+            api_host = "34.68.182.152:5000/api"
 
-            human_voting_scores = requests.get(
-                f"http://{api_host}/get_votes",
-                # headers = await auth_headers(api_host)
-            )
+            human_voting_scores = requests.get(f"http://{api_host}/get_votes", timeout=2)
 
             if (human_voting_scores.status_code != 200) and (attempt == max_retries):
                 
-                bt.logging.info(f"Failed to retrieve the manual validator scores {attempt+1} times. Skipping until the next step.")
+                print(f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step.")
                 break
 
             elif (human_voting_scores.status_code != 200) and (attempt != max_retries):
@@ -286,7 +284,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     break
                 
         except Exception as e:
-            bt.logging.info(f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds.")
+            print(f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds.")
 
     try:
 
@@ -295,7 +293,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 self.moving_averaged_scores[i] = 0
 
     except Exception as e:
-        bt.logging.warning(f"An unexpected error occurred (E1): {e}")
+        print(f"An unexpected error occurred (E1): {e}")
 
     try:
         # Log the step event.
@@ -321,35 +319,38 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         )
         event.update(validator_info)
     except Exception as err:
-        bt.logging.error("Error updating event dict", str(err))
+        print("Error updating event dict", str(err))
 
-    images = []
-    for response, reward in zip(responses, rewards.tolist()): 
-        if (response.images != []) and (reward != 0):
-            im_file = BytesIO()
-            T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])).save(im_file, format="PNG")
-            im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
-            im_b64 = base64.b64encode(im_bytes)
-            images.append(str(im_b64))
-        else:
-            im_file = BytesIO()
-            T.transforms.ToPILImage()(torch.full([3, 1024, 1024], 255, dtype=torch.float)).save(im_file, format="PNG")
-            im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
-            im_b64 = base64.b64encode(im_bytes)
-            images.append(str(im_b64))
-    
-    # Update batches to be sent to the human validation platform
-    self.batches.append({
-        "batch_id": str(uuid.uuid4()),
-        "validator_hotkey": str(self.wallet.hotkey.ss58_address),
-        "prompt": prompt,
-        "nsfw_scores":event["nsfw_filter"],
-        "miner_hotkeys" : [self.metagraph.hotkeys[uid] for uid in uids],
-        "miner_coldkeys" : [self.metagraph.coldkeys[uid] for uid in uids],
-        "computes" : images,
-    })
+    try:
+        images = []
+        for response, reward in zip(responses, rewards.tolist()): 
+            if (response.images != []) and (reward != 0):
+                im_file = BytesIO()
+                T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])).save(im_file, format="PNG")
+                im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
+                im_b64 = base64.b64encode(im_bytes)
+                images.append(im_b64.decode())
+            else:
+                im_file = BytesIO()
+                T.transforms.ToPILImage()(torch.full([3, 1024, 1024], 255, dtype=torch.float)).save(im_file, format="PNG")
+                im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
+                im_b64 = base64.b64encode(im_bytes)
+                images.append(im_b64.decode())
+        
+        # Update batches to be sent to the human validation platform
+        self.batches.append({
+            "batch_id": str(uuid.uuid4()),
+            "validator_hotkey": str(self.wallet.hotkey.ss58_address),
+            "prompt": prompt,
+            "nsfw_scores":event["nsfw_filter"],
+            "miner_hotkeys" : [self.metagraph.hotkeys[uid] for uid in uids],
+            "miner_coldkeys" : [self.metagraph.coldkeys[uid] for uid in uids],
+            "computes" : images,
+        })
+    except Exception as e:
+        print(f"An unexpected error occurred appending the batch: {e}")
 
-    bt.logging.info(f"Events: {str(event)}")
+    print(f"Events: {str(event)}")
     logger.log("EVENTS", "events", **event)
 
     # Log the event to wandb.
@@ -375,8 +376,8 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     try:
         self.wandb.log(asdict(wandb_event))
-        bt.logging.debug("Logged event to wandb.")
+        print("Logged event to wandb.")
     except Exception as e:
-        bt.logging.debug(f"Unable to log event to wandb due to the following error: {e}")
+        print(f"Unable to log event to wandb due to the following error: {e}")
 
     return event
