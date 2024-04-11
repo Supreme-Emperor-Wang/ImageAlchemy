@@ -19,7 +19,7 @@ from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
 from neurons.validator.reward import (
     BlacklistFilter,
-    DiversityRewardModel,
+    HumanValidatonBotRewardModel,
     ImageRewardModel,
     NSFWRewardModel,
 )
@@ -205,8 +205,11 @@ class StableValidator:
         ).to(self.device)
 
         self.reward_weights = self.reward_weights / self.reward_weights.sum(dim=-1).unsqueeze(-1)
-
         self.reward_names = ["image_reward_model", "manual_reward_model"]
+        
+        self.human_voting_bot_scores = torch.zeros((self.metagraph.n)).to(self.device)
+        self.human_voting_bot_weight = 0.02/32
+        self.human_voting_bot_reward_model = HumanValidatonBotRewardModel(self.metagraph)
 
         # Init masking function
         self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]
@@ -409,6 +412,8 @@ class StableValidator:
 
         # Update the hotkeys.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+        
+        self.human_voting_bot_scores = torch.zeros((self.metagraph.n)).to(self.device)
 
     def check_registered(self):
         # --- Check for registration.

@@ -5,6 +5,7 @@ from typing import List
 
 import ImageReward as RM
 import numpy as np
+import requests
 import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
@@ -347,6 +348,85 @@ class NSFWRewardModel(BaseRewardModel):
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards
+
+
+class HumanValidatonBotRewardModel(BaseRewardModel):
+    @property
+    def name(self) -> str:
+        return RewardModelType.nsfw.value
+
+    def __init__(self, metagraph):
+        super().__init__()
+        self.device = "cuda"
+        self.human_voting_bot_scores = torch.zeros((metagraph.n)).to(self.device)
+
+    def get_rewards(self, hotkeys) -> torch.FloatTensor:
+        max_retries = 3
+        backoff = 2
+
+        print("Querying for human votes...")
+        for attempt in range(0, max_retries):
+            try:
+                api_host = "34.68.182.152:5000/api"
+
+                human_voting_scores = requests.get(f"http://{api_host}/get_votes", timeout=2)
+
+                if (human_voting_scores.status_code != 200) and (attempt == max_retries):
+                    
+                    print(f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step.")
+                    human_voting_bot_scores = None
+                    break
+
+                elif (human_voting_scores.status_code != 200) and (attempt != max_retries):
+                    
+                    continue
+
+                else:
+                    
+                    human_voting_bot_round_scores = human_voting_scores.json()
+                    
+                    human_voting_bot_scores = {}
+
+                    for inner_dict in human_voting_bot_round_scores.values():
+                        for key, value in inner_dict.items():
+                            if key in human_voting_bot_scores:
+                                human_voting_bot_scores[key] += value
+                            else:
+                                human_voting_bot_scores[key] = value
+                    
+                    human_voting_bot_scores = torch.tensor([human_voting_bot_scores[key] if key in human_voting_bot_scores.keys() else 0 for key in hotkeys]).to(self.device)
+                    
+                    if (human_voting_bot_scores.sum() == 0):
+                        
+                        continue
+                    
+                    else:
+                        
+                        human_voting_bot_scores = torch.nn.functional.normalize(human_voting_bot_scores)
+                    
+            except Exception as e:
+
+                print(f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds.")
+                human_voting_scores =  None
+                break
+        
+        human_voting_bot_scores = {"5CcceAb5iUz625mhhspcXoPePYqx8DoEGmB2hB3q1zpFUjLX": 2, "5GKRf2Ece3a2mij11Lpth8XC1iybTDWDo634Q27HZAFx3scr":3, "5DoFMjAoyMAPfd3yKUUpsMFDvcRwzCqXvUo3p33czW5Bdj14":4, "5GziNQqT64mPqzYo2K9g3uwm9hs4Q5rVBuNi7btLAxf9oYo6":3, "5HMwjm2wNRvY2XzPWBMqS63qN9ogPp14j2sxhq3VN5AXxWhK":2, "5FWhTqCMpjS6yFReJCqaeGhQbBh5t224QL8Jmt2nmZz4rQV6":10}
+        
+        if human_voting_bot_scores is not None:
+            for index, hotkey in enumerate(hotkeys):
+                if hotkey in human_voting_bot_scores.keys():
+                    self.human_voting_bot_scores[index] = human_voting_bot_scores[hotkey]
+
+        self.human_voting_bot_scores[58] = 2
+        self.human_voting_bot_scores[37] = 2
+        self.human_voting_bot_scores[38] = 2
+        self.human_voting_bot_scores[35] = 2
+        self.human_voting_bot_scores[36] = 2
+        self.human_voting_bot_scores[60] = 10
+
+        human_voting_bot_scores_normalised = self.normalize_rewards(self.human_voting_bot_scores)
+        
+        return self.human_voting_bot_scores, human_voting_bot_scores_normalised
 
 
 class ImageRewardModel(BaseRewardModel):

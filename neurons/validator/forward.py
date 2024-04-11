@@ -23,6 +23,68 @@ import wandb
 
 transform = T.Compose([T.PILToTensor()])
 
+def get_human_voting_scores(self):
+    max_retries = 3
+    backoff = 2
+
+    print("Querying for human votes...")
+    for attempt in range(0, max_retries):
+        try:
+            api_host = "34.68.182.152:5000/api"
+
+            human_voting_scores = requests.get(f"http://{api_host}/get_votes", timeout=2)
+
+            if (human_voting_scores.status_code != 200) and (attempt == max_retries):
+                
+                print(f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step.")
+                return None
+
+            elif (human_voting_scores.status_code != 200) and (attempt != max_retries):
+                
+                continue
+
+            else:
+                
+                human_voting_bot_round_scores = human_voting_scores.json()
+                
+                human_voting_bot_scores = {}
+
+                for inner_dict in human_voting_bot_round_scores.values():
+                    for key, value in inner_dict.items():
+                        if key in human_voting_bot_scores:
+                            human_voting_bot_scores[key] += value
+                        else:
+                            human_voting_bot_scores[key] = value
+                
+                human_voting_bot_scores = torch.tensor([human_voting_bot_scores[key] if key in human_voting_bot_scores.keys() else 0 for key in self.hotkeys]).to(self.device)
+                
+                if (human_voting_bot_scores.sum() == 0):
+                    
+                    continue
+                
+                else:
+                    
+                    human_voting_bot_scores = torch.nn.functional.normalize(human_voting_bot_scores)
+                    return human_voting_bot_scores
+                
+        except Exception as e:
+
+            print(f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds.")
+            return None
+
+    human_voting_bot_scores = {"5CcceAb5iUz625mhhspcXoPePYqx8DoEGmB2hB3q1zpFUjLX": 2, "5GKRf2Ece3a2mij11Lpth8XC1iybTDWDo634Q27HZAFx3scr":3, "5DoFMjAoyMAPfd3yKUUpsMFDvcRwzCqXvUo3p33czW5Bdj14":4, "5GziNQqT64mPqzYo2K9g3uwm9hs4Q5rVBuNi7btLAxf9oYo6":3, "5HMwjm2wNRvY2XzPWBMqS63qN9ogPp14j2sxhq3VN5AXxWhK":2, "5FWhTqCMpjS6yFReJCqaeGhQbBh5t224QL8Jmt2nmZz4rQV6":10}
+    
+    if human_voting_bot_scores is not None:
+        for index, hotkey in enumerate(self.hotkeys):
+            if hotkey in human_voting_bot_scores.keys():
+                self.human_voting_bot_scores[index] = human_voting_bot_scores[hotkey]
+
+    self.human_voting_bot_scores[58] = 2
+    self.human_voting_bot_scores[37] = 2
+    self.human_voting_bot_scores[38] = 2
+    self.human_voting_bot_scores[35] = 2
+    self.human_voting_bot_scores[36] = 2
+    self.human_voting_bot_scores[60] = 10
 
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     time_elapsed = datetime.now() - self.stats.start_time
@@ -139,6 +201,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         print(f"Saving prompt")
         with open("neurons/validator/images/prompt.txt", "w") as f:
             f.write(prompt)
+
     # Initialise rewards tensor
     rewards: torch.FloatTensor = torch.zeros(len(responses), dtype=torch.float32).to(
         self.device
@@ -230,61 +293,22 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         0, uids, rewards
     ).to(self.device)
 
+    reward_i, reward_i_normalized =  self.human_voting_bot_reward_model.get_rewards(self.hotkeys)
+
+    scattered_rewards_adjusted = scattered_rewards + (self.human_voting_bot_weight*self.human_voting_bot_scores)
+
+    print(f"SCATTERED_REWARDS:                  {scattered_rewards}")
+    print(f"HUMAN VOTING BOT SCORES RAW:        {reward_i}")
+    print(f"HUMAN VOTING BOT SCORES NOMRALIZED: {reward_i_normalized}")
+    print(f"SCATTERED_REWARDS ADJUSTED:         {scattered_rewards_adjusted}")
+    print(f"MOVING AVERAGES T-1:                {self.moving_averaged_scores}")
+
     self.moving_averaged_scores: torch.FloatTensor = (
-        MOVING_AVERAGE_ALPHA * scattered_rewards
+        MOVING_AVERAGE_ALPHA * scattered_rewards_adjusted
         + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
     )
     
-    print(f"{self.moving_averaged_scores}")
-    
-    max_retries = 3
-    backoff = 2
-    print("Querying for human votes...")
-    for attempt in range(0, max_retries):
-        try:
-            api_host = "34.68.182.152:5000/api"
-
-            human_voting_scores = requests.get(f"http://{api_host}/get_votes", timeout=2)
-
-            if (human_voting_scores.status_code != 200) and (attempt == max_retries):
-                
-                print(f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step.")
-                break
-
-            elif (human_voting_scores.status_code != 200) and (attempt != max_retries):
-                
-                continue
-
-            else:
-                
-                human_voting_bot_round_scores = human_voting_scores.json()
-                
-                human_voting_bot_scores = {}
-
-                for inner_dict in human_voting_bot_round_scores.values():
-                    for key, value in inner_dict.items():
-                        if key in human_voting_bot_scores:
-                            human_voting_bot_scores[key] += value
-                        else:
-                            human_voting_bot_scores[key] = value
-                
-                human_voting_bot_scores = torch.tensor([human_voting_bot_scores[key] if key in human_voting_bot_scores.keys() else 0 for key in self.hotkeys]).to(self.device)
-                
-                if (human_voting_bot_scores.sum() == 0):
-                    
-                    continue
-                
-                else:
-                    human_voting_bot_scores = torch.nn.functional.normalize(human_voting_bot_scores)
-
-                    self.moving_averaged_scores: torch.FloatTensor = (
-                        MOVING_AVERAGE_BETA * (0.02*human_voting_bot_scores)
-                        + (1 - MOVING_AVERAGE_BETA) * self.moving_averaged_scores.to(self.device)
-                    )
-                    break
-                
-        except Exception as e:
-            print(f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds.")
+    print(f"MOVING AVERAGES T:        {self.moving_averaged_scores}")
 
     try:
 
