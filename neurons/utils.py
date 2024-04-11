@@ -117,7 +117,7 @@ def background_loop(self, is_validator):
     )
 
     #### Terminate the miner / validator after deregistration
-    if self.background_steps % 1 == 0 and self.background_steps > 1:
+    if self.background_steps % 5 == 0 and self.background_steps > 1:
         try:
             self.metagraph.sync(subtensor=self.subtensor)
             if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
@@ -194,7 +194,7 @@ def background_loop(self, is_validator):
         print(f"An error occurred trying to submit a batch: {e}")
 
     #### Update the whitelists and blacklists
-    if self.background_steps % 1 == 0:
+    if self.background_steps % 5 == 0:
         try:
             ### Create client if needed
             if not self.storage_client:
@@ -346,7 +346,7 @@ def background_loop(self, is_validator):
             print(f"An error occurred trying to update settings from the cloud: {e}.")
 
     #### Clean up the wandb runs and cache folders
-    if self.background_steps == 1 or self.background_steps % 36 == 0:
+    if self.background_steps == 1 or self.background_steps % 180 == 0:
         print("Trying to clean wandb directoy...")
         wandb_path = WANDB_VALIDATOR_PATH if is_validator else WANDB_MINER_PATH
         try:
@@ -375,9 +375,9 @@ def background_loop(self, is_validator):
 
     #### Attempt to init wandb if it wasn't sucessfully originally
     if (
-        (self.background_steps % 1 == 0)
+        (self.background_steps % 5 == 0)
         and is_validator
-        and (self.wandb_loaded == False)
+        and not self.wandb_loaded
     ):
         try:
             init_wandb(self)
