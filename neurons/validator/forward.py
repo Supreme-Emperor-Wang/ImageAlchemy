@@ -322,6 +322,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         print("Error updating event dict", str(err))
 
     try:
+        should_drop_entries = []
         images = []
         for response, reward in zip(responses, rewards.tolist()): 
             if (response.images != []) and (reward != 0):
@@ -330,12 +331,14 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
                 im_b64 = base64.b64encode(im_bytes)
                 images.append(im_b64.decode())
+                should_drop_entries.append(0)
             else:
                 im_file = BytesIO()
                 T.transforms.ToPILImage()(torch.full([3, 1024, 1024], 255, dtype=torch.float)).save(im_file, format="PNG")
                 im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
                 im_b64 = base64.b64encode(im_bytes)
                 images.append(im_b64.decode())
+                should_drop_entries.append(1)
         
         # Update batches to be sent to the human validation platform
         self.batches.append({
@@ -343,9 +346,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             "validator_hotkey": str(self.wallet.hotkey.ss58_address),
             "prompt": prompt,
             "nsfw_scores":event["nsfw_filter"],
+            "blacklist_scores":event["blacklist_filter"],
             "miner_hotkeys" : [self.metagraph.hotkeys[uid] for uid in uids],
             "miner_coldkeys" : [self.metagraph.coldkeys[uid] for uid in uids],
             "computes" : images,
+            "should_drop_entries": should_drop_entries
         })
     except Exception as e:
         print(f"An unexpected error occurred appending the batch: {e}")
