@@ -13,7 +13,7 @@ import torch
 import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
-from neurons.constants import MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
+from neurons.constants import HVB_MAINNET_IP, MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
 from neurons.protocol import ImageGeneration
 from neurons.utils import output_log, sh
 from utils import ttl_get_block
@@ -144,8 +144,12 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     # Log query to hisotry
     try:
-        for uid in uids: self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = time.perf_counter() 
-        for uid in uids: self.miner_query_history_count[self.metagraph.axons[uid].hotkey] += 1
+        for uid in uids:
+            self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = (
+                time.perf_counter()
+            )
+        for uid in uids:
+            self.miner_query_history_count[self.metagraph.axons[uid].hotkey] += 1
     except:
         print("Failed to log miner counts and histories")
 
@@ -181,11 +185,27 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     event = {"task_type": task_type}
 
     start_time = time.time()
-    
+
     # Log the results for monitoring purposes.
     try:
-        formatted_responses = [{'negative_prompt':response.negative_prompt, 'prompt_image': response.prompt_image, 'num_images_per_prompt': response.num_images_per_prompt, 'height': response.height, 'width': response.width, 'seed': response.seed, 'steps': response.steps, 'guidance_scale': response.guidance_scale, 'generation_type': response.generation_type,'images':[image.shape for image in response.images]} for response in responses]
-        print(f"Received {len(responses)} response(s) for the prompt '{prompt}': {formatted_responses}")
+        formatted_responses = [
+            {
+                "negative_prompt": response.negative_prompt,
+                "prompt_image": response.prompt_image,
+                "num_images_per_prompt": response.num_images_per_prompt,
+                "height": response.height,
+                "width": response.width,
+                "seed": response.seed,
+                "steps": response.steps,
+                "guidance_scale": response.guidance_scale,
+                "generation_type": response.generation_type,
+                "images": [image.shape for image in response.images],
+            }
+            for response in responses
+        ]
+        print(
+            f"Received {len(responses)} response(s) for the prompt '{prompt}': {formatted_responses}"
+        )
     except Exception as e:
         print(f"Failed to log formatted responses: {e}")
 
@@ -221,9 +241,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         print(str(masking_fn_i.name), mask_i_normalized.tolist())
 
     if not self.config.alchemy.disable_manual_validator:
-        print(
-            f"Waiting {self.manual_validator_timeout} seconds for manual vote..."
-        )
+        print(f"Waiting {self.manual_validator_timeout} seconds for manual vote...")
         start_time = time.perf_counter()
 
         received_vote = False
@@ -242,9 +260,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                         int(open("neurons/validator/images/vote.txt", "r").read()) - 1
                     )
                 except Exception as e:
-                    print(
-                        f"An unexpected error occurred parsing the vote: {e}"
-                    )
+                    print(f"An unexpected error occurred parsing the vote: {e}")
                     break
 
                 ### There is a small possibility that not every miner queried will respond.
@@ -279,15 +295,17 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             if delta != 0:
                 rewards /= delta
             else:
-                print(
-                    "The reward weight difference was 0 which is unexpected."
-                )
+                print("The reward weight difference was 0 which is unexpected.")
             print("No valid vote was received")
 
         # Delete contents of images folder except for black image
         if os.path.exists("neurons/validator/images"):
             for file in os.listdir("neurons/validator/images"):
-                os.remove(f"neurons/validator/images/{file}") if file != "black.png" else "_"
+                (
+                    os.remove(f"neurons/validator/images/{file}")
+                    if file != "black.png"
+                    else "_"
+                )
 
     scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
         0, uids, rewards
@@ -313,7 +331,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     try:
 
         for i, average in enumerate(self.moving_averaged_scores):
-            if (self.metagraph.axons[i].hotkey in self.hotkey_blacklist) or (self.metagraph.axons[i].coldkey in self.coldkey_blacklist):
+            if (self.metagraph.axons[i].hotkey in self.hotkey_blacklist) or (
+                self.metagraph.axons[i].coldkey in self.coldkey_blacklist
+            ):
                 self.moving_averaged_scores[i] = 0
 
     except Exception as e:
@@ -346,31 +366,42 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         print("Error updating event dict", str(err))
 
     try:
+        should_drop_entries = []
         images = []
-        for response, reward in zip(responses, rewards.tolist()): 
+        for response, reward in zip(responses, rewards.tolist()):
             if (response.images != []) and (reward != 0):
                 im_file = BytesIO()
-                T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])).save(im_file, format="PNG")
+                T.transforms.ToPILImage()(
+                    bt.Tensor.deserialize(response.images[0])
+                ).save(im_file, format="PNG")
                 im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
                 im_b64 = base64.b64encode(im_bytes)
                 images.append(im_b64.decode())
+                should_drop_entries.append(0)
             else:
                 im_file = BytesIO()
-                T.transforms.ToPILImage()(torch.full([3, 1024, 1024], 255, dtype=torch.float)).save(im_file, format="PNG")
+                T.transforms.ToPILImage()(
+                    torch.full([3, 1024, 1024], 255, dtype=torch.float)
+                ).save(im_file, format="PNG")
                 im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
                 im_b64 = base64.b64encode(im_bytes)
                 images.append(im_b64.decode())
-        
+                should_drop_entries.append(1)
+
         # Update batches to be sent to the human validation platform
-        self.batches.append({
-            "batch_id": str(uuid.uuid4()),
-            "validator_hotkey": str(self.wallet.hotkey.ss58_address),
-            "prompt": prompt,
-            "nsfw_scores":event["nsfw_filter"],
-            "miner_hotkeys" : [self.metagraph.hotkeys[uid] for uid in uids],
-            "miner_coldkeys" : [self.metagraph.coldkeys[uid] for uid in uids],
-            "computes" : images,
-        })
+        self.batches.append(
+            {
+                "batch_id": str(uuid.uuid4()),
+                "validator_hotkey": str(self.wallet.hotkey.ss58_address),
+                "prompt": prompt,
+                "nsfw_scores": event["nsfw_filter"],
+                "blacklist_scores": event["blacklist_filter"],
+                "miner_hotkeys": [self.metagraph.hotkeys[uid] for uid in uids],
+                "miner_coldkeys": [self.metagraph.coldkeys[uid] for uid in uids],
+                "computes": images,
+                "should_drop_entries": should_drop_entries,
+            }
+        )
     except Exception as e:
         print(f"An unexpected error occurred appending the batch: {e}")
 
@@ -405,3 +436,4 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         print(f"Unable to log event to wandb due to the following error: {e}")
 
     return event
+

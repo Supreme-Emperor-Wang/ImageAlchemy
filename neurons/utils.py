@@ -25,6 +25,8 @@ from neurons.constants import (
     VALIDATOR_DEFAULT_REQUEST_FREQUENCY,
     WANDB_MINER_PATH,
     WANDB_VALIDATOR_PATH,
+    HVB_MAINNET_IP,
+    HVB_TESTNET_IP,
 )
 from neurons.validator.utils import init_wandb
 
@@ -90,6 +92,7 @@ class BackgroundTimer(Timer):
         while not self.finished.wait(self.interval):
             self.function(*self.args, **self.kwargs)
 
+
 def get_coldkey_for_hotkey(self, hotkey):
     """
     Look up the coldkey of the caller.
@@ -98,6 +101,7 @@ def get_coldkey_for_hotkey(self, hotkey):
         index = self.metagraph.hotkeys.index(hotkey)
         return self.metagraph.coldkeys[index]
     return None
+
 
 def background_loop(self, is_validator):
     """
@@ -108,10 +112,12 @@ def background_loop(self, is_validator):
     blacklist_type = IA_VALIDATOR_BLACKLIST if is_validator else IA_MINER_BLACKLIST
     warninglist_type = IA_MINER_WARNINGLIST
 
-    bucket_name = IA_TEST_BUCKET_NAME if self.subtensor.network == "test" else IA_BUCKET_NAME
+    bucket_name = (
+        IA_TEST_BUCKET_NAME if self.subtensor.network == "test" else IA_BUCKET_NAME
+    )
 
     #### Terminate the miner / validator after deregistration
-    if self.background_steps % 1 == 0 and self.background_steps > 1:
+    if self.background_steps % 5 == 0 and self.background_steps > 1:
         try:
             self.metagraph.sync(subtensor=self.subtensor)
             if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
@@ -125,47 +131,69 @@ def background_loop(self, is_validator):
                 try:
                     os._exit(0)
                 except Exception as e:
-                    print(
-                        f"An error occurred trying to use os._exit(): {e}."
-                    )
+                    print(f"An error occurred trying to use os._exit(): {e}.")
                 sys.exit(0)
         except Exception as e:
-            print(
-                f">>> An unexpected error occurred syncing the metagraph: {e}"
-            )
+            print(f">>> An unexpected error occurred syncing the metagraph: {e}")
 
     print(f"Number of batches in queue: {len(self.batches)}")
-    
-    #### Send new batches to the Human Validation Bot
-    if (self.background_steps % 1 == 0) and is_validator and (self.batches != []):
-        max_retries = 3
-        backoff = 2
-        for batch in self.batches:
-            for attempt in range(0, max_retries):
-                try:
-                    response = requests.post("http://34.68.182.152:5000/api/submit_batch", data=json.dumps(batch), headers={"Content-Type": "application/json"}, timeout = 30)
-                    print(f"Successfully posted batch {batch['batch_id']}")
-                except Exception as e:
-                    if attempt != max_retries:
-                        print(f"Attempt number {attempt+1} failed to send batch {batch['batch_id']}. Retrying in {backoff} seconds. Error: {e}")
-                        time.sleep(backoff)
-                        continue
-                    else:
-                        print(f"Attempted to post batch {batch['batch_id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch. Error: {e}")
-                        break
 
-                if response.status_code == 200:
-                    self.batches.remove(batch)
-                    break
-                else:
-                    if attempt != max_retries:
-                        print(f"Attempt number {attempt+1} failed to send batch {batch['id']}. Retrying in {backoff} seconds.")
-                        time.sleep(backoff)
-                    else:
-                        print(f"Attempted to post batch {batch['id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch")
+    #### Send new batches to the Human Validation Bot
+    try:
+        if (self.background_steps % 1 == 0) and is_validator and (self.batches != []):
+            max_retries = 3
+            backoff = 2
+            batches_for_deletion = []
+            invalid_batches = []
+            for batch in self.batches:
+                for attempt in range(0, max_retries):
+                    try:
+                        response = requests.post(
+                            f"http://{HVB_MAINNET_IP}:5000/api/submit_batch",
+                            data=json.dumps(batch),
+                            headers={"Content-Type": "application/json"},
+                            timeout=30,
+                        )
+                        if response.status_code == 200:
+                            print(f"Successfully posted batch {batch['batch_id']}")
+                            batches_for_deletion.append(batch)
+                            break
+                        else:
+                            response_data = response.json()
+                            error = response_data.get("error")
+                            if error and "Submitted compute count must be greater than" in error:
+                                invalid_batches.append(batch)
+                            
+                            print(f"{response_data=}")
+                            raise Exception(f"Failed to post batch. Status code: {response.status_code}")
+                    except Exception as e:
+                        if attempt != max_retries:
+                            print(
+                                f"Attempt number {attempt+1} failed to send batch {batch['batch_id']}. Retrying in {backoff} seconds. Error: {e}"
+                            )
+                            time.sleep(backoff)
+                            continue
+                        else:
+                            print(
+                                f"Attempted to post batch {batch['batch_id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch. Error: {e}"
+                            )
+                            break
+
+            ### Delete any invalid batches
+            for batch in invalid_batches:
+                print(f"Removing invalid batch: {batch['batch_id']}")
+                self.batches.remove(batch)
+
+            ### Delete any successful batches
+            for batch in batches_for_deletion:
+                print(f"Removing successful batch: {batch['batch_id']}")
+                self.batches.remove(batch)
+
+    except Exception as e:
+        print(f"An error occurred trying to submit a batch: {e}")
 
     #### Update the whitelists and blacklists
-    if self.background_steps % 1 == 0:
+    if self.background_steps % 5 == 0:
         try:
             ### Create client if needed
             if not self.storage_client:
@@ -212,22 +240,22 @@ def background_loop(self, is_validator):
                         if v["type"] == "coldkey"
                     ]
                 )
-                print("Retrieved the latest whitelists.") 
+                print("Retrieved the latest whitelists.")
 
             ### Update the warning list
             warninglist_for_neuron = retrieve_public_file(
                 self.storage_client, bucket_name, warninglist_type
             )
             if warninglist_for_neuron:
-                self.hotkey_warninglist =   {
-                        k :[v['reason'],v['resolve_by']]
-                        for k, v in warninglist_for_neuron.items()
-                        if v["type"] == "hotkey"
+                self.hotkey_warninglist = {
+                    k: [v["reason"], v["resolve_by"]]
+                    for k, v in warninglist_for_neuron.items()
+                    if v["type"] == "hotkey"
                 }
                 self.coldkey_warninglist = {
-                        k :[v['reason'],v['resolve_by']]
-                        for k, v in warninglist_for_neuron.items()
-                        if v["type"] == "coldkey"
+                    k: [v["reason"], v["resolve_by"]]
+                    for k, v in warninglist_for_neuron.items()
+                    if v["type"] == "coldkey"
                 }
                 print("Retrieved the latest warninglists.")
                 if self.wallet.hotkey.ss58_address in self.hotkey_warninglist.keys():
@@ -235,7 +263,7 @@ def background_loop(self, is_validator):
                         f"This hotkey is on the warning list: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][0]} | Date for rectification: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][1]}",
                         color_key="r",
                     )
-                coldkey = get_coldkey_for_hotkey(self, self.wallet.hotkey.ss58_address) 
+                coldkey = get_coldkey_for_hotkey(self, self.wallet.hotkey.ss58_address)
                 if coldkey in self.coldkey_warninglist.keys():
                     output_log(
                         f"This coldkey is on the warning list: {self.coldkey_warninglist[coldkey][0]} | Date for rectification: {self.coldkey_warninglist[coldkey][1]}",
@@ -248,7 +276,10 @@ def background_loop(self, is_validator):
                 validator_weights = retrieve_public_file(
                     self.storage_client, bucket_name, IA_VALIDATOR_WEIGHT_FILES
                 )
-                if "manual_reward_model" in validator_weights and self.config.alchemy.disable_manual_validator:
+                if (
+                    "manual_reward_model" in validator_weights
+                    and self.config.alchemy.disable_manual_validator
+                ):
                     validator_weights["manual_reward_model"] = 0.0
 
                 if validator_weights:
@@ -256,7 +287,6 @@ def background_loop(self, is_validator):
                     for rw_name in self.reward_names:
                         if rw_name in validator_weights:
                             weights_to_add.append(validator_weights[rw_name])
-
 
                     print(f"Raw model weights: {weights_to_add}")
 
@@ -266,7 +296,9 @@ def background_loop(self, is_validator):
                             weights_to_add = normalize_weights(weights_to_add)
                             print(f"Normalized model weights: {weights_to_add}")
 
-                        self.reward_weights = torch.tensor(weights_to_add, dtype=torch.float32).to(self.device)
+                        self.reward_weights = torch.tensor(
+                            weights_to_add, dtype=torch.float32
+                        ).to(self.device)
                         print(
                             f"Retrieved the latest validator weights: {self.reward_weights}"
                         )
@@ -275,7 +307,6 @@ def background_loop(self, is_validator):
                     #     [v for k, v in validator_weights.items() if "manual" not in k],
                     #     dtype=torch.float32,
                     # ).to(self.device)
-                    
 
                 ### Update settings
                 validator_settings: dict = retrieve_public_file(
@@ -292,7 +323,7 @@ def background_loop(self, is_validator):
                     )
 
                     self.manual_validator_timeout = validator_settings.get(
-                        "manual_validator_timeout",  self.manual_validator_timeout
+                        "manual_validator_timeout", self.manual_validator_timeout
                     )
 
                     self.async_timeout = validator_settings.get(
@@ -309,15 +340,13 @@ def background_loop(self, is_validator):
                     print(
                         f"Retrieved the latest validator settings: {validator_settings}"
                     )
-        
 
         except Exception as e:
-            print(
-                f"An error occurred trying to update settings from the cloud: {e}."
-            )
+            print(f"An error occurred trying to update settings from the cloud: {e}.")
 
     #### Clean up the wandb runs and cache folders
-    if self.background_steps == 1 or self.background_steps % 36 == 0:
+    if self.background_steps == 1 or self.background_steps % 180 == 0:
+        print("Trying to clean wandb directoy...")
         wandb_path = WANDB_VALIDATOR_PATH if is_validator else WANDB_MINER_PATH
         try:
             if os.path.exists(wandb_path):
@@ -329,7 +358,10 @@ def background_loop(self, is_validator):
                     if "run-" in x and not "latest-run" in x
                 ]
                 if len(runs) > 0:
-                    cleanup_runs_process = subprocess.call(f"cd {wandb_path} && echo 'y' | wandb sync --clean --clean-old-hours 3", shell=True)
+                    cleanup_runs_process = subprocess.call(
+                        f"cd {wandb_path} && echo 'y' | wandb sync --clean --clean-old-hours 3",
+                        shell=True,
+                    )
                     print("Cleaned all synced wandb runs.")
                     cleanup_cache_process = subprocess.Popen(
                         ["wandb artifact cache cleanup 5GB"], shell=True
@@ -338,12 +370,14 @@ def background_loop(self, is_validator):
             else:
                 print(f"The path {wandb_path} doesn't exist yet.")
         except Exception as e:
-            print(
-                f"An error occurred trying to clean wandb artifacts and runs: {e}."
-            )
+            print(f"An error occurred trying to clean wandb artifacts and runs: {e}.")
 
     #### Attempt to init wandb if it wasn't sucessfully originally
-    if (self.background_steps % 1 == 0) and is_validator and (self.wandb_loaded == False):
+    if (
+        (self.background_steps % 5 == 0)
+        and is_validator
+        and not self.wandb_loaded
+    ):
         try:
             init_wandb(self)
             print("Loaded wandb")
@@ -366,7 +400,6 @@ def normalize_weights(weights):
     return weights
 
 
-
 def retrieve_public_file(client, bucket_name, source_name):
     file = None
     try:
@@ -378,7 +411,6 @@ def retrieve_public_file(client, bucket_name, source_name):
             print(f"Successfully downloaded {source_name} from {bucket_name}")
         except Exception as e:
             print(f"Failed to download {source_name} from {bucket_name}: {e}")
-
 
     except Exception as e:
         print(f"An error occurred downloading from Google Cloud: {e}")
