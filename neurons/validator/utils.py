@@ -74,7 +74,7 @@ async def check_uid(dendrite, self, uid, response_times):
                 pass
             return False
     except Exception as e:
-        bt.logging.error(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
+        print(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
         return False
     
 
@@ -152,8 +152,8 @@ async def get_random_uids(
     for uid in range(0,len(candidate_uids), N_NEURONS_TO_QUERY):
         tasks = []
 
-        bt.logging.debug(f"UIDs in pool: {final_uids}")
-        bt.logging.debug(f"Querying uids: {candidate_uids[uid:uid+N_NEURONS_TO_QUERY]}")
+        print(f"UIDs in pool: {final_uids}")
+        print(f"Querying uids: {candidate_uids[uid:uid+N_NEURONS_TO_QUERY]}")
 
         t1 = time.perf_counter()
 
@@ -165,12 +165,12 @@ async def get_random_uids(
         responses = await asyncio.gather(*tasks)
         attempt_counter += 1
 
-        bt.logging.debug(f"Time to get responses: {time.perf_counter() - t1:.2f}s")
+        print(f"Time to get responses: {time.perf_counter() - t1:.2f}s")
 
         list_slice = times_list[-25:]
         time_sum = sum(list_slice)
 
-        bt.logging.debug(f"Number of times stored: {len(times_list)} | Average successful response across {len(list_slice)} samples: {time_sum / len(list_slice) if len(list_slice) > 0 else 0:.2f}")
+        print(f"Number of times stored: {len(times_list)} | Average successful response across {len(list_slice)} samples: {time_sum / len(list_slice) if len(list_slice) > 0 else 0:.2f}")
 
         if True in responses:
 
@@ -190,7 +190,7 @@ async def get_random_uids(
                 else:
                     continue
 
-            bt.logging.debug(f"Added uids: {temp_list} in {time.perf_counter() - t2:.2f}s")
+            print(f"Added uids: {temp_list} in {time.perf_counter() - t2:.2f}s")
 
             avg_num_list.append(len(temp_list))
 
@@ -207,9 +207,9 @@ async def get_random_uids(
     except:
         pass
 
-    bt.logging.debug(f"Time to find all {len(final_uids)} uids: {time.perf_counter() - t0:.2f}s in {attempt_counter} attempts | Avg active UIDs per attempt: {sum_avg:.2f}")
+    print(f"Time to find all {len(final_uids)} uids: {time.perf_counter() - t0:.2f}s in {attempt_counter} attempts | Avg active UIDs per attempt: {sum_avg:.2f}")
 
-    # bt.logging.trace({f"UID_{candidate_uid}": "Active" if candidate_uid in final_uids else "Inactive" for i, candidate_uid in enumerate(candidate_uids)})
+    # print({f"UID_{candidate_uid}": "Active" if candidate_uid in final_uids else "Inactive" for i, candidate_uid in enumerate(candidate_uids)})
 
     uids = torch.tensor(final_uids) if len(final_uids) < k else torch.tensor(random.sample(final_uids, k))
 
@@ -275,7 +275,7 @@ def corcel_parse_response(text):
         if split:
             split = split[0]
         else:
-            bt.logging.debug(f"Returning (X1) default text: {text}")
+            print(f"Returning (X1) default text: {text}")
             return text
     elif len(split) == 1:
         split = split[0]
@@ -284,11 +284,11 @@ def corcel_parse_response(text):
         if len(split) > 0:
             split = split[0]
     else:
-        bt.logging.trace(f"Split: {split}")
-        bt.logging.debug(f"Returning (X2) default text: {text}")
+        print(f"Split: {split}")
+        print(f"Returning (X2) default text: {text}")
         return text
     
-    bt.logging.debug(f"Returning parsed text: {split}")
+    print(f"Returning parsed text: {split}")
     return split
 
 
@@ -307,10 +307,10 @@ def call_openai(client, model, prompt):
         frequency_penalty=0,
         presence_penalty=0,
     )
-    bt.logging.trace(f"OpenAI response object: {response}")
+    print(f"OpenAI response object: {response}")
     response = response.choices[0].message.content
     if response:
-        bt.logging.info(f"Prompt generated with OpenAI: {response}")
+        print(f"Prompt generated with OpenAI: {response}")
     return response
 
 
@@ -338,7 +338,7 @@ def call_corcel(self, prompt):
         "seed": random.randint(0, 1_000_000)
     }
 
-    bt.logging.trace(f"Using args: {JSON}")
+    print(f"Using args: {JSON}")
 
     response = None
 
@@ -348,12 +348,12 @@ def call_corcel(self, prompt):
         )
         response = response.json()[0]["choices"][0]["delta"]["content"]
     except requests.exceptions.ReadTimeout as e:
-        bt.logging.debug(
+        print(
             f"Corcel request timed out after 15 seconds... falling back to OpenAI..."
         )
 
     if response:
-        bt.logging.info(f"Prompt generated with Corcel: {response}")
+        print(f"Prompt generated with Corcel: {response}")
 
     return response
 
@@ -375,8 +375,8 @@ def generate_random_prompt_gpt(
                 if response.startswith("{"):
                     response = None
         except Exception as e:
-            bt.logging.debug(f"An unexpected error occurred calling corcel: {e}")
-            bt.logging.debug(f"Falling back to OpenAI if available...")
+            print(f"An unexpected error occurred calling corcel: {e}")
+            print(f"Falling back to OpenAI if available...")
 
     if not response:
         if self.openai_client:
@@ -384,16 +384,16 @@ def generate_random_prompt_gpt(
                 try:
                     response = call_openai(self.openai_client, model, prompt)
                 except Exception as e:
-                    bt.logging.debug(
+                    print(
                         f"An unexpected error occurred calling OpenAI: {e}"
                     )
-                    bt.logging.debug(f"Sleeping for 10 seconds and retrying once...")
+                    print(f"Sleeping for 10 seconds and retrying once...")
                     time.sleep(10)
 
                 if response:
                     break
         else:
-            bt.logging.warning(
+            print(
                 "Attempted to use OpenAI as a fallback but the OPENAI_API_KEY is not set."
             )
 
@@ -432,11 +432,11 @@ def generate_followup_prompt_gpt(
                 presence_penalty=0,
             )
             new_prompt = response.choices[0].message.content
-            bt.logging.trace(f"I2I prompt is {new_prompt}")
+            print(f"I2I prompt is {new_prompt}")
             return new_prompt
 
         except Exception as e:
-            bt.logging.info(f"Error when calling OpenAI: {e}")
+            print(f"Error when calling OpenAI: {e}")
             time.sleep(0.5)
 
     return None

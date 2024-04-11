@@ -55,14 +55,14 @@ COLORS = {
 
 #### Utility function for coloring logs
 def output_log(message: str, color_key: str = "w", type: str = "info") -> None:
-    log = bt.logging.info
+    log = print
     if type == "debug":
-        log = bt.logging.debug
+        log = print
 
     if color_key == "na":
-        log(f"{message}")
+        log(f"[{type.upper()}] {message}")
     else:
-        log(f"{COLORS[color_key]}{message}{COLORS['w']}")
+        log(f"{COLORS[color_key]}[{type.upper()}] {message}{COLORS['w']}")
 
 
 def sh(message: str):
@@ -115,41 +115,43 @@ def background_loop(self, is_validator):
         try:
             self.metagraph.sync(subtensor=self.subtensor)
             if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
-                bt.logging.debug(f">>> {neuron_type} has deregistered... terminating.")
+                print(f">>> {neuron_type} has deregistered... terminating.")
                 try:
                     _thread.interrupt_main()
                 except Exception as e:
-                    bt.logging.error(
+                    print(
                         f"An error occurred trying to terminate the main thread: {e}."
                     )
                 try:
                     os._exit(0)
                 except Exception as e:
-                    bt.logging.error(
+                    print(
                         f"An error occurred trying to use os._exit(): {e}."
                     )
                 sys.exit(0)
         except Exception as e:
-            bt.logging.error(
+            print(
                 f">>> An unexpected error occurred syncing the metagraph: {e}"
             )
+
+    print(f"Number of batches in queue: {len(self.batches)}")
     
     #### Send new batches to the Human Validation Bot
-    if (self.background_steps % 1 == 0) and (neuron_type == "Validator") and (self.batches != []):
+    if (self.background_steps % 1 == 0) and is_validator and (self.batches != []):
         max_retries = 3
         backoff = 2
         for batch in self.batches:
             for attempt in range(0, max_retries):
                 try:
-                    response = requests.post("http://34.173.80.163:5000/api/submit_batch", data=json.dumps(batch), headers={"Content-Type": "application/json"}, timeout = 30)
-                    bt.logging.info(f"Successfully posted batch {batch['batch_id']}")
+                    response = requests.post("http://34.68.182.152:5000/api/submit_batch", data=json.dumps(batch), headers={"Content-Type": "application/json"}, timeout = 30)
+                    print(f"Successfully posted batch {batch['batch_id']}")
                 except Exception as e:
                     if attempt != max_retries:
-                        bt.logging.info(f"Attempt number {attempt+1} failed to send batch {batch['batch_id']}. Retrying in {backoff} seconds.")
+                        print(f"Attempt number {attempt+1} failed to send batch {batch['batch_id']}. Retrying in {backoff} seconds. Error: {e}")
                         time.sleep(backoff)
                         continue
                     else:
-                        bt.logging.info(f"Attempted to post batch {batch['batch_id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch")
+                        print(f"Attempted to post batch {batch['batch_id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch. Error: {e}")
                         break
 
                 if response.status_code == 200:
@@ -157,10 +159,10 @@ def background_loop(self, is_validator):
                     break
                 else:
                     if attempt != max_retries:
-                        bt.logging.info(f"Attempt number {attempt+1} failed to send batch {batch['id']}. Retrying in {backoff} seconds.")
+                        print(f"Attempt number {attempt+1} failed to send batch {batch['id']}. Retrying in {backoff} seconds.")
                         time.sleep(backoff)
                     else:
-                        bt.logging.info(f"Attempted to post batch {batch['id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch")
+                        print(f"Attempted to post batch {batch['id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch")
 
     #### Update the whitelists and blacklists
     if self.background_steps % 1 == 0:
@@ -168,7 +170,7 @@ def background_loop(self, is_validator):
             ### Create client if needed
             if not self.storage_client:
                 self.storage_client = storage.Client.create_anonymous_client()
-                bt.logging.info("Created anonymous storage client.")
+                print("Created anonymous storage client.")
 
             ### Update the blacklists
             blacklist_for_neuron = retrieve_public_file(
@@ -189,7 +191,7 @@ def background_loop(self, is_validator):
                         if v["type"] == "coldkey"
                     ]
                 )
-                bt.logging.info("Retrieved the latest blacklists.")
+                print("Retrieved the latest blacklists.")
 
             ### Update the whitelists
             whitelist_for_neuron = retrieve_public_file(
@@ -210,7 +212,7 @@ def background_loop(self, is_validator):
                         if v["type"] == "coldkey"
                     ]
                 )
-                bt.logging.info("Retrieved the latest whitelists.") 
+                print("Retrieved the latest whitelists.") 
 
             ### Update the warning list
             warninglist_for_neuron = retrieve_public_file(
@@ -227,7 +229,7 @@ def background_loop(self, is_validator):
                         for k, v in warninglist_for_neuron.items()
                         if v["type"] == "coldkey"
                 }
-                bt.logging.info("Retrieved the latest warninglists.")
+                print("Retrieved the latest warninglists.")
                 if self.wallet.hotkey.ss58_address in self.hotkey_warninglist.keys():
                     output_log(
                         f"This hotkey is on the warning list: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][0]} | Date for rectification: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][1]}",
@@ -256,16 +258,16 @@ def background_loop(self, is_validator):
                             weights_to_add.append(validator_weights[rw_name])
 
 
-                    bt.logging.trace(f"Raw model weights: {weights_to_add}")
+                    print(f"Raw model weights: {weights_to_add}")
 
                     if weights_to_add:
                         ### Normalize weights
                         if sum(weights_to_add) != 1:
                             weights_to_add = normalize_weights(weights_to_add)
-                            bt.logging.trace(f"Normalized model weights: {weights_to_add}")
+                            print(f"Normalized model weights: {weights_to_add}")
 
                         self.reward_weights = torch.tensor(weights_to_add, dtype=torch.float32).to(self.device)
-                        bt.logging.info(
+                        print(
                             f"Retrieved the latest validator weights: {self.reward_weights}"
                         )
 
@@ -304,13 +306,13 @@ def background_loop(self, is_validator):
                     if self.config.alchemy.disable_manual_validator:
                         self.request_frequency += self.manual_validator_timeout
 
-                    bt.logging.info(
+                    print(
                         f"Retrieved the latest validator settings: {validator_settings}"
                     )
         
 
         except Exception as e:
-            bt.logging.error(
+            print(
                 f"An error occurred trying to update settings from the cloud: {e}."
             )
 
@@ -328,15 +330,15 @@ def background_loop(self, is_validator):
                 ]
                 if len(runs) > 0:
                     cleanup_runs_process = subprocess.call(f"cd {wandb_path} && echo 'y' | wandb sync --clean --clean-old-hours 3", shell=True)
-                    bt.logging.debug("Cleaned all synced wandb runs.")
+                    print("Cleaned all synced wandb runs.")
                     cleanup_cache_process = subprocess.Popen(
                         ["wandb artifact cache cleanup 5GB"], shell=True
                     )
-                    bt.logging.debug("Cleaned all wandb cache data > 5GB.")
+                    print("Cleaned all wandb cache data > 5GB.")
             else:
-                bt.logging.debug(f"The path {wandb_path} doesn't exist yet.")
+                print(f"The path {wandb_path} doesn't exist yet.")
         except Exception as e:
-            bt.logging.error(
+            print(
                 f"An error occurred trying to clean wandb artifacts and runs: {e}."
             )
 
@@ -344,11 +346,11 @@ def background_loop(self, is_validator):
     if (self.background_steps % 1 == 0) and is_validator and (self.wandb_loaded == False):
         try:
             init_wandb(self)
-            bt.logging.debug("Loaded wandb")
+            print("Loaded wandb")
             self.wandb_loaded = True
         except Exception as e:
             self.wandb_loaded = False
-            bt.logging.debug("Unable to load wandb. Retrying in 5 minutes.")
+            print("Unable to load wandb. Retrying in 5 minutes.")
 
     self.background_steps += 1
 
@@ -373,12 +375,12 @@ def retrieve_public_file(client, bucket_name, source_name):
         try:
             file = blob.download_as_text()
             file = json.loads(file)
-            bt.logging.debug(f"Successfully downloaded {source_name} from {bucket_name}")
+            print(f"Successfully downloaded {source_name} from {bucket_name}")
         except Exception as e:
-            bt.logging.warning(f"Failed to download {source_name} from {bucket_name}: {e}")
+            print(f"Failed to download {source_name} from {bucket_name}: {e}")
 
 
     except Exception as e:
-        bt.logging.error(f"An error occurred downloading from Google Cloud: {e}")
+        print(f"An error occurred downloading from Google Cloud: {e}")
 
     return file

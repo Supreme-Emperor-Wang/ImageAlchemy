@@ -246,7 +246,7 @@ class BaseMiner(ABC):
         )
 
     async def is_alive(self, synapse: IsAlive) -> IsAlive:
-        bt.logging.info("IsAlive")
+        print("IsAlive")
         synapse.completion = "True"
         return synapse
 
@@ -272,12 +272,12 @@ class BaseMiner(ABC):
             if synapse.negative_prompt:
                 local_args["negative_prompt"] = [synapse.negative_prompt]
         except:
-            bt.logging.info("Values for guidance_scale or negative_prompt were not provided.")
+            print("Values for guidance_scale or negative_prompt were not provided.")
 
         try:
             local_args["num_inference_steps"] = synapse.steps
         except:
-            bt.logging.info("Values for steps were not provided.")
+            print("Values for steps were not provided.")
 
         ### Get the model
         model = self.mapping[synapse.generation_type]["model"]
@@ -308,14 +308,14 @@ class BaseMiner(ABC):
                 )
                 break
             except Exception as e:
-                bt.logging.error(
+                print(
                     f"Error in attempt number {attempt+1} to generate an image: {e}... sleeping for 5 seconds..."
                 )
                 await asyncio.sleep(5)
                 if attempt == 2:
                     images = []
                     synapse.images = []
-                    bt.logging.error(
+                    print(
                         f"Failed to generate any images after {attempt+1} attempts."
                     )
 
@@ -325,7 +325,7 @@ class BaseMiner(ABC):
 
         ### Log NSFW images
         if any(nsfw_image_filter(self, images)):
-            bt.logging.debug(f"An image was flagged as NSFW: discarding image.")
+            print(f"An image was flagged as NSFW: discarding image.")
             self.stats.nsfw_count += 1
             synapse.images = []
 
@@ -339,7 +339,7 @@ class BaseMiner(ABC):
                 self.wandb._log()
 
         except Exception as e:
-            bt.logging.error(f"Error trying to log events to wandb.")
+            print(f"Error trying to log events to wandb.")
 
         #### Log time to generate image
         generation_time = time.perf_counter() - start_time
@@ -363,14 +363,14 @@ class BaseMiner(ABC):
             or caller_hotkey in self.hotkey_whitelist
         ):
             priority = 5000
-            bt.logging.trace(
+            print(
                 f"Prioritizing whitelisted key {synapse.dendrite.hotkey} with default value: {priority}."
             )
 
         try:
             caller_uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
             priority = float(self.metagraph.S[caller_uid])
-            bt.logging.trace(
+            print(
                 f"Prioritizing key {synapse.dendrite.hotkey} with value: {priority}."
             )
         except:
@@ -476,11 +476,11 @@ class BaseMiner(ABC):
                     f"Blacklisted a {synapse_type} request from {caller_hotkey} due to low stake: {caller_stake:.2f} < {vpermit_tao_limit}",
                 )
 
-            bt.logging.debug(f"Allowing recognized hotkey {caller_hotkey}")
+            print(f"Allowing recognized hotkey {caller_hotkey}")
             return False, "Hotkey recognized"
 
         except Exception as e:
-            bt.logging.error(f"Error in blacklist: {traceback.format_exc()}")
+            print(f"Error in blacklist: {traceback.format_exc()}")
 
     def blacklist_is_alive(self, synapse: IsAlive) -> typing.Tuple[bool, str]:
         return self._base_blacklist(synapse)
@@ -569,5 +569,5 @@ class BaseMiner(ABC):
                 break
             #### In case of unforeseen errors, the miner will log the error and continue operations.
             except Exception as e:
-                bt.logging.error(traceback.format_exc())
+                print(traceback.format_exc())
                 continue

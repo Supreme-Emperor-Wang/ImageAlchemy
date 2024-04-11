@@ -120,7 +120,7 @@ def warm_up(model, local_args):
     c_args = copy.deepcopy(local_args)
     c_args["prompt"] = "An alchemist brewing a vibrant glowing potion."
     images = model(**c_args).images
-    bt.logging.debug(f"Warm up is complete after {time.perf_counter() - start}")
+    print(f"Warm up is complete after {time.perf_counter() - start}")
 
 
 def nsfw_image_filter(self, images):
@@ -138,5 +138,5 @@ def clean_nsfw_from_prompt(prompt):
     for word in NSFW_WORDS:
         if re.search(r"\b{}\b".format(word), prompt):
             prompt = re.sub(r"\b{}\b".format(word), "", prompt).strip()
-            bt.logging.debug(f"Removed NSFW word {word.strip()} from prompt...")
+            print(f"Removed NSFW word {word.strip()} from prompt...")
     return prompt

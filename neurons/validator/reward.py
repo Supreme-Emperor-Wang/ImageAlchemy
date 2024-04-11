@@ -331,7 +331,7 @@ class NSFWRewardModel(BaseRewardModel):
 
         except Exception as e:
             print(response.images)
-            bt.logging.trace(f"Error in NSFW detection: {e}")
+            print(f"Error in NSFW detection: {e}")
             return 1.0
 
         return 1.0
@@ -375,7 +375,7 @@ class ImageRewardModel(BaseRewardModel):
                 return mean_image_scores
 
         except Exception as e:
-            bt.logging.info("ImageReward score is 0. No image in response.")
+            print("ImageReward score is 0. No image in response.")
             return 0.0
 
     def get_rewards(self, responses, rewards) -> torch.FloatTensor:

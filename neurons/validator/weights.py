@@ -29,9 +29,9 @@ def set_weights(self):
     # Calculate the average reward for each uid across non-zero values.
     # Replace any NaN values with 0.
     raw_weights = torch.nn.functional.normalize(self.moving_averaged_scores, p=1, dim=0)
-    # bt.logging.trace("raw_weights", raw_weights)
-    # bt.logging.trace("top10 values", raw_weights.sort()[0])
-    # bt.logging.trace("top10 uids", raw_weights.sort()[1])
+    # print("raw_weights", raw_weights)
+    # print("top10 values", raw_weights.sort()[0])
+    # print("top10 uids", raw_weights.sort()[1])
     # Process the raw weights to final_weights via subtensor limitations.
     (
         processed_weight_uids,
@@ -43,8 +43,8 @@ def set_weights(self):
         subtensor=self.subtensor,
         metagraph=self.metagraph,
     )
-    bt.logging.trace("processed_weights", processed_weights)
-    bt.logging.trace("processed_weight_uids", processed_weight_uids)
+    print("processed_weights", processed_weights)
+    print("processed_weight_uids", processed_weight_uids)
     # Set the weights on chain via our subtensor connection.
     self.subtensor.set_weights(
         wallet=self.wallet,

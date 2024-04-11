@@ -62,12 +62,12 @@ class StableValidator:
             except:
                 pass
             if index is not None:
-                bt.logging.info(
+                print(
                     f"Validator {self.config.wallet.hotkey} is registered with uid {self.metagraph.uids[index]}.",
                     "g",
                 )
                 break
-            bt.logging.info(
+            print(
                 f"Validator {self.config.wallet.hotkey} is not registered. Sleeping for 120 seconds...",
                 "r",
             )
@@ -78,7 +78,8 @@ class StableValidator:
         # Init config
         self.config = StableValidator.config()
         self.check_config(self.config)
-        bt.logging(config=self.config, logging_dir=self.config.alchemy.full_path)
+        bt.logging(config=self.config, logging_dir=self.config.alchemy.full_path, debug=True, trace=True)
+        bt.trace()
 
         # Init device.
         self.device = torch.device(self.config.alchemy.device)
@@ -89,10 +90,10 @@ class StableValidator:
         self.corcel_api_key = os.environ.get("CORCEL_API_KEY")
 
         # if not self.corcel_api_key:
-        #     bt.logging.warning("Please set the CORCEL_API_KEY environment variable.")
+        #     print("Please set the CORCEL_API_KEY environment variable.")
 
         if not openai_api_key:
-            bt.logging.warning("Please set the OPENAI_API_KEY environment variable.")
+            print("Please set the OPENAI_API_KEY environment variable.")
         else:
             self.openai_client = OpenAI(api_key=openai_api_key)
 
@@ -101,13 +102,15 @@ class StableValidator:
                 "You must set either the CORCEL_API_KEY or OPENAI_API_KEY environment variables. It is preferable to use both."
             )
 
+        print("This is a test print statement prior to wandb.")
+        
         wandb.login(anonymous="must")
 
         # Init prompt backup db
         try:
             self.prompt_history_db = get_promptdb_backup(self.config.netuid)
         except Exception as e:
-            bt.logging.warning(
+            print(
                 f"Unexpected error occurred loading the backup prompts: {e}"
             )
             self.prompt_history_db = []
@@ -115,7 +118,7 @@ class StableValidator:
 
         # Init subtensor
         self.subtensor = bt.subtensor(config=self.config)
-        bt.logging.debug(f"Loaded subtensor: {self.subtensor}")
+        print(f"Loaded subtensor: {self.subtensor}")
 
         # Init wallet.
         self.wallet = bt.wallet(config=self.config)
@@ -123,7 +126,7 @@ class StableValidator:
 
         # Dendrite pool for querying the network during training.
         self.dendrite = bt.dendrite(wallet=self.wallet)
-        bt.logging.debug(f"Loaded dendrite pool: {self.dendrite}")
+        print(f"Loaded dendrite pool: {self.dendrite}")
 
         # Init metagraph.
         self.metagraph = bt.metagraph(
@@ -138,13 +141,13 @@ class StableValidator:
 
 
         self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
-        bt.logging.debug("Loaded metagraph")
+        print("Loaded metagraph")
 
         self.scores = torch.zeros_like(self.metagraph.stake, dtype=torch.float32)
 
         # Init Weights.
         self.moving_averaged_scores = torch.zeros((self.metagraph.n)).to(self.device)
-        # bt.logging.debug(
+        # print(
         #     f"Loaded moving_averaged_scores: {str(self.moving_averaged_scores)}"
         # )
 
@@ -152,7 +155,7 @@ class StableValidator:
         self.my_subnet_uid = self.metagraph.hotkeys.index(
             self.wallet.hotkey.ss58_address
         )
-        bt.logging.info(f"Running validator on uid: {self.my_subnet_uid}")
+        print(f"Running validator on uid: {self.my_subnet_uid}")
 
         # Init weights
         self.weights = torch.ones_like(self.metagraph.uids, dtype=torch.float32).to(
@@ -171,14 +174,14 @@ class StableValidator:
             try:
                 if 'ImageAlchemy' not in os.getcwd():
                     raise Exception("Unable to load manual validator please cd into the ImageAlchemy folder before running the validator")
-                bt.logging.debug("Setting streamlit credentials")
+                print("Setting streamlit credentials")
                 if not os.path.exists('streamlit_credentials.txt'):
                     username = self.wallet.hotkey.ss58_address
                     password = pwgenerator.generate()
                     with open('streamlit_credentials.txt', 'w') as f: f.write(f"username={username}\npassword={password}")
                     # Sleep until the credentials file is written
                     sleep(5)
-                bt.logging.debug("Loading Manual Validator")
+                print("Loading Manual Validator")
                 process = subprocess.Popen(
                     [
                         "streamlit",
@@ -189,7 +192,7 @@ class StableValidator:
                     ]
                 )
             except Exception as e:
-                bt.logging.error(f"Failed to Load Manual Validator due to error: {e}")
+                print(f"Failed to Load Manual Validator due to error: {e}")
                 self.config.alchemy.disable_manual_validator = True
 
         # Init reward function
@@ -227,11 +230,11 @@ class StableValidator:
         # Init wandb.
         try:
             init_wandb(self)
-            bt.logging.debug("Loaded wandb")
+            print("Loaded wandb")
             self.wandb_loaded = True
         except Exception as e:
             self.wandb_loaded = False
-            bt.logging.debug("Unable to load wandb. Retrying in 5 minnutes.")
+            print("Unable to load wandb. Retrying in 5 minnutes.")
 
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
@@ -271,7 +274,7 @@ class StableValidator:
 
     async def run(self):
         # Main Validation Loop
-        bt.logging.info("Starting validator loop.")
+        print("Starting validator loop.")
         # Load Previous Sates
         self.load_state()
         self.step = 0
@@ -279,7 +282,7 @@ class StableValidator:
             try:
                 # Reduce calls to miner to be approximately 1 per 5 minutes
                 if self.step > 0:
-                    bt.logging.info(
+                    print(
                         f"Waiting for {self.request_frequency} seconds before querying miners again..."
                     )
                     sleep(self.request_frequency)
@@ -294,7 +297,7 @@ class StableValidator:
                 prompt = generate_random_prompt_gpt(self)
 
                 if prompt is None:
-                    bt.logging.warning(f"The prompt was not generated successfully.")
+                    print(f"The prompt was not generated successfully.")
 
                     ### Prevent loop from forming if the prompt error occurs on the first step
                     if self.step == 0:
@@ -310,9 +313,9 @@ class StableValidator:
                 try:
                     self.sync()
                 except Exception as e:
-                    bt.logging.warning(f"An unexpected error occurred trying to sync the metagraph: {e}")
+                    print(f"An unexpected error occurred trying to sync the metagraph: {e}")
 
-                # Load Previous Sates
+                # Save Previous Sates
                 self.save_state()
 
                 # End the current step and prepare for the next iteration.
@@ -320,26 +323,23 @@ class StableValidator:
 
                 # Assuming each step is 3 minutes restart wandb run ever 3 hours to avoid overloading a validators storage space
                 if self.step % 360 == 0 and self.step != 0:
-                    bt.logging.info("Re-initializing wandb run...")
+                    print("Re-initializing wandb run...")
                     try:
                         reinit_wandb(self)
                         self.wandb_loaded = True
                     except Exception as e:
-                        bt.logging.error(f"An unexpected error occurred reinitializing wandb: {e}")
+                        print(f"An unexpected error occurred reinitializing wandb: {e}")
                         self.wandb_loaded = False
 
             # If we encounter an unexpected error, log it for debugging.
             except Exception as err:
-                bt.logging.error("Error in training loop", str(err))
-                bt.logging.debug(print_exception(type(err), err, err.__traceback__))
+                print("Error in training loop", str(err))
+                print(print_exception(type(err), err, err.__traceback__))
 
             # If the user interrupts the program, gracefully exit.
             except KeyboardInterrupt:
                 bt.logging.success("Keyboard interrupt detected. Exiting validator.")
                 exit()
-
-        while True:
-            background_loop(self, True)
 
     def sync(self):
         """
@@ -389,7 +389,7 @@ class StableValidator:
         if previous_metagraph.axons == self.metagraph.axons:
             return
 
-        bt.logging.info(
+        print(
             "Metagraph updated, re-syncing hotkeys, dendrite pool and moving averages"
         )
 
@@ -416,7 +416,7 @@ class StableValidator:
             netuid=self.config.netuid,
             hotkey_ss58=self.wallet.hotkey.ss58_address,
         ):
-            bt.logging.error(
+            print(
                 f"Wallet: {self.wallet} is not registered on netuid {self.config.netuid}."
                 f" Please register the hotkey before trying again"
             )
@@ -442,7 +442,7 @@ class StableValidator:
         
     def save_state(self):
         r"""Save hotkeys, neuron model and moving average scores to filesystem."""
-        bt.logging.info("save_state()")
+        print("save_state()")
         try:
             neuron_state_dict = {
                 "neuron_weights": self.moving_averaged_scores.to("cpu").tolist(),
@@ -453,14 +453,14 @@ class StableValidator:
                 sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
             )
         except Exception as e:
-            bt.logging.warning(f"Failed to save model with error: {e}")
+            print(f"Failed to save model with error: {e}")
 
         # empty cache
         torch.cuda.empty_cache()
 
     def load_state(self):
         r"""Load hotkeys and moving average scores from filesystem."""
-        bt.logging.info("load_state()")
+        print("load_state()")
         try:
             state_dict = torch.load(f"{self.config.alchemy.full_path}/model.torch")
             neuron_weights = torch.tensor(state_dict["neuron_weights"])
@@ -469,14 +469,14 @@ class StableValidator:
             has_infs = torch.isinf(neuron_weights).any()
 
             if has_nans:
-                bt.logging.warning(f"Nans found in the model state: {has_nans}")
+                print(f"Nans found in the model state: {has_nans}")
 
             if has_infs:
-                bt.logging.warning(f"Infs found in the model state: {has_infs}")
+                print(f"Infs found in the model state: {has_infs}")
 
             # Check to ensure that the size of the neruon weights matches the metagraph size.
             if neuron_weights.shape != (self.metagraph.n,):
-                bt.logging.warning(
+                print(
                     f"Neuron weights shape {neuron_weights.shape} does not match metagraph n {self.metagraph.n}"
                     "Populating new moving_averaged_scores IDs with zeros"
                 )
@@ -488,10 +488,10 @@ class StableValidator:
             # Check for nans in saved state dict
             elif not any([has_nans, has_infs]):
                 self.moving_averaged_scores = neuron_weights.to(self.device)
-                bt.logging.trace(f"MA scores: {self.moving_averaged_scores}")
+                print(f"MA scores: {self.moving_averaged_scores}")
                 # self.update_hotkeys()
             else:
-                bt.logging.warning("Loaded MA scores from scratch.")
+                print("Loaded MA scores from scratch.")
 
             # Zero out any negative scores
             for i, average in enumerate(self.moving_averaged_scores): 
@@ -504,12 +504,12 @@ class StableValidator:
             )
             
         except Exception as e:
-            bt.logging.warning(f"Failed to load model with error: {e}")
+            print(f"Failed to load model with error: {e}")
 
     def serve_axon(self):
         """Serve axon to enable external connections."""
 
-        bt.logging.info("serving ip to chain...")
+        print("serving ip to chain...")
         try:
             self.axon = bt.axon(
                 wallet=self.wallet,
@@ -523,15 +523,15 @@ class StableValidator:
                     netuid=self.config.netuid,
                     axon=self.axon,
                 )
-                bt.logging.info(
+                print(
                     f"Running validator {self.axon} on network: {self.config.subtensor.chain_endpoint} with netuid: {self.config.netuid}"
                 )
             except Exception as e:
-                bt.logging.error(f"Failed to serve Axon with exception: {e}")
+                print(f"Failed to serve Axon with exception: {e}")
                 pass
 
         except Exception as e:
-            bt.logging.error(
+            print(
                 f"Failed to create Axon initialize with exception: {e}"
             )
             pass
