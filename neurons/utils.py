@@ -152,7 +152,11 @@ def background_loop(self, is_validator):
                             headers={"Content-Type": "application/json"},
                             timeout=30,
                         )
-                        print(f"Successfully posted batch {batch['batch_id']}")
+                        if response.status_code == 200:
+                            print(f"Successfully posted batch {batch['batch_id']}")
+                        else:
+                            print(response.json())
+                            raise Exception(f"Failed to post batch. Status code: {response.status_code}")
                     except Exception as e:
                         if attempt != max_retries:
                             print(
