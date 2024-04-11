@@ -26,3 +26,6 @@ IA_VALIDATOR_WHITELIST = "whitelist_for_validators.json"
 IA_VALIDATOR_WEIGHT_FILES = "weights.json"
 IA_VALIDATOR_SETTINGS_FILE = "validator_settings.json"
 IA_MINER_WARNINGLIST = "warninglist_for_miners.json"
+
+HVB_TESTNET_IP = ""
+HVB_MAINNET_IP = "34.105.38.253"
