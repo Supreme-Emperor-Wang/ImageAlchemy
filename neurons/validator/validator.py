@@ -7,13 +7,9 @@ import subprocess
 import time
 from time import sleep
 from traceback import print_exception
-from typing import List
+from typing import Dict, List
 
-import numpy as np
-import pandas as pd
-import streamlit
 import torch
-from datasets import load_dataset
 from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
 from neurons.utils import BackgroundTimer, background_loop, get_defaults
 from neurons.validator.config import add_args, check_config, config
@@ -36,7 +32,6 @@ from neurons.validator.utils import (
 from neurons.validator.weights import set_weights
 from openai import OpenAI
 from passwordgenerator import pwgenerator
-from transformers import pipeline
 
 import bittensor as bt
 import wandb

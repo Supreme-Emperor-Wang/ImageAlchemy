@@ -246,6 +246,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     else "_"
                 )
 
+    # Periodically check miners are using the correct model and it's configs
+    from reward import ModelDiversityRewardModel
+    reward_fn_i = ModelDiversityRewardModel()
+    reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
+
     scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
         0, uids, rewards
     ).to(self.device)
