@@ -309,15 +309,20 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     continue
 
                 else:
+                    human_voting_bot_scores = human_voting_bot_scores.float()
                     print(f"Raw human bot votes: {human_voting_bot_scores}")
 
+
                     human_voting_bot_scores = torch.nn.functional.normalize(
-                        human_voting_bot_scores
+                        human_voting_bot_scores, dim=0
                     )
 
                     print(f"Normalized human bot scores: {human_voting_bot_scores}")
 
                     print(f"Before HV: Moving average scores: {self.moving_averaged_scores}")
+
+                    
+
                     self.moving_averaged_scores: (
                         torch.FloatTensor
                     ) = MOVING_AVERAGE_BETA * (0.02 * human_voting_bot_scores) + (
