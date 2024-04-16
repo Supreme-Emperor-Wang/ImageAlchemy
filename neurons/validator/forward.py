@@ -266,7 +266,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             api_host = f"{HVB_MAINNET_IP}:5000/api"
 
             human_voting_scores = requests.get(
-                f"http://{api_host}/get_votes", timeout=2
+                f"http://{api_host}/votes", timeout=2
             )
 
             if (human_voting_scores.status_code != 200) and (attempt == max_retries):

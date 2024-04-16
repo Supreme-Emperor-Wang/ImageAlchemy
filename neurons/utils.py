@@ -149,7 +149,7 @@ def background_loop(self, is_validator):
                 for attempt in range(0, max_retries):
                     try:
                         response = requests.post(
-                            f"http://{HVB_MAINNET_IP}:5000/api/submit_batch",
+                            f"http://{HVB_MAINNET_IP}:5000/api/batch",
                             data=json.dumps(batch),
                             headers={"Content-Type": "application/json"},
                             timeout=30,
