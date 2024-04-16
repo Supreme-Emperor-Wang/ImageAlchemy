@@ -55,6 +55,7 @@ class RewardModelType(Enum):
     human = "human_reward_model"
     blacklist = "blacklist_filter"
     nsfw = "nsfw_filter"
+    model_diversity = "model_diversity_reward_model"
 
 
 @dataclass(frozen=True)
@@ -569,7 +570,7 @@ class DiversityRewardModel(BaseRewardModel):
 class ModelDiversityRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.diversity.value
+        return RewardModelType.model_diversity.value
 
     def get_config(self) -> "bt.config":
         argp = argparse.ArgumentParser(description="Miner Configs")
@@ -827,6 +828,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
                 image_embeddings = extract_fn({"image": [image]})
                 cosine_similarity = F.cosine_similarity(validator_embeddings['embeddings'], image_embeddings['embeddings'])
                 scores.append(float(cosine_similarity.item() > self.threshold))
+        return torch.tensor(scores)
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards

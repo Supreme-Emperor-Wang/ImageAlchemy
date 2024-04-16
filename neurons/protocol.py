@@ -57,3 +57,4 @@ class ImageGeneration(bt.Synapse):
     guidance_scale: float = pydantic.Field(7.5, allow_mutation=False)
     seed: int = pydantic.Field(1024, allow_mutation=False)
     steps: int = pydantic.Field(50, allow_mutation=False)
+    model_type: str = pydantic.Field("Alchemy", allow_mutation=False)

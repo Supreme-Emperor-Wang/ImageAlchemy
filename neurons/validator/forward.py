@@ -44,12 +44,14 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             prompt=prompt,
             prompt_image=image,
             seed=-1,
+            model_type=self.model_type,
         )
         if image is not None
         else ImageGeneration(
             generation_type=task_type,
             prompt=prompt,
             seed=-1,
+            model_type=self.model_type,
         )
     )
 
@@ -166,12 +168,20 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         self.device
     )
 
+    if self.model_type == "Alchemy":
+        self.reward_weights = self.reward_weights_alchemy
+        self.reward_functions = self.reward_functions_alchemy
+    else:
+        self.reward_weights = self.reward_weights_custom
+        self.reward_functions = self.reward_functions_custom
+
     for weight_i, reward_fn_i in zip(self.reward_weights, self.reward_functions):
         reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
         rewards += weight_i * reward_i_normalized.to(self.device)
         event[reward_fn_i.name] = reward_i.tolist()
         event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
         print(str(reward_fn_i.name), reward_i_normalized.tolist())
+
     for masking_fn_i in self.masking_functions:
         mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
         rewards *= mask_i_normalized.to(self.device)
@@ -245,11 +255,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     if file != "black.png"
                     else "_"
                 )
-
-    # Periodically check miners are using the correct model and it's configs
-    from reward import ModelDiversityRewardModel
-    reward_fn_i = ModelDiversityRewardModel()
-    reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
 
     scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
         0, uids, rewards

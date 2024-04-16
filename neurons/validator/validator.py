@@ -18,6 +18,7 @@ from neurons.validator.reward import (
     BlacklistFilter,
     HumanValidationRewardModel,
     ImageRewardModel,
+    ModelDiversityRewardModel,
     NSFWRewardModel,
 )
 from neurons.validator.utils import (
@@ -167,9 +168,6 @@ class StableValidator:
         self.prev_block = ttl_get_block(self)
         self.step = 0
 
-        # Init reward function
-        self.reward_functions = [ImageRewardModel()]
-
         # Init manual validator
         if not self.config.alchemy.disable_manual_validator:
             try:
@@ -203,21 +201,28 @@ class StableValidator:
                 print(f"Failed to Load Manual Validator due to error: {e}")
                 self.config.alchemy.disable_manual_validator = True
 
+        self.reward_names = ["image_reward_model", "model_diversity_reward_model", "human_reward_model"]
+
         # Init reward function
-        self.reward_weights = torch.tensor(
+        self.reward_weights_alchemy = torch.tensor(
             [
-                1.0,
-                1 / 3 if not self.config.alchemy.disable_manual_validator else 0.0,
+                0.4,
+                0.4,
+                0.18,
             ],
             dtype=torch.float32,
         ).to(self.device)
+        self.reward_functions_alchemy = [ImageRewardModel(), ModelDiversityRewardModel()]
 
-        self.reward_weights = self.reward_weights / self.reward_weights.sum(
-            dim=-1
-        ).unsqueeze(-1)
-
-        self.reward_names = ["image_reward_model", "manual_reward_model"]
-
+        self.reward_weights_custom = torch.tensor(
+            [
+                0.8,
+                0.18,
+            ],
+            dtype=torch.float32,
+        ).to(self.device)
+        self.reward_functions_custom = [ModelDiversityRewardModel()]
+        
         self.human_voting_bot_scores = torch.zeros((self.metagraph.n)).to(self.device)
         self.human_voting_bot_weight = 0.02 / 32
         self.human_voting_bot_reward_model = HumanValidationRewardModel(
@@ -301,6 +306,9 @@ class StableValidator:
         except:
             pass
 
+        # Set default model type
+        self.model_type = "Alchemy"
+
     async def run(self):
         # Main Validation Loop
         print("Starting validator loop.")
@@ -351,6 +359,11 @@ class StableValidator:
 
                 # End the current step and prepare for the next iteration.
                 self.step += 1
+
+                if self.step % 2 == 0:
+                    self.model_type = "Alchemy"
+                else:
+                    self.model_type = "Custom"
 
                 # Assuming each step is 3 minutes restart wandb run ever 3 hours to avoid overloading a validators storage space
                 if self.step % 360 == 0 and self.step != 0:
