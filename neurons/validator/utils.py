@@ -534,4 +534,3 @@ def get_promptdb_backup(netuid, prompt_history=[]):
                         prompt_history.append(prompt_tuple)
 
     return prompt_history
-    return prompt_history

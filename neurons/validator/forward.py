@@ -367,6 +367,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 should_drop_entries.append(1)
 
         # Update batches to be sent to the human validation platform
+        if len(self.batches) >= 200:
+            del self.batches[0]
+        
         self.batches.append(
             {
                 "batch_id": str(uuid.uuid4()),
