@@ -246,6 +246,10 @@ class StableValidator:
         self.hotkey_whitelist = set()
         self.coldkey_whitelist = set()
 
+        # Init IsAlive counter
+        self.isalive_threshold = 3
+        self.isalive_dict = { i:0 for i in range(self.metagraph.n.item())}
+
         # Init stats
         self.stats = get_defaults(self)
 

@@ -327,6 +327,10 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     print(f"SCATTERED_REWARDS ADJUSTED:         {scattered_rewards_adjusted}")
     print(f"MOVING AVERAGES T-1:                {self.moving_averaged_scores}")
 
+    for uid, count in self.isalive_dict.items():
+        if count >= self.isalive_threshold:
+            scattered_rewards_adjusted[count] = 0
+
     self.moving_averaged_scores: torch.FloatTensor = (
         MOVING_AVERAGE_ALPHA * scattered_rewards_adjusted
         + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)

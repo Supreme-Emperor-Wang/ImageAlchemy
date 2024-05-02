@@ -126,6 +126,8 @@ async def get_random_uids(
         uid_is_available = check_uid_availability(
             dendrite, self.metagraph, uid, VPERMIT_TAO
         )
+        if not uid_is_available:
+            self.isalive_dict[uid] += 1
         uid_is_not_excluded = exclude is None or uid not in exclude
         if (
             uid_is_available
