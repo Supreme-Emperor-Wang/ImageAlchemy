@@ -76,20 +76,11 @@ def get_human_voting_scores(self):
 
             print(f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds.")
             return None
-
-    human_voting_bot_scores = {"5CcceAb5iUz625mhhspcXoPePYqx8DoEGmB2hB3q1zpFUjLX": 2, "5GKRf2Ece3a2mij11Lpth8XC1iybTDWDo634Q27HZAFx3scr":3, "5DoFMjAoyMAPfd3yKUUpsMFDvcRwzCqXvUo3p33czW5Bdj14":4, "5GziNQqT64mPqzYo2K9g3uwm9hs4Q5rVBuNi7btLAxf9oYo6":3, "5HMwjm2wNRvY2XzPWBMqS63qN9ogPp14j2sxhq3VN5AXxWhK":2, "5FWhTqCMpjS6yFReJCqaeGhQbBh5t224QL8Jmt2nmZz4rQV6":10}
     
     if human_voting_bot_scores is not None:
         for index, hotkey in enumerate(self.hotkeys):
             if hotkey in human_voting_bot_scores.keys():
                 self.human_voting_bot_scores[index] = human_voting_bot_scores[hotkey]
-
-    self.human_voting_bot_scores[58] = 2
-    self.human_voting_bot_scores[37] = 2
-    self.human_voting_bot_scores[38] = 2
-    self.human_voting_bot_scores[35] = 2
-    self.human_voting_bot_scores[36] = 2
-    self.human_voting_bot_scores[60] = 10
 
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     time_elapsed = datetime.now() - self.stats.start_time
@@ -321,12 +312,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     self.hvb_df =  pd.concat([self.hvb_df, pd.DataFrame({i: value.item() for i, value in enumerate(reward_i_normalized)}, index = [0])]).reset_index(drop=True)
     self.hvb_df.to_csv(f"{self.config.alchemy.full_path}/hvb_rewards.csv")
 
-    print(f"SCATTERED_REWARDS:                  {scattered_rewards}")
-    print(f"HUMAN VOTING BOT SCORES RAW:        {reward_i}")
-    print(f"HUMAN VOTING BOT SCORES NOMRALIZED: {reward_i_normalized}")
-    print(f"SCATTERED_REWARDS ADJUSTED:         {scattered_rewards_adjusted}")
-    print(f"MOVING AVERAGES T-1:                {self.moving_averaged_scores}")
-
     for uid, count in self.isalive_dict.items():
         if count >= self.isalive_threshold:
             scattered_rewards_adjusted[count] = 0
@@ -352,8 +337,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     self.ma_df = pd.concat([self.ma_df,  pd.DataFrame({i: [value.item()] for i, value in enumerate(self.moving_averaged_scores)})]).reset_index(drop=True)
     self.ma_df.to_csv(f"{self.config.alchemy.full_path}/moving_averages.csv", index = False)
-
-    print(f"MOVING AVERAGES T:        {self.moving_averaged_scores}")
 
     try:
 
