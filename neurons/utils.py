@@ -12,6 +12,8 @@ import requests
 import torch
 from google.cloud import storage
 from neurons.constants import (
+    HVB_MAINNET_IP,
+    HVB_TESTNET_IP,
     IA_BUCKET_NAME,
     IA_MINER_BLACKLIST,
     IA_MINER_WARNINGLIST,
@@ -25,8 +27,6 @@ from neurons.constants import (
     VALIDATOR_DEFAULT_REQUEST_FREQUENCY,
     WANDB_MINER_PATH,
     WANDB_VALIDATOR_PATH,
-    HVB_MAINNET_IP,
-    HVB_TESTNET_IP,
 )
 from neurons.validator.utils import init_wandb
 
@@ -149,7 +149,7 @@ def background_loop(self, is_validator):
                 for attempt in range(0, max_retries):
                     try:
                         response = requests.post(
-                            f"http://{HVB_MAINNET_IP}:5000/api/submit_batch",
+                            f"http://{HVB_MAINNET_IP}:5000/api/batch",
                             data=json.dumps(batch),
                             headers={"Content-Type": "application/json"},
                             timeout=30,

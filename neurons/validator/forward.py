@@ -8,12 +8,18 @@ from dataclasses import asdict
 from datetime import datetime
 from io import BytesIO
 
+import pandas as pd
 import requests
 import torch
 import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
-from neurons.constants import HVB_MAINNET_IP, MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
+from neurons.constants import (
+    HVB_MAINNET_IP,
+    HVB_TESTNET_IP,
+    MOVING_AVERAGE_ALPHA,
+    MOVING_AVERAGE_BETA,
+)
 from neurons.protocol import ImageGeneration
 from neurons.utils import output_log, sh
 from utils import ttl_get_block
@@ -30,9 +36,8 @@ def get_human_voting_scores(self):
     print("Querying for human votes...")
     for attempt in range(0, max_retries):
         try:
-            api_host = "34.68.182.152:5000/api"
 
-            human_voting_scores = requests.get(f"http://{api_host}/get_votes", timeout=2)
+            human_voting_scores = requests.get(f"http://{HVB_MAINNET_IP}:5000/api/votes", timeout=2)
 
             if (human_voting_scores.status_code != 200) and (attempt == max_retries):
                 
@@ -310,10 +315,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
         0, uids, rewards
     ).to(self.device)
-
+    
     reward_i, reward_i_normalized =  self.human_voting_bot_reward_model.get_rewards(self.hotkeys)
-
     scattered_rewards_adjusted = scattered_rewards + (self.human_voting_bot_weight*self.human_voting_bot_scores)
+    self.hvb_df =  pd.concat([self.hvb_df, pd.DataFrame({i: value.item() for i, value in enumerate(reward_i_normalized)}, index = [0])]).reset_index(drop=True)
+    self.hvb_df.to_csv(f"{self.config.alchemy.full_path}/hvb_rewards.csv")
 
     print(f"SCATTERED_REWARDS:                  {scattered_rewards}")
     print(f"HUMAN VOTING BOT SCORES RAW:        {reward_i}")
@@ -325,7 +331,24 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         MOVING_AVERAGE_ALPHA * scattered_rewards_adjusted
         + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
     )
-    
+
+    try:
+        response = requests.post(
+            f"http://{HVB_TESTNET_IP}:5000/api/validator/averages",
+            json={"averages": {hotkey: moving_average.item() for hotkey, moving_average in zip(self.hotkeys,self.moving_averaged_scores)}},
+            headers={"Content-Type": "application/json"},
+            timeout=30,
+        )
+        if response.status_code != 200:
+            bt.logging.info("Error logging moving averages to the Averages API")
+        else:
+            bt.logging.info("Successfully logged moving averages to the Averages API")
+    except:
+        bt.logging.info("Error logging moving averages to the Averages API")
+
+    self.ma_df = pd.concat([self.ma_df,  pd.DataFrame({i: [value.item()] for i, value in enumerate(self.moving_averaged_scores)})]).reset_index(drop=True)
+    self.ma_df.to_csv(f"{self.config.alchemy.full_path}/moving_averages.csv", index = False)
+
     print(f"MOVING AVERAGES T:        {self.moving_averaged_scores}")
 
     try:

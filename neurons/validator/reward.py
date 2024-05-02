@@ -1,3 +1,4 @@
+import time
 from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -10,6 +11,7 @@ import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
 from datasets import Dataset
+from neurons.constants import HVB_MAINNET_IP
 from neurons.safety import StableDiffusionSafetyChecker
 from neurons.validator.utils import calculate_mean_dissimilarity, cosine_distance
 from sklearn.metrics.pairwise import cosine_similarity
@@ -364,16 +366,17 @@ class HumanValidatonBotRewardModel(BaseRewardModel):
         max_retries = 3
         backoff = 2
 
-        print("Querying for human votes...")
-        for attempt in range(0, max_retries):
-            try:
-                api_host = "34.68.182.152:5000/api"
+        bt.logging.info("Extracting human votes")
 
-                human_voting_scores = requests.get(f"http://{api_host}/get_votes", timeout=2)
+        for attempt in range(0, max_retries):
+
+            try:
+
+                human_voting_scores = requests.get(f"http://{HVB_MAINNET_IP}:5000/api/votes", timeout=2)
 
                 if (human_voting_scores.status_code != 200) and (attempt == max_retries):
                     
-                    print(f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step.")
+                    bt.logging.info(f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step.")
                     human_voting_bot_scores = None
                     break
 
@@ -393,38 +396,24 @@ class HumanValidatonBotRewardModel(BaseRewardModel):
                                 human_voting_bot_scores[key] += value
                             else:
                                 human_voting_bot_scores[key] = value
-                    
-                    human_voting_bot_scores = torch.tensor([human_voting_bot_scores[key] if key in human_voting_bot_scores.keys() else 0 for key in hotkeys]).to(self.device)
-                    
-                    if (human_voting_bot_scores.sum() == 0):
-                        
-                        continue
-                    
-                    else:
-                        
-                        human_voting_bot_scores = torch.nn.functional.normalize(human_voting_bot_scores)
-                    
+
+                    break
+
             except Exception as e:
 
                 print(f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds.")
+                time.sleep(backoff)
                 human_voting_scores =  None
                 break
         
-        human_voting_bot_scores = {"5CcceAb5iUz625mhhspcXoPePYqx8DoEGmB2hB3q1zpFUjLX": 2, "5GKRf2Ece3a2mij11Lpth8XC1iybTDWDo634Q27HZAFx3scr":3, "5DoFMjAoyMAPfd3yKUUpsMFDvcRwzCqXvUo3p33czW5Bdj14":4, "5GziNQqT64mPqzYo2K9g3uwm9hs4Q5rVBuNi7btLAxf9oYo6":3, "5HMwjm2wNRvY2XzPWBMqS63qN9ogPp14j2sxhq3VN5AXxWhK":2, "5FWhTqCMpjS6yFReJCqaeGhQbBh5t224QL8Jmt2nmZz4rQV6":10}
-        
+        # human_voting_bot_scores = {"5CcceAb5iUz625mhhspcXoPePYqx8DoEGmB2hB3q1zpFUjLX": 2, "5GKRf2Ece3a2mij11Lpth8XC1iybTDWDo634Q27HZAFx3scr":3, "5DoFMjAoyMAPfd3yKUUpsMFDvcRwzCqXvUo3p33czW5Bdj14":4, "5GziNQqT64mPqzYo2K9g3uwm9hs4Q5rVBuNi7btLAxf9oYo6":3, "5HMwjm2wNRvY2XzPWBMqS63qN9ogPp14j2sxhq3VN5AXxWhK":2, "5FWhTqCMpjS6yFReJCqaeGhQbBh5t224QL8Jmt2nmZz4rQV6":10}
+
         if human_voting_bot_scores is not None:
             for index, hotkey in enumerate(hotkeys):
                 if hotkey in human_voting_bot_scores.keys():
                     self.human_voting_bot_scores[index] = human_voting_bot_scores[hotkey]
 
-        self.human_voting_bot_scores[58] = 2
-        self.human_voting_bot_scores[37] = 2
-        self.human_voting_bot_scores[38] = 2
-        self.human_voting_bot_scores[35] = 2
-        self.human_voting_bot_scores[36] = 2
-        self.human_voting_bot_scores[60] = 10
-
-        human_voting_bot_scores_normalised = self.normalize_rewards(self.human_voting_bot_scores)
+        human_voting_bot_scores_normalised = self.human_voting_bot_scores / self.human_voting_bot_scores.sum()
         
         return self.human_voting_bot_scores, human_voting_bot_scores_normalised
 

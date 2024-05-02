@@ -10,6 +10,7 @@ from traceback import print_exception
 from typing import List
 
 import numpy as np
+import pandas as pd
 import streamlit
 import torch
 from datasets import load_dataset
@@ -274,6 +275,24 @@ class StableValidator:
             self.miner_query_history_fail_count = {self.metagraph.axons[uid].hotkey:0 for uid in range(self.metagraph.n.item())}
         except:
             pass
+
+        # Load Moving Average and Weight Dataframe
+        if os.path.exists(f"{self.config.alchemy.full_path}/moving_averages.csv"):
+            self.ma_df = pd.read_csv(f"{self.config.alchemy.full_path}/moving_averages.csv") 
+        else:
+            self.ma_df = pd.DataFrame(columns = range(0, len(self.moving_averaged_scores)))  
+
+        # Load Moving Average and Weight Dataframe
+        if os.path.exists(f"{self.config.alchemy.full_path}/hvb_rewards.csv"):
+            self.hvb_df = pd.read_csv(f"{self.config.alchemy.full_path}/hvb_rewards.csv")   
+        else:
+            self.hvb_df = pd.DataFrame(columns = range(0, len(self.moving_averaged_scores)))
+
+        # Load Moving Average and Weight Dataframe
+        if os.path.exists(f"{self.config.alchemy.full_path}/weights.csv"):
+            self.weights_df = pd.read_csv(f"{self.config.alchemy.full_path}/weights.csv")   
+        else:
+            self.weights_df = pd.DataFrame(columns = range(0, len(self.moving_averaged_scores)))  
 
     async def run(self):
         # Main Validation Loop

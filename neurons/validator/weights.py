@@ -19,7 +19,10 @@
 # Utils for weights setting on chain.
 
 import neurons.validator as validator
+import pandas as pd
+import requests
 import torch
+from neurons.constants import HVB_TESTNET_IP
 from utils import ttl_get_block
 
 import bittensor as bt
@@ -29,6 +32,24 @@ def set_weights(self):
     # Calculate the average reward for each uid across non-zero values.
     # Replace any NaN values with 0.
     raw_weights = torch.nn.functional.normalize(self.moving_averaged_scores, p=1, dim=0)
+
+    try:
+        response = requests.post(
+            f"http://{HVB_TESTNET_IP}:5000/api/validator/weights",
+            json={"weights": {hotkey: moving_average.item() for hotkey, moving_average in zip(self.hotkeys,self.moving_averaged_scores)}},
+            headers={"Content-Type": "application/json"},
+            timeout=30,
+        )
+        if response.status_code != 200:
+            bt.logging.info("Error logging weights to the Weights API")
+        else:
+            bt.logging.info("Successfully logged weights to the Weights API")
+    except:
+        bt.logging.info("Error logging weights to the Weights API")
+
+    self.weights_df =  pd.concat([self.weights_df, pd.DataFrame({i: [value.item()] for i, value in enumerate(raw_weights)})]).reset_index(drop=True)
+    self.weights_df.to_csv(f"{self.config.alchemy.full_path}/weights.csv", index=False)
+    
     # print("raw_weights", raw_weights)
     # print("top10 values", raw_weights.sort()[0])
     # print("top10 uids", raw_weights.sort()[1])
