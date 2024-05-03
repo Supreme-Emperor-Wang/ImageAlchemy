@@ -22,7 +22,6 @@ import neurons.validator as validator
 import pandas as pd
 import requests
 import torch
-from neurons.constants import HVB_TESTNET_IP
 from utils import ttl_get_block
 
 import bittensor as bt
