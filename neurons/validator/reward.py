@@ -351,7 +351,7 @@ class NSFWRewardModel(BaseRewardModel):
         return rewards
 
 
-class HumanValidatonBotRewardModel(BaseRewardModel):
+class HumanValidationBotRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
         return RewardModelType.nsfw.value
@@ -366,6 +366,8 @@ class HumanValidatonBotRewardModel(BaseRewardModel):
         backoff = 2
 
         bt.logging.info("Extracting human votes")
+
+        human_voting_bot_scores = None
 
         for attempt in range(0, max_retries):
 
