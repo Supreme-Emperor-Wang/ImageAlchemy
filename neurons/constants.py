@@ -27,5 +27,5 @@ IA_VALIDATOR_WEIGHT_FILES = "weights.json"
 IA_VALIDATOR_SETTINGS_FILE = "validator_settings.json"
 IA_MINER_WARNINGLIST = "warninglist_for_miners.json"
 
-PROD_URL = "http://api.tensoralchemy.ai/api"
-DEV_URL = "http://api-dev.tensoralchemy.ai/api"
+PROD_URL = "https://api.tensoralchemy.ai/api"
+DEV_URL = "https://api-dev.tensoralchemy.ai/api"
