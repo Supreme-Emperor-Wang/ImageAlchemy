@@ -437,6 +437,9 @@ class StableValidator:
             min_len = min(len(self.hotkeys), len(self.scores))
             new_moving_average[:min_len] = self.scores[:min_len]
             self.scores = new_moving_average
+            for uid in self.metagraph.n.item():
+                if uid not in self.isalive_dict:
+                    self.isalive_dict[uid] = 0
 
         # Update the hotkeys.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)

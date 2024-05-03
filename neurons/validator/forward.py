@@ -14,10 +14,7 @@ import torch
 import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
-from neurons.constants import (
-    MOVING_AVERAGE_ALPHA,
-    MOVING_AVERAGE_BETA,
-)
+from neurons.constants import MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
 from neurons.protocol import ImageGeneration
 from neurons.utils import output_log, sh
 from utils import ttl_get_block
@@ -312,7 +309,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     for uid, count in self.isalive_dict.items():
         if count >= self.isalive_threshold:
-            scattered_rewards_adjusted[count] = 0
+            scattered_rewards_adjusted[uid] = 0
 
     self.moving_averaged_scores: torch.FloatTensor = (
         MOVING_AVERAGE_ALPHA * scattered_rewards_adjusted
