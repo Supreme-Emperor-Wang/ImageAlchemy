@@ -63,6 +63,11 @@ def add_args(cls, parser):
         default="cuda:0",
     )
     parser.add_argument(
+        "--alchemy.force_prod",
+        action="store_true",
+        default=False
+    )
+    parser.add_argument(
         "--alchemy.disable_manual_validator",
         action="store_true",
         help="If set, we run the manual validator",
