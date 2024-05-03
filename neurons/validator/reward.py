@@ -11,7 +11,6 @@ import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
 from datasets import Dataset
-from neurons.constants import HVB_MAINNET_IP
 from neurons.safety import StableDiffusionSafetyChecker
 from neurons.validator.utils import calculate_mean_dissimilarity, cosine_distance
 from sklearn.metrics.pairwise import cosine_similarity

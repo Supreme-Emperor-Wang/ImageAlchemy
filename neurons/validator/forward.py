@@ -15,8 +15,6 @@ import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
 from neurons.constants import (
-    HVB_MAINNET_IP,
-    HVB_TESTNET_IP,
     MOVING_AVERAGE_ALPHA,
     MOVING_AVERAGE_BETA,
 )
