@@ -35,7 +35,7 @@ def set_weights(self):
 
     try:
         response = requests.post(
-            f"http://{HVB_TESTNET_IP}:5000/api/validator/weights",
+            f"{self.api_url}/validator/weights",
             json={"weights": {hotkey: moving_average.item() for hotkey, moving_average in zip(self.hotkeys,self.moving_averaged_scores)}},
             headers={"Content-Type": "application/json"},
             timeout=30,

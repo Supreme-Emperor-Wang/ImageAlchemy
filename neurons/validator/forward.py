@@ -37,7 +37,7 @@ def get_human_voting_scores(self):
     for attempt in range(0, max_retries):
         try:
 
-            human_voting_scores = requests.get(f"http://{HVB_MAINNET_IP}:5000/api/votes", timeout=2)
+            human_voting_scores = requests.get(f"{self.api_key}/votes", timeout=2)
 
             if (human_voting_scores.status_code != 200) and (attempt == max_retries):
                 
@@ -323,7 +323,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     try:
         response = requests.post(
-            f"http://{HVB_TESTNET_IP}:5000/api/validator/averages",
+            f"{self.api_url}/validator/averages",
             json={"averages": {hotkey: moving_average.item() for hotkey, moving_average in zip(self.hotkeys,self.moving_averaged_scores)}},
             headers={"Content-Type": "application/json"},
             timeout=30,

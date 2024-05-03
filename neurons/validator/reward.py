@@ -372,7 +372,7 @@ class HumanValidatonBotRewardModel(BaseRewardModel):
 
             try:
 
-                human_voting_scores = requests.get(f"http://{HVB_MAINNET_IP}:5000/api/votes", timeout=2)
+                human_voting_scores = requests.get(f"{self.api_key}/votes", timeout=2)
 
                 if (human_voting_scores.status_code != 200) and (attempt == max_retries):
                     

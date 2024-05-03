@@ -14,7 +14,7 @@ import pandas as pd
 import streamlit
 import torch
 from datasets import load_dataset
-from neurons.constants import N_NEURONS
+from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
 from neurons.utils import BackgroundTimer, background_loop, get_defaults
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
@@ -103,8 +103,6 @@ class StableValidator:
                 "You must set either the CORCEL_API_KEY or OPENAI_API_KEY environment variables. It is preferable to use both."
             )
 
-        print("This is a test print statement prior to wandb.")
-        
         wandb.login(anonymous="must")
 
         # Init prompt backup db
@@ -120,6 +118,13 @@ class StableValidator:
         # Init subtensor
         self.subtensor = bt.subtensor(config=self.config)
         print(f"Loaded subtensor: {self.subtensor}")
+
+        self.api_url = DEV_URL if self.subtensor.network == "test" else PROD_URL
+        if self.config.alchemy.force_prod:
+            self.api_url = PROD_URL
+        print(f"Using server {self.api_url}")
+
+
 
         # Init wallet.
         self.wallet = bt.wallet(config=self.config)
