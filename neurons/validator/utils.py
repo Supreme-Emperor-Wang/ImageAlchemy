@@ -60,10 +60,12 @@ async def check_uid(dendrite, self, uid, response_times):
         response = await dendrite(self.metagraph.axons[uid], IsAlive(), deserialize=False, timeout=self.async_timeout)
         if response.is_success:
             response_times.append(time.perf_counter() - t1)
+            self.isalive_dict[uid] = 0
             return True
         else:
 
             try:
+                self.isalive_dict[uid] += 1
                 key = self.metagraph.axons[uid].hotkey
                 self.miner_query_history_fail_count[key] += 1
                 # If miner doesn't respond for 3 iterations rest it's count to the average to avoid spamming
@@ -126,10 +128,6 @@ async def get_random_uids(
         uid_is_available = check_uid_availability(
             dendrite, self.metagraph, uid, VPERMIT_TAO
         )
-        if uid_is_available:
-            self.isalive_dict[uid] = 0
-        else:
-            self.isalive_dict[uid] += 1
         uid_is_not_excluded = exclude is None or uid not in exclude
         if (
             uid_is_available
@@ -139,7 +137,7 @@ async def get_random_uids(
             avail_uids.append(uid)
             if uid_is_not_excluded:
                 candidate_uids.append(uid)
-    
+
     # # Sort candidate UIDs by their count history
     # # This prioritises miners that have been queried less than average
     # candidate_uids = [i for i,_ in sorted(zip(candidate_uids, [self.miner_query_history_count[self.metagraph.axons[uid].hotkey] for uid in candidate_uids]))]
@@ -147,7 +145,6 @@ async def get_random_uids(
     ### Random sort candidate_uids
     random.shuffle(candidate_uids)
                 
-    
     # Find the first K uids that respond with IsAlive
     final_uids = []
     t0 = time.perf_counter()
