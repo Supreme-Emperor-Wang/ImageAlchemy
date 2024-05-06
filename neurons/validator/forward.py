@@ -24,6 +24,7 @@ import wandb
 
 transform = T.Compose([T.PILToTensor()])
 
+
 def get_human_voting_scores(self):
     max_retries = 3
     backoff = 2
@@ -31,22 +32,20 @@ def get_human_voting_scores(self):
     print("Querying for human votes...")
     for attempt in range(0, max_retries):
         try:
-
             human_voting_scores = requests.get(f"{self.api_key}/votes", timeout=2)
 
             if (human_voting_scores.status_code != 200) and (attempt == max_retries):
-                
-                print(f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step.")
+                print(
+                    f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step."
+                )
                 return None
 
             elif (human_voting_scores.status_code != 200) and (attempt != max_retries):
-                
                 continue
 
             else:
-                
                 human_voting_bot_round_scores = human_voting_scores.json()
-                
+
                 human_voting_bot_scores = {}
 
                 for inner_dict in human_voting_bot_round_scores.values():
@@ -55,27 +54,36 @@ def get_human_voting_scores(self):
                             human_voting_bot_scores[key] += value
                         else:
                             human_voting_bot_scores[key] = value
-                
-                human_voting_bot_scores = torch.tensor([human_voting_bot_scores[key] if key in human_voting_bot_scores.keys() else 0 for key in self.hotkeys]).to(self.device)
-                
-                if (human_voting_bot_scores.sum() == 0):
-                    
-                    continue
-                
-                else:
-                    
-                    human_voting_bot_scores = torch.nn.functional.normalize(human_voting_bot_scores)
-                    return human_voting_bot_scores
-                
-        except Exception as e:
 
-            print(f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds.")
+                human_voting_bot_scores = torch.tensor(
+                    [
+                        human_voting_bot_scores[key]
+                        if key in human_voting_bot_scores.keys()
+                        else 0
+                        for key in self.hotkeys
+                    ]
+                ).to(self.device)
+
+                if human_voting_bot_scores.sum() == 0:
+                    continue
+
+                else:
+                    human_voting_bot_scores = torch.nn.functional.normalize(
+                        human_voting_bot_scores
+                    )
+                    return human_voting_bot_scores
+
+        except Exception as e:
+            print(
+                f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds."
+            )
             return None
-    
+
     if human_voting_bot_scores is not None:
         for index, hotkey in enumerate(self.hotkeys):
             if hotkey in human_voting_bot_scores.keys():
                 self.human_voting_bot_scores[index] = human_voting_bot_scores[hotkey]
+
 
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     time_elapsed = datetime.now() - self.stats.start_time
@@ -136,9 +144,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Log query to hisotry
     try:
         for uid in uids:
-            self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = (
-                time.perf_counter()
-            )
+            self.miner_query_history_duration[
+                self.metagraph.axons[uid].hotkey
+            ] = time.perf_counter()
         for uid in uids:
             self.miner_query_history_count[self.metagraph.axons[uid].hotkey] += 1
     except:
@@ -275,9 +283,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
                 if not self.config.alchemy.disable_log_rewards:
                     event["human_reward_model"] = reward_i_normalized.tolist()
-                    event["human_reward_model_normalized"] = (
-                        reward_i_normalized.tolist()
-                    )
+                    event[
+                        "human_reward_model_normalized"
+                    ] = reward_i_normalized.tolist()
 
                 break
 
@@ -301,10 +309,22 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
         0, uids, rewards
     ).to(self.device)
-    
-    reward_i, reward_i_normalized =  self.human_voting_bot_reward_model.get_rewards(self.hotkeys)
-    scattered_rewards_adjusted = scattered_rewards + (self.human_voting_bot_weight*self.human_voting_bot_scores)
-    self.hvb_df =  pd.concat([self.hvb_df, pd.DataFrame({i: value.item() for i, value in enumerate(reward_i_normalized)}, index = [0])]).reset_index(drop=True)
+
+    reward_i, reward_i_normalized = self.human_voting_bot_reward_model.get_rewards(
+        self.hotkeys
+    )
+    scattered_rewards_adjusted = scattered_rewards + (
+        self.human_voting_bot_weight * self.human_voting_bot_scores
+    )
+    self.hvb_df = pd.concat(
+        [
+            self.hvb_df,
+            pd.DataFrame(
+                {i: value.item() for i, value in enumerate(reward_i_normalized)},
+                index=[0],
+            ),
+        ]
+    ).reset_index(drop=True)
     self.hvb_df.to_csv(f"{self.config.alchemy.full_path}/hvb_rewards.csv")
 
     for uid, count in self.isalive_dict.items():
@@ -319,7 +339,14 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     try:
         response = requests.post(
             f"{self.api_url}/validator/averages",
-            json={"averages": {hotkey: moving_average.item() for hotkey, moving_average in zip(self.hotkeys,self.moving_averaged_scores)}},
+            json={
+                "averages": {
+                    hotkey: moving_average.item()
+                    for hotkey, moving_average in zip(
+                        self.hotkeys, self.moving_averaged_scores
+                    )
+                }
+            },
             headers={"Content-Type": "application/json"},
             timeout=30,
         )
@@ -330,11 +357,22 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     except:
         bt.logging.info("Error logging moving averages to the Averages API")
 
-    self.ma_df = pd.concat([self.ma_df,  pd.DataFrame({i: [value.item()] for i, value in enumerate(self.moving_averaged_scores)})]).reset_index(drop=True)
-    self.ma_df.to_csv(f"{self.config.alchemy.full_path}/moving_averages.csv", index = False)
+    self.ma_df = pd.concat(
+        [
+            self.ma_df,
+            pd.DataFrame(
+                {
+                    i: [value.item()]
+                    for i, value in enumerate(self.moving_averaged_scores)
+                }
+            ),
+        ]
+    ).reset_index(drop=True)
+    self.ma_df.to_csv(
+        f"{self.config.alchemy.full_path}/moving_averages.csv", index=False
+    )
 
     try:
-
         for i, average in enumerate(self.moving_averaged_scores):
             if (self.metagraph.axons[i].hotkey in self.hotkey_blacklist) or (
                 self.metagraph.axons[i].coldkey in self.coldkey_blacklist
@@ -441,4 +479,3 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         print(f"Unable to log event to wandb due to the following error: {e}")
 
     return event
-
