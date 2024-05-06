@@ -215,7 +215,7 @@ class StableValidator:
         
         self.human_voting_bot_scores = torch.zeros((self.metagraph.n)).to(self.device)
         self.human_voting_bot_weight = 0.02/32
-        self.human_voting_bot_reward_model = HumanValidationBotRewardModel(self.metagraph)
+        self.human_voting_bot_reward_model = HumanValidationBotRewardModel(self.metagraph, self.api_url)
 
         # Init masking function
         self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]

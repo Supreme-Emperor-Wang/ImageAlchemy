@@ -356,10 +356,11 @@ class HumanValidationBotRewardModel(BaseRewardModel):
     def name(self) -> str:
         return RewardModelType.nsfw.value
 
-    def __init__(self, metagraph):
+    def __init__(self, metagraph, api_url):
         super().__init__()
         self.device = "cuda"
         self.human_voting_bot_scores = torch.zeros((metagraph.n)).to(self.device)
+        self.api_url = api_url
 
     def get_rewards(self, hotkeys) -> torch.FloatTensor:
         max_retries = 3
@@ -370,10 +371,10 @@ class HumanValidationBotRewardModel(BaseRewardModel):
         human_voting_bot_scores = None
 
         for attempt in range(0, max_retries):
-
+            
             try:
 
-                human_voting_scores = requests.get(f"{self.api_key}/votes", timeout=2)
+                human_voting_scores = requests.get(f"{self.api_url}/votes", timeout=2)
 
                 if (human_voting_scores.status_code != 200) and (attempt == max_retries):
                     
