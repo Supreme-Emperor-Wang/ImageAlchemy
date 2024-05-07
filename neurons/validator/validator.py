@@ -361,10 +361,10 @@ class StableValidator:
                 self.step += 1
 
                 if self.step % 2 == 0:
-                    self.model_type = "Alchemy"
+                    self.model_type = "alchemy"
                 else:
-                    self.model_type = "Custom"
-
+                    self.model_type = "custom"
+                
                 # Assuming each step is 3 minutes restart wandb run ever 3 hours to avoid overloading a validators storage space
                 if self.step % 360 == 0 and self.step != 0:
                     print("Re-initializing wandb run...")

@@ -168,7 +168,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         self.device
     )
 
-    if self.model_type == "Alchemy":
+    if self.model_type == "alchemy":
         self.reward_weights = self.reward_weights_alchemy
         self.reward_functions = self.reward_functions_alchemy
     else:
@@ -336,6 +336,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     for response, reward in zip(responses, rewards.tolist())
                 ],
                 "rewards": rewards.tolist(),
+                "model_type": self.model_type
                 # "moving_averages": self.moving_averaged_scores
             }
         )
