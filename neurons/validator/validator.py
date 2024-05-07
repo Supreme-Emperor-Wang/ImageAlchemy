@@ -53,7 +53,7 @@ class StableValidator:
     @classmethod
     def config(cls):
         return config(cls)
-    
+
     def loop_until_registered(self):
         index = None
         while True:
@@ -78,7 +78,12 @@ class StableValidator:
         # Init config
         self.config = StableValidator.config()
         self.check_config(self.config)
-        bt.logging(config=self.config, logging_dir=self.config.alchemy.full_path, debug=True, trace=True)
+        bt.logging(
+            config=self.config,
+            logging_dir=self.config.alchemy.full_path,
+            debug=True,
+            trace=True,
+        )
         bt.trace()
 
         # Init device.
@@ -103,16 +108,14 @@ class StableValidator:
             )
 
         print("This is a test print statement prior to wandb.")
-        
+
         wandb.login(anonymous="must")
 
         # Init prompt backup db
         try:
             self.prompt_history_db = get_promptdb_backup(self.config.netuid)
         except Exception as e:
-            print(
-                f"Unexpected error occurred loading the backup prompts: {e}"
-            )
+            print(f"Unexpected error occurred loading the backup prompts: {e}")
             self.prompt_history_db = []
         self.prompt_generation_failures = 0
 
@@ -138,7 +141,6 @@ class StableValidator:
         if not self.config.wallet._mock:
             #### Wait until the miner is registered
             self.loop_until_registered()
-
 
         self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         print("Loaded metagraph")
@@ -172,13 +174,16 @@ class StableValidator:
         # Init manual validator
         if not self.config.alchemy.disable_manual_validator:
             try:
-                if 'ImageAlchemy' not in os.getcwd():
-                    raise Exception("Unable to load manual validator please cd into the ImageAlchemy folder before running the validator")
+                if "ImageAlchemy" not in os.getcwd():
+                    raise Exception(
+                        "Unable to load manual validator please cd into the ImageAlchemy folder before running the validator"
+                    )
                 print("Setting streamlit credentials")
-                if not os.path.exists('streamlit_credentials.txt'):
+                if not os.path.exists("streamlit_credentials.txt"):
                     username = self.wallet.hotkey.ss58_address
                     password = pwgenerator.generate()
-                    with open('streamlit_credentials.txt', 'w') as f: f.write(f"username={username}\npassword={password}")
+                    with open("streamlit_credentials.txt", "w") as f:
+                        f.write(f"username={username}\npassword={password}")
                     # Sleep until the credentials file is written
                     sleep(5)
                 print("Loading Manual Validator")
@@ -187,8 +192,12 @@ class StableValidator:
                         "streamlit",
                         "run",
                         os.path.join(os.getcwd(), "neurons", "validator", "app.py"),
-                        "--server.port" if self.config.alchemy.streamlit_port is not None else "", 
-                        f"{self.config.alchemy.streamlit_port}" if self.config.alchemy.streamlit_port is not None else ""
+                        "--server.port"
+                        if self.config.alchemy.streamlit_port is not None
+                        else "",
+                        f"{self.config.alchemy.streamlit_port}"
+                        if self.config.alchemy.streamlit_port is not None
+                        else "",
                     ]
                 )
             except Exception as e:
@@ -199,12 +208,14 @@ class StableValidator:
         self.reward_weights = torch.tensor(
             [
                 1.0,
-                1/3 if not self.config.alchemy.disable_manual_validator else 0.0,
+                1 / 3 if not self.config.alchemy.disable_manual_validator else 0.0,
             ],
             dtype=torch.float32,
         ).to(self.device)
 
-        self.reward_weights = self.reward_weights / self.reward_weights.sum(dim=-1).unsqueeze(-1)
+        self.reward_weights = self.reward_weights / self.reward_weights.sum(
+            dim=-1
+        ).unsqueeze(-1)
 
         self.reward_names = ["image_reward_model", "manual_reward_model"]
 
@@ -257,18 +268,27 @@ class StableValidator:
         self.background_timer = BackgroundTimer(60, background_loop, [self, True])
         self.background_timer.daemon = True
         self.background_timer.start()
-        
+
         # Create a Dict for storing miner query history
         try:
-            self.miner_query_history_duration = {self.metagraph.axons[uid].hotkey:float('inf') for uid in range(self.metagraph.n.item())}
+            self.miner_query_history_duration = {
+                self.metagraph.axons[uid].hotkey: float("inf")
+                for uid in range(self.metagraph.n.item())
+            }
         except:
             pass
         try:
-            self.miner_query_history_count = {self.metagraph.axons[uid].hotkey:0 for uid in range(self.metagraph.n.item())}
+            self.miner_query_history_count = {
+                self.metagraph.axons[uid].hotkey: 0
+                for uid in range(self.metagraph.n.item())
+            }
         except:
             pass
         try:
-            self.miner_query_history_fail_count = {self.metagraph.axons[uid].hotkey:0 for uid in range(self.metagraph.n.item())}
+            self.miner_query_history_fail_count = {
+                self.metagraph.axons[uid].hotkey: 0
+                for uid in range(self.metagraph.n.item())
+            }
         except:
             pass
 
@@ -313,7 +333,9 @@ class StableValidator:
                 try:
                     self.sync()
                 except Exception as e:
-                    print(f"An unexpected error occurred trying to sync the metagraph: {e}")
+                    print(
+                        f"An unexpected error occurred trying to sync the metagraph: {e}"
+                    )
 
                 # Save Previous Sates
                 self.save_state()
@@ -439,7 +461,7 @@ class StableValidator:
         else:
             # Check if enough epoch blocks have elapsed since the last epoch.
             return (ttl_get_block(self) % self.prev_block) >= self.epoch_length
-        
+
     def save_state(self):
         r"""Save hotkeys, neuron model and moving average scores to filesystem."""
         print("save_state()")
@@ -447,7 +469,9 @@ class StableValidator:
             neuron_state_dict = {
                 "neuron_weights": self.moving_averaged_scores.to("cpu").tolist(),
             }
-            torch.save(neuron_state_dict, f"{self.config.alchemy.full_path}/model.torch")
+            torch.save(
+                neuron_state_dict, f"{self.config.alchemy.full_path}/model.torch"
+            )
             bt.logging.success(
                 prefix="Saved model",
                 sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
@@ -494,15 +518,15 @@ class StableValidator:
                 print("Loaded MA scores from scratch.")
 
             # Zero out any negative scores
-            for i, average in enumerate(self.moving_averaged_scores): 
-                if average < 0: 
+            for i, average in enumerate(self.moving_averaged_scores):
+                if average < 0:
                     self.moving_averaged_scores[i] = 0
 
             bt.logging.success(
                 prefix="Reloaded model",
                 sufix=f"<blue>{ self.config.alchemy.full_path }/model.torch</blue>",
             )
-            
+
         except Exception as e:
             print(f"Failed to load model with error: {e}")
 
@@ -515,7 +539,7 @@ class StableValidator:
                 wallet=self.wallet,
                 ip=bt.utils.networking.get_external_ip(),
                 external_ip=bt.utils.networking.get_external_ip(),
-                config=self.config
+                config=self.config,
             )
 
             try:
@@ -531,7 +555,5 @@ class StableValidator:
                 pass
 
         except Exception as e:
-            print(
-                f"Failed to create Axon initialize with exception: {e}"
-            )
+            print(f"Failed to create Axon initialize with exception: {e}")
             pass

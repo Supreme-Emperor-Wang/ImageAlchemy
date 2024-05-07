@@ -161,11 +161,17 @@ def background_loop(self, is_validator):
                         else:
                             response_data = response.json()
                             error = response_data.get("error")
-                            if error and "Submitted compute count must be greater than" in error:
+                            if (
+                                error
+                                and "Submitted compute count must be greater than"
+                                in error
+                            ):
                                 invalid_batches.append(batch)
-                            
+
                             print(f"{response_data=}")
-                            raise Exception(f"Failed to post batch. Status code: {response.status_code}")
+                            raise Exception(
+                                f"Failed to post batch. Status code: {response.status_code}"
+                            )
                     except Exception as e:
                         if attempt != max_retries:
                             print(
@@ -373,11 +379,7 @@ def background_loop(self, is_validator):
             print(f"An error occurred trying to clean wandb artifacts and runs: {e}.")
 
     #### Attempt to init wandb if it wasn't sucessfully originally
-    if (
-        (self.background_steps % 5 == 0)
-        and is_validator
-        and not self.wandb_loaded
-    ):
+    if (self.background_steps % 5 == 0) and is_validator and not self.wandb_loaded:
         try:
             init_wandb(self)
             print("Loaded wandb")

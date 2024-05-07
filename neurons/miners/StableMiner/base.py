@@ -110,7 +110,7 @@ class BaseMiner(ABC):
                 wallet=self.wallet,
                 ip=bt.utils.networking.get_external_ip(),
                 external_ip=bt.utils.networking.get_external_ip(),
-                config=self.config
+                config=self.config,
             )
             .attach(
                 forward_fn=self.is_alive,
@@ -298,7 +298,7 @@ class BaseMiner(ABC):
                     torch.Generator(device=self.config.miner.device).manual_seed(seed)
                 ]
                 images = model(**local_args).images
-                
+
                 synapse.images = [
                     bt.Tensor.serialize(self.transform(image)) for image in images
                 ]
@@ -315,9 +315,7 @@ class BaseMiner(ABC):
                 if attempt == 2:
                     images = []
                     synapse.images = []
-                    print(
-                        f"Failed to generate any images after {attempt+1} attempts."
-                    )
+                    print(f"Failed to generate any images after {attempt+1} attempts.")
 
         ### Count timeouts
         if time.perf_counter() - start_time > timeout:
@@ -370,9 +368,7 @@ class BaseMiner(ABC):
         try:
             caller_uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
             priority = float(self.metagraph.S[caller_uid])
-            print(
-                f"Prioritizing key {synapse.dendrite.hotkey} with value: {priority}."
-            )
+            print(f"Prioritizing key {synapse.dendrite.hotkey} with value: {priority}.")
         except:
             pass
 

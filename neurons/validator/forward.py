@@ -83,9 +83,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Log query to hisotry
     try:
         for uid in uids:
-            self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = (
-                time.perf_counter()
-            )
+            self.miner_query_history_duration[
+                self.metagraph.axons[uid].hotkey
+            ] = time.perf_counter()
         for uid in uids:
             self.miner_query_history_count[self.metagraph.axons[uid].hotkey] += 1
     except:
@@ -221,9 +221,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
                 if not self.config.alchemy.disable_log_rewards:
                     event["human_reward_model"] = reward_i_normalized.tolist()
-                    event["human_reward_model_normalized"] = (
-                        reward_i_normalized.tolist()
-                    )
+                    event[
+                        "human_reward_model_normalized"
+                    ] = reward_i_normalized.tolist()
 
                 break
 
@@ -248,7 +248,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         0, uids, rewards
     ).to(self.device)
 
-
     print(f"Before: Moving average scores: {self.moving_averaged_scores}")
 
     self.moving_averaged_scores: torch.FloatTensor = (
@@ -265,23 +264,18 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         try:
             api_host = f"{HVB_MAINNET_IP}:5000/api"
 
-            human_voting_scores = requests.get(
-                f"http://{api_host}/votes", timeout=2
-            )
+            human_voting_scores = requests.get(f"http://{api_host}/votes", timeout=2)
 
             if (human_voting_scores.status_code != 200) and (attempt == max_retries):
-
                 print(
                     f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step."
                 )
                 break
 
             elif (human_voting_scores.status_code != 200) and (attempt != max_retries):
-
                 continue
 
             else:
-
                 human_voting_bot_round_scores = human_voting_scores.json()
 
                 human_voting_bot_scores = {}
@@ -305,13 +299,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 ).to(self.device)
 
                 if human_voting_bot_scores.sum() == 0:
-
                     continue
 
                 else:
                     human_voting_bot_scores = human_voting_bot_scores.float()
                     print(f"Raw human bot votes: {human_voting_bot_scores}")
-
 
                     human_voting_bot_scores = torch.nn.functional.normalize(
                         human_voting_bot_scores, dim=0
@@ -319,9 +311,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
                     print(f"Normalized human bot scores: {human_voting_bot_scores}")
 
-                    print(f"Before HV: Moving average scores: {self.moving_averaged_scores}")
-
-                    
+                    print(
+                        f"Before HV: Moving average scores: {self.moving_averaged_scores}"
+                    )
 
                     self.moving_averaged_scores: (
                         torch.FloatTensor
@@ -331,7 +323,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                         self.device
                     )
 
-                    print(f"After HV: Moving average scores: {self.moving_averaged_scores}")
+                    print(
+                        f"After HV: Moving average scores: {self.moving_averaged_scores}"
+                    )
                     break
 
         except Exception as e:
@@ -340,7 +334,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             )
 
     try:
-
         for i, average in enumerate(self.moving_averaged_scores):
             if (self.metagraph.axons[i].hotkey in self.hotkey_blacklist) or (
                 self.metagraph.axons[i].coldkey in self.coldkey_blacklist
@@ -447,4 +440,3 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         print(f"Unable to log event to wandb due to the following error: {e}")
 
     return event
-
