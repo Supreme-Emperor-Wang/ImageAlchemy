@@ -384,6 +384,7 @@ class ImageRewardModel(BaseRewardModel):
             dtype=torch.float32,
         )
 
+
 class DiversityRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
