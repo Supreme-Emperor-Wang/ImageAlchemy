@@ -24,67 +24,6 @@ import wandb
 
 transform = T.Compose([T.PILToTensor()])
 
-
-def get_human_voting_scores(self):
-    max_retries = 3
-    backoff = 2
-
-    print("Querying for human votes...")
-    for attempt in range(0, max_retries):
-        try:
-            human_voting_scores = requests.get(f"{self.api_key}/votes", timeout=2)
-
-            if (human_voting_scores.status_code != 200) and (attempt == max_retries):
-                print(
-                    f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step."
-                )
-                return None
-
-            elif (human_voting_scores.status_code != 200) and (attempt != max_retries):
-                continue
-
-            else:
-                human_voting_bot_round_scores = human_voting_scores.json()
-
-                human_voting_bot_scores = {}
-
-                for inner_dict in human_voting_bot_round_scores.values():
-                    for key, value in inner_dict.items():
-                        if key in human_voting_bot_scores:
-                            human_voting_bot_scores[key] += value
-                        else:
-                            human_voting_bot_scores[key] = value
-
-                human_voting_bot_scores = torch.tensor(
-                    [
-                        human_voting_bot_scores[key]
-                        if key in human_voting_bot_scores.keys()
-                        else 0
-                        for key in self.hotkeys
-                    ]
-                ).to(self.device)
-
-                if human_voting_bot_scores.sum() == 0:
-                    continue
-
-                else:
-                    human_voting_bot_scores = torch.nn.functional.normalize(
-                        human_voting_bot_scores
-                    )
-                    return human_voting_bot_scores
-
-        except Exception as e:
-            print(
-                f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds."
-            )
-            return None
-
-    if human_voting_bot_scores is not None:
-        for index, hotkey in enumerate(self.hotkeys):
-            if hotkey in human_voting_bot_scores.keys():
-                self.human_voting_bot_scores[index] = human_voting_bot_scores[hotkey]
-
-
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     time_elapsed = datetime.now() - self.stats.start_time
 

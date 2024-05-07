@@ -373,7 +373,7 @@ class HumanValidationBotRewardModel(BaseRewardModel):
         for attempt in range(0, max_retries):
             
             try:
-
+                
                 human_voting_scores = requests.get(f"{self.api_url}/votes", timeout=2)
 
                 if (human_voting_scores.status_code != 200) and (attempt == max_retries):
@@ -407,8 +407,6 @@ class HumanValidationBotRewardModel(BaseRewardModel):
                 time.sleep(backoff)
                 human_voting_scores =  None
                 break
-        
-        # human_voting_bot_scores = {"5CcceAb5iUz625mhhspcXoPePYqx8DoEGmB2hB3q1zpFUjLX": 2, "5GKRf2Ece3a2mij11Lpth8XC1iybTDWDo634Q27HZAFx3scr":3, "5DoFMjAoyMAPfd3yKUUpsMFDvcRwzCqXvUo3p33czW5Bdj14":4, "5GziNQqT64mPqzYo2K9g3uwm9hs4Q5rVBuNi7btLAxf9oYo6":3, "5HMwjm2wNRvY2XzPWBMqS63qN9ogPp14j2sxhq3VN5AXxWhK":2, "5FWhTqCMpjS6yFReJCqaeGhQbBh5t224QL8Jmt2nmZz4rQV6":10}
 
         if human_voting_bot_scores is not None:
             for index, hotkey in enumerate(hotkeys):
