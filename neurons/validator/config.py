@@ -62,11 +62,7 @@ def add_args(cls, parser):
         help="Device to run the validator on.",
         default="cuda:0",
     )
-    parser.add_argument(
-        "--alchemy.force_prod",
-        action="store_true",
-        default=False
-    )
+    parser.add_argument("--alchemy.force_prod", action="store_true", default=False)
     parser.add_argument(
         "--alchemy.disable_manual_validator",
         action="store_true",

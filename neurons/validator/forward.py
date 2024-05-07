@@ -24,6 +24,7 @@ import wandb
 
 transform = T.Compose([T.PILToTensor()])
 
+
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     time_elapsed = datetime.now() - self.stats.start_time
 

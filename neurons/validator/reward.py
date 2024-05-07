@@ -371,25 +371,26 @@ class HumanValidationBotRewardModel(BaseRewardModel):
         human_voting_bot_scores = None
 
         for attempt in range(0, max_retries):
-            
             try:
-                
                 human_voting_scores = requests.get(f"{self.api_url}/votes", timeout=2)
 
-                if (human_voting_scores.status_code != 200) and (attempt == max_retries):
-                    
-                    bt.logging.info(f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step.")
+                if (human_voting_scores.status_code != 200) and (
+                    attempt == max_retries
+                ):
+                    bt.logging.info(
+                        f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step."
+                    )
                     human_voting_bot_scores = None
                     break
 
-                elif (human_voting_scores.status_code != 200) and (attempt != max_retries):
-                    
+                elif (human_voting_scores.status_code != 200) and (
+                    attempt != max_retries
+                ):
                     continue
 
                 else:
-                    
                     human_voting_bot_round_scores = human_voting_scores.json()
-                    
+
                     human_voting_bot_scores = {}
 
                     for inner_dict in human_voting_bot_round_scores.values():
@@ -402,19 +403,24 @@ class HumanValidationBotRewardModel(BaseRewardModel):
                     break
 
             except Exception as e:
-
-                print(f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds.")
+                print(
+                    f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds."
+                )
                 time.sleep(backoff)
-                human_voting_scores =  None
+                human_voting_scores = None
                 break
 
         if human_voting_bot_scores is not None:
             for index, hotkey in enumerate(hotkeys):
                 if hotkey in human_voting_bot_scores.keys():
-                    self.human_voting_bot_scores[index] = human_voting_bot_scores[hotkey]
+                    self.human_voting_bot_scores[index] = human_voting_bot_scores[
+                        hotkey
+                    ]
 
-        human_voting_bot_scores_normalised = self.human_voting_bot_scores / self.human_voting_bot_scores.sum()
-        
+        human_voting_bot_scores_normalised = (
+            self.human_voting_bot_scores / self.human_voting_bot_scores.sum()
+        )
+
         return self.human_voting_bot_scores, human_voting_bot_scores_normalised
 
 
@@ -452,6 +458,7 @@ class ImageRewardModel(BaseRewardModel):
             [self.reward(response) for response in responses],
             dtype=torch.float32,
         )
+
 
 class DiversityRewardModel(BaseRewardModel):
     @property

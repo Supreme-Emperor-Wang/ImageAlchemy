@@ -57,28 +57,34 @@ def ttl_get_block(self) -> int:
 async def check_uid(dendrite, self, uid, response_times):
     try:
         t1 = time.perf_counter()
-        response = await dendrite(self.metagraph.axons[uid], IsAlive(), deserialize=False, timeout=self.async_timeout)
+        response = await dendrite(
+            self.metagraph.axons[uid],
+            IsAlive(),
+            deserialize=False,
+            timeout=self.async_timeout,
+        )
         if response.is_success:
             response_times.append(time.perf_counter() - t1)
             self.isalive_dict[uid] = 0
             return True
         else:
-
             try:
                 self.isalive_dict[uid] += 1
                 key = self.metagraph.axons[uid].hotkey
                 self.miner_query_history_fail_count[key] += 1
                 # If miner doesn't respond for 3 iterations rest it's count to the average to avoid spamming
                 if self.miner_query_history_fail_count[key] >= 3:
-                    self.miner_query_history_duration[key] = time.perf_counter() 
-                    self.miner_query_history_count[key] = int(np.array(list(self.miner_query_history_count.values())).mean())
+                    self.miner_query_history_duration[key] = time.perf_counter()
+                    self.miner_query_history_count[key] = int(
+                        np.array(list(self.miner_query_history_count.values())).mean()
+                    )
             except:
                 pass
             return False
     except Exception as e:
         print(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
         return False
-    
+
 
 def check_uid_availability(
     dendrite,
@@ -123,7 +129,7 @@ async def get_random_uids(
     candidate_uids = []
     avail_uids = []
 
-    # Filter for only serving miners 
+    # Filter for only serving miners
     for uid in range(self.metagraph.n.item()):
         uid_is_available = check_uid_availability(
             dendrite, self.metagraph, uid, VPERMIT_TAO
@@ -144,13 +150,13 @@ async def get_random_uids(
 
     ### Random sort candidate_uids
     random.shuffle(candidate_uids)
-                
+
     # Find the first K uids that respond with IsAlive
     final_uids = []
     t0 = time.perf_counter()
     attempt_counter = 0
     avg_num_list = []
-    for uid in range(0,len(candidate_uids), N_NEURONS_TO_QUERY):
+    for uid in range(0, len(candidate_uids), N_NEURONS_TO_QUERY):
         tasks = []
 
         print(f"UIDs in pool: {final_uids}")
@@ -160,7 +166,7 @@ async def get_random_uids(
 
         times_list = []
 
-        for u in candidate_uids[uid:uid+N_NEURONS_TO_QUERY]:
+        for u in candidate_uids[uid : uid + N_NEURONS_TO_QUERY]:
             tasks.append(check_uid(dendrite, self, u, times_list))
 
         responses = await asyncio.gather(*tasks)
@@ -171,22 +177,22 @@ async def get_random_uids(
         list_slice = times_list[-25:]
         time_sum = sum(list_slice)
 
-        print(f"Number of times stored: {len(times_list)} | Average successful response across {len(list_slice)} samples: {time_sum / len(list_slice) if len(list_slice) > 0 else 0:.2f}")
+        print(
+            f"Number of times stored: {len(times_list)} | Average successful response across {len(list_slice)} samples: {time_sum / len(list_slice) if len(list_slice) > 0 else 0:.2f}"
+        )
 
         if True in responses:
-
             t2 = time.perf_counter()
 
             temp_list = []
 
             for i, response in enumerate(responses):
-
                 if response and (len(final_uids) < k):
-                    final_uids.append(candidate_uids[uid+i])
+                    final_uids.append(candidate_uids[uid + i])
 
-                    temp_list.append(candidate_uids[uid+i])
+                    temp_list.append(candidate_uids[uid + i])
 
-                elif (len(final_uids) >= k):
+                elif len(final_uids) >= k:
                     break
                 else:
                     continue
@@ -195,10 +201,9 @@ async def get_random_uids(
 
             avg_num_list.append(len(temp_list))
 
-            
-            if (len(final_uids) >= k):
+            if len(final_uids) >= k:
                 break
-        
+
         else:
             continue
 
@@ -208,11 +213,17 @@ async def get_random_uids(
     except:
         pass
 
-    print(f"Time to find all {len(final_uids)} uids: {time.perf_counter() - t0:.2f}s in {attempt_counter} attempts | Avg active UIDs per attempt: {sum_avg:.2f}")
+    print(
+        f"Time to find all {len(final_uids)} uids: {time.perf_counter() - t0:.2f}s in {attempt_counter} attempts | Avg active UIDs per attempt: {sum_avg:.2f}"
+    )
 
     # print({f"UID_{candidate_uid}": "Active" if candidate_uid in final_uids else "Inactive" for i, candidate_uid in enumerate(candidate_uids)})
 
-    uids = torch.tensor(final_uids) if len(final_uids) < k else torch.tensor(random.sample(final_uids, k))
+    uids = (
+        torch.tensor(final_uids)
+        if len(final_uids) < k
+        else torch.tensor(random.sample(final_uids, k))
+    )
 
     return uids
 
@@ -288,7 +299,7 @@ def corcel_parse_response(text):
         print(f"Split: {split}")
         print(f"Returning (X2) default text: {text}")
         return text
-    
+
     print(f"Returning parsed text: {split}")
     return split
 
@@ -336,7 +347,7 @@ def call_corcel(self, prompt):
         "top_p": 1.0,
         "temperature": 1,
         "max_tokens": 250,
-        "seed": random.randint(0, 1_000_000)
+        "seed": random.randint(0, 1_000_000),
     }
 
     print(f"Using args: {JSON}")
@@ -349,9 +360,7 @@ def call_corcel(self, prompt):
         )
         response = response.json()[0]["choices"][0]["delta"]["content"]
     except requests.exceptions.ReadTimeout as e:
-        print(
-            f"Corcel request timed out after 15 seconds... falling back to OpenAI..."
-        )
+        print(f"Corcel request timed out after 15 seconds... falling back to OpenAI...")
 
     if response:
         print(f"Prompt generated with Corcel: {response}")
@@ -385,9 +394,7 @@ def generate_random_prompt_gpt(
                 try:
                     response = call_openai(self.openai_client, model, prompt)
                 except Exception as e:
-                    print(
-                        f"An unexpected error occurred calling OpenAI: {e}"
-                    )
+                    print(f"An unexpected error occurred calling OpenAI: {e}")
                     print(f"Sleeping for 10 seconds and retrying once...")
                     time.sleep(10)
 
