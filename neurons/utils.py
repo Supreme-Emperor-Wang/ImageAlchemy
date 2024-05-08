@@ -136,11 +136,10 @@ def background_loop(self, is_validator):
         except Exception as e:
             print(f">>> An unexpected error occurred syncing the metagraph: {e}")
 
-    print(f"Number of batches in queue: {len(self.batches)}")
-
     #### Send new batches to the Human Validation Bot
     try:
         if (self.background_steps % 1 == 0) and is_validator and (self.batches != []):
+            print(f"Number of batches in queue: {len(self.batches)}")
             max_retries = 3
             backoff = 2
             batches_for_deletion = []
