@@ -6,6 +6,7 @@ import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from threading import Timer
 
 import requests
@@ -33,6 +34,10 @@ from neurons.validator.utils import init_wandb
 import bittensor as bt
 
 
+class ModelType(Enum):
+   alchemy = "alchemy"
+   custom = "custom"
+   
 @dataclass
 class Stats:
     start_time: datetime

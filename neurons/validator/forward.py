@@ -16,7 +16,7 @@ from event import EventSchema
 from loguru import logger
 from neurons.constants import MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
 from neurons.protocol import ImageGeneration
-from neurons.utils import output_log, sh
+from neurons.utils import ModelType, output_log, sh
 from utils import ttl_get_block
 
 import bittensor as bt
@@ -168,7 +168,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         self.device
     )
 
-    if self.model_type == "alchemy":
+    if self.model_type == ModelType.alchemy.value:
         self.reward_weights = self.reward_weights_alchemy
         self.reward_functions = self.reward_functions_alchemy
     else:
