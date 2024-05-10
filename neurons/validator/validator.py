@@ -9,11 +9,6 @@ from time import sleep
 from traceback import print_exception
 from typing import Dict, List
 
-<<<<<<< HEAD
-=======
-import pandas as pd
-import streamlit
->>>>>>> Fix ModelDiversityRewardModel benchmarking error
 import torch
 from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
 from neurons.utils import BackgroundTimer, background_loop, get_defaults
