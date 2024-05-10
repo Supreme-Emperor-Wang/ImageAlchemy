@@ -75,18 +75,9 @@ class StableValidator:
         # Init config
         self.config = StableValidator.config()
         self.check_config(self.config)
-<<<<<<< HEAD
-        bt.logging(
-            config=self.config,
-            logging_dir=self.config.alchemy.full_path,
-            debug=True,
-            trace=True,
-        )
-        bt.trace()
-=======
         
+        # Init Logging
         bt.logging(config=self.config, logging_dir=self.config.alchemy.full_path, debug=self.config.debug, trace=self.config.trace)
->>>>>>> Fix ModelDiversityRewardModel benchmarking error
 
         # Init device.
         self.device = torch.device(self.config.alchemy.device)
