@@ -9,6 +9,11 @@ from time import sleep
 from traceback import print_exception
 from typing import Dict, List
 
+<<<<<<< HEAD
+=======
+import pandas as pd
+import streamlit
+>>>>>>> Fix ModelDiversityRewardModel benchmarking error
 import torch
 from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
 from neurons.utils import BackgroundTimer, background_loop, get_defaults
@@ -75,6 +80,7 @@ class StableValidator:
         # Init config
         self.config = StableValidator.config()
         self.check_config(self.config)
+<<<<<<< HEAD
         bt.logging(
             config=self.config,
             logging_dir=self.config.alchemy.full_path,
@@ -82,6 +88,10 @@ class StableValidator:
             trace=True,
         )
         bt.trace()
+=======
+        
+        bt.logging(config=self.config, logging_dir=self.config.alchemy.full_path, debug=self.config.debug, trace=self.config.trace)
+>>>>>>> Fix ModelDiversityRewardModel benchmarking error
 
         # Init device.
         self.device = torch.device(self.config.alchemy.device)
@@ -307,7 +317,7 @@ class StableValidator:
             pass
 
         # Set default model type
-        self.model_type = "Alchemy"
+        self.model_type = "alchemy"
 
     async def run(self):
         # Main Validation Loop
@@ -325,7 +335,7 @@ class StableValidator:
                     sleep(self.request_frequency)
 
                 # Get a random number of uids
-                uids = await get_random_uids(self, self.dendrite, k=N_NEURONS)
+                uids = await get_random_uids(self, self.dendrite, k=N_NEURONS)                
                 uids = uids.to(self.device)
 
                 axons = [self.metagraph.axons[uid] for uid in uids]

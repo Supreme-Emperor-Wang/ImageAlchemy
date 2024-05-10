@@ -622,7 +622,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
         ### Set up transform functionc
         self.transform = transforms.Compose([transforms.PILToTensor()])
         self.device = "cuda"
-        self.threshold = 0.6
+        self.threshold = 0.95
         self.config = self.get_config()
         self.stats = get_defaults(self)
             
@@ -784,50 +784,33 @@ class ModelDiversityRewardModel(BaseRewardModel):
             self.stats.nsfw_count += 1
             synapse.images = []
 
-        ### Log to wandb
-        try:
-            if self.wandb:
-                ### Store the images and prompts for uploading to wandb
-                self.wandb._add_images(synapse)
-
-                #### Log to Wandb
-                self.wandb._log()
-
-        except Exception as e:
-            print(f"Error trying to log events to wandb.")
-
         #### Log time to generate image
         generation_time = time.perf_counter() - start_time
         self.stats.generation_time += generation_time
-        output_log(
-            f"{sh('Time')} -> {generation_time:.2f}s | Average: {self.stats.generation_time / self.stats.total_requests:.2f}s",
-            color_key="y",
-        )
         return synapse
 
-    def get_rewards(self, responses, rewards) -> torch.FloatTensor:
+    def get_rewards(self, responses, rewards, synapse) -> torch.FloatTensor:
         extract_fn = self.extract_embeddings(self.model.to(self.device))
 
         images = [
             T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0]))
+            if response.images != [] else []
             for response, reward in zip(responses, rewards)
-            if reward != 0.0
         ]
-        ignored_indices = [
-            index for index, reward in enumerate(rewards) if reward == 0.0
-        ]
-        
-        validator_synapse = self.generate_image(responses[0])
+
+        validator_synapse = self.generate_image(synapse)
         validator_embeddings = extract_fn({"image": [T.transforms.ToPILImage()(bt.Tensor.deserialize(validator_synapse.images[0]))]})
         
         scores = []
+        exact_scores = []
         for i, image in enumerate(images):
-            if i in ignored_indices:
+            if image == []:
                 scores.append(0)
             else:
                 image_embeddings = extract_fn({"image": [image]})
                 cosine_similarity = F.cosine_similarity(validator_embeddings['embeddings'], image_embeddings['embeddings'])
                 scores.append(float(cosine_similarity.item() > self.threshold))
+                exact_scores.append(cosine_similarity.item())
         return torch.tensor(scores)
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
