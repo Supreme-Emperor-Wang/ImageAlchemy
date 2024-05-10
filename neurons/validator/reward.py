@@ -625,16 +625,15 @@ class ModelDiversityRewardModel(BaseRewardModel):
         self.threshold = 0.95
         self.config = self.get_config()
         self.stats = get_defaults(self)
-            
+
         #### Load Defaut Arguments
         self.t2i_args, self.i2i_args = self.get_args()
-        
+
         #### Load the model
         self.load_models()
 
         #### Optimize model
         self.optimize_models()
-
 
     def get_args(self) -> Dict:
         return {
@@ -687,7 +686,6 @@ class ModelDiversityRewardModel(BaseRewardModel):
                 color_key="y",
             )
             warm_up(self.t2i_model, self.t2i_args)
-
 
     def extract_embeddings(self, model: torch.nn.Module):
         """Utility to compute embeddings."""
@@ -753,7 +751,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
                     torch.Generator(device=self.config.miner.device).manual_seed(seed)
                 ]
                 images = model(**local_args).images
-                
+
                 synapse.images = [
                     bt.Tensor.serialize(self.transform(image)) for image in images
                 ]
@@ -770,9 +768,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
                 if attempt == 2:
                     images = []
                     synapse.images = []
-                    print(
-                        f"Failed to generate any images after {attempt+1} attempts."
-                    )
+                    print(f"Failed to generate any images after {attempt+1} attempts.")
 
         ### Count timeouts
         if time.perf_counter() - start_time > timeout:
@@ -794,13 +790,22 @@ class ModelDiversityRewardModel(BaseRewardModel):
 
         images = [
             T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0]))
-            if response.images != [] else []
+            if response.images != []
+            else []
             for response, reward in zip(responses, rewards)
         ]
 
         validator_synapse = self.generate_image(synapse)
-        validator_embeddings = extract_fn({"image": [T.transforms.ToPILImage()(bt.Tensor.deserialize(validator_synapse.images[0]))]})
-        
+        validator_embeddings = extract_fn(
+            {
+                "image": [
+                    T.transforms.ToPILImage()(
+                        bt.Tensor.deserialize(validator_synapse.images[0])
+                    )
+                ]
+            }
+        )
+
         scores = []
         exact_scores = []
         for i, image in enumerate(images):
@@ -808,7 +813,9 @@ class ModelDiversityRewardModel(BaseRewardModel):
                 scores.append(0)
             else:
                 image_embeddings = extract_fn({"image": [image]})
-                cosine_similarity = F.cosine_similarity(validator_embeddings['embeddings'], image_embeddings['embeddings'])
+                cosine_similarity = F.cosine_similarity(
+                    validator_embeddings["embeddings"], image_embeddings["embeddings"]
+                )
                 scores.append(float(cosine_similarity.item() > self.threshold))
                 exact_scores.append(cosine_similarity.item())
         return torch.tensor(scores)

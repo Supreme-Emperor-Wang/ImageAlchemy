@@ -267,10 +267,14 @@ class BaseMiner(ABC):
         start_time = time.perf_counter()
 
         ### Set up args
-        if synapse.model_type is not None: 
-            local_args = copy.deepcopy(self.mapping[f"{synapse.generation_type}{synapse.model_type}"]["args"])
+        if synapse.model_type is not None:
+            local_args = copy.deepcopy(
+                self.mapping[f"{synapse.generation_type}{synapse.model_type}"]["args"]
+            )
         else:
-            local_args = copy.deepcopy(self.mapping[f"{synapse.generation_type}{ModelType.alchemy}"]["args"])
+            local_args = copy.deepcopy(
+                self.mapping[f"{synapse.generation_type}{ModelType.alchemy}"]["args"]
+            )
 
         local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
         local_args["width"] = synapse.width
@@ -290,10 +294,14 @@ class BaseMiner(ABC):
             print("Values for steps were not provided.")
 
         ### Get the model
-        if synapse.model_type is not None: 
-            model = self.mapping[f"{synapse.generation_type}{synapse.model_type}"]["model"]
+        if synapse.model_type is not None:
+            model = self.mapping[f"{synapse.generation_type}{synapse.model_type}"][
+                "model"
+            ]
         else:
-            model = self.mapping[f"{synapse.generation_type}{ModelType.alchemy}"]["model"]
+            model = self.mapping[f"{synapse.generation_type}{ModelType.alchemy}"][
+                "model"
+            ]
         if synapse.generation_type == "image_to_image":
             local_args["image"] = T.transforms.ToPILImage()(
                 bt.Tensor.deserialize(synapse.prompt_image)

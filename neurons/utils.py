@@ -35,9 +35,10 @@ import bittensor as bt
 
 
 class ModelType(Enum):
-   alchemy = "alchemy"
-   custom = "custom"
-   
+    alchemy = "alchemy"
+    custom = "custom"
+
+
 @dataclass
 class Stats:
     start_time: datetime

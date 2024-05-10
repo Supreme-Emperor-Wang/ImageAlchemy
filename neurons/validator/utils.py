@@ -503,7 +503,7 @@ def reinit_wandb(self):
     init_wandb(self, reinit=True)
 
 
-def get_promptdb_backup(netuid, prompt_history=[], limit = 100):
+def get_promptdb_backup(netuid, prompt_history=[], limit=100):
     api = wandb.Api()
     project = "ImageAlchemy" if netuid == 26 else "ImageAlchemyTest"
     runs = api.runs(f"tensoralchemists/{project}")

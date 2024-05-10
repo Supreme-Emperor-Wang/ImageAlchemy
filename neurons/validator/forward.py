@@ -177,7 +177,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     for weight_i, reward_fn_i in zip(self.reward_weights, self.reward_functions):
         if reward_fn_i.name == "model_diversity_reward_model":
-            reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards, synapse)
+            reward_i, reward_i_normalized = reward_fn_i.apply(
+                responses, rewards, synapse
+            )
             rewards += weight_i * reward_i_normalized.to(self.device)
         else:
             reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
@@ -374,7 +376,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         # Update batches to be sent to the human validation platform
         if len(self.batches) >= 200:
             del self.batches[0]
-        
+
         self.batches.append(
             {
                 "batch_id": str(uuid.uuid4()),

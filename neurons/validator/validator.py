@@ -75,9 +75,14 @@ class StableValidator:
         # Init config
         self.config = StableValidator.config()
         self.check_config(self.config)
-        
+
         # Init Logging
-        bt.logging(config=self.config, logging_dir=self.config.alchemy.full_path, debug=self.config.debug, trace=self.config.trace)
+        bt.logging(
+            config=self.config,
+            logging_dir=self.config.alchemy.full_path,
+            debug=self.config.debug,
+            trace=self.config.trace,
+        )
 
         # Init device.
         self.device = torch.device(self.config.alchemy.device)
@@ -104,7 +109,7 @@ class StableValidator:
 
         # Init prompt backup db
         try:
-            self.prompt_history_db = get_promptdb_backup(self.config.netuid, limit = 10)
+            self.prompt_history_db = get_promptdb_backup(self.config.netuid, limit=10)
         except Exception as e:
             print(f"Unexpected error occurred loading the backup prompts: {e}")
             self.prompt_history_db = []
@@ -197,7 +202,11 @@ class StableValidator:
                 print(f"Failed to Load Manual Validator due to error: {e}")
                 self.config.alchemy.disable_manual_validator = True
 
-        self.reward_names = ["image_reward_model", "model_diversity_reward_model", "human_reward_model"]
+        self.reward_names = [
+            "image_reward_model",
+            "model_diversity_reward_model",
+            "human_reward_model",
+        ]
 
         # Init reward function
         self.reward_weights_alchemy = torch.tensor(
@@ -208,7 +217,10 @@ class StableValidator:
             ],
             dtype=torch.float32,
         ).to(self.device)
-        self.reward_functions_alchemy = [ImageRewardModel(), ModelDiversityRewardModel()]
+        self.reward_functions_alchemy = [
+            ImageRewardModel(),
+            ModelDiversityRewardModel(),
+        ]
 
         self.reward_weights_custom = torch.tensor(
             [
@@ -218,7 +230,7 @@ class StableValidator:
             dtype=torch.float32,
         ).to(self.device)
         self.reward_functions_custom = [ModelDiversityRewardModel()]
-        
+
         self.human_voting_bot_scores = torch.zeros((self.metagraph.n)).to(self.device)
         self.human_voting_bot_weight = 0.02 / 32
         self.human_voting_bot_reward_model = HumanValidationRewardModel(
@@ -321,7 +333,7 @@ class StableValidator:
                     sleep(self.request_frequency)
 
                 # Get a random number of uids
-                uids = await get_random_uids(self, self.dendrite, k=N_NEURONS)                
+                uids = await get_random_uids(self, self.dendrite, k=N_NEURONS)
                 uids = uids.to(self.device)
 
                 axons = [self.metagraph.axons[uid] for uid in uids]
@@ -360,7 +372,7 @@ class StableValidator:
                     self.model_type = ModelType.alchemy.value
                 else:
                     self.model_type = ModelType.custom.value
-                
+
                 # Assuming each step is 3 minutes restart wandb run ever 3 hours to avoid overloading a validators storage space
                 if self.step % 360 == 0 and self.step != 0:
                     print("Re-initializing wandb run...")

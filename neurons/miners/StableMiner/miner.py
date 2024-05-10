@@ -54,7 +54,9 @@ class StableMiner(BaseMiner):
         )
 
         ### Load the image to image model using the same pipeline (efficient)
-        self.i2i_model_custom = AutoPipelineForImage2Image.from_pipe(self.t2i_model_custom).to(
+        self.i2i_model_custom = AutoPipelineForImage2Image.from_pipe(
+            self.t2i_model_custom
+        ).to(
             self.config.miner.device,
         )
         self.i2i_model_custom.set_progress_bar_config(disable=True)
@@ -62,7 +64,9 @@ class StableMiner(BaseMiner):
             self.i2i_model_custom.scheduler.config
         )
 
-        self.i2i_model_alchemy = AutoPipelineForImage2Image.from_pipe(self.t2i_model_alchemy).to(
+        self.i2i_model_alchemy = AutoPipelineForImage2Image.from_pipe(
+            self.t2i_model_alchemy
+        ).to(
             self.config.miner.device,
         )
         self.i2i_model_alchemy.set_progress_bar_config(disable=True)
@@ -77,10 +81,22 @@ class StableMiner(BaseMiner):
 
         ### Set up mapping for the different synapse types
         self.mapping = {
-            f"text_to_image{ModelType.alchemy}": {"args": self.t2i_args, "model": self.t2i_model_alchemy},
-            f"text_to_image{ModelType.custom}": {"args": self.t2i_args, "model": self.t2i_model_custom},
-            f"image_to_image{ModelType.alchemy}": {"args": self.i2i_args, "model": self.i2i_model_alchemy},
-            f"image_to_image{ModelType.custom}": {"args": self.i2i_args, "model": self.i2i_model_custom},
+            f"text_to_image{ModelType.alchemy}": {
+                "args": self.t2i_args,
+                "model": self.t2i_model_alchemy,
+            },
+            f"text_to_image{ModelType.custom}": {
+                "args": self.t2i_args,
+                "model": self.t2i_model_custom,
+            },
+            f"image_to_image{ModelType.alchemy}": {
+                "args": self.i2i_args,
+                "model": self.i2i_model_alchemy,
+            },
+            f"image_to_image{ModelType.custom}": {
+                "args": self.i2i_args,
+                "model": self.i2i_model_custom,
+            },
         }
 
     def optimize_models(self):
