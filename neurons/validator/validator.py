@@ -20,7 +20,7 @@ from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
 from neurons.validator.reward import (
     BlacklistFilter,
-    HumanValidationBotRewardModel,
+    HumanValidationRewardModel,
     ImageRewardModel,
     NSFWRewardModel,
 )
@@ -224,7 +224,7 @@ class StableValidator:
 
         self.human_voting_bot_scores = torch.zeros((self.metagraph.n)).to(self.device)
         self.human_voting_bot_weight = 0.02 / 32
-        self.human_voting_bot_reward_model = HumanValidationBotRewardModel(
+        self.human_voting_bot_reward_model = HumanValidationRewardModel(
             self.metagraph, self.api_url
         )
 
@@ -263,7 +263,7 @@ class StableValidator:
         self.coldkey_whitelist = set()
 
         # Init IsAlive counter
-        self.isalive_threshold = 3
+        self.isalive_threshold = 8
         self.isalive_dict = {i: 0 for i in range(self.metagraph.n.item())}
 
         # Init stats
@@ -304,36 +304,6 @@ class StableValidator:
             }
         except:
             pass
-
-        # Load Moving Average and Weight Dataframe
-        if os.path.exists(f"{self.config.alchemy.full_path}/moving_averages.csv"):
-            self.ma_df = pd.read_csv(
-                f"{self.config.alchemy.full_path}/moving_averages.csv"
-            )
-        else:
-            self.ma_df = pd.DataFrame(
-                columns=range(0, len(self.moving_averaged_scores))
-            )
-
-        # Load Moving Average and Weight Dataframe
-        if os.path.exists(f"{self.config.alchemy.full_path}/hvb_rewards.csv"):
-            self.hvb_df = pd.read_csv(
-                f"{self.config.alchemy.full_path}/hvb_rewards.csv"
-            )
-        else:
-            self.hvb_df = pd.DataFrame(
-                columns=range(0, len(self.moving_averaged_scores))
-            )
-
-        # Load Moving Average and Weight Dataframe
-        if os.path.exists(f"{self.config.alchemy.full_path}/weights.csv"):
-            self.weights_df = pd.read_csv(
-                f"{self.config.alchemy.full_path}/weights.csv"
-            )
-        else:
-            self.weights_df = pd.DataFrame(
-                columns=range(0, len(self.moving_averaged_scores))
-            )
 
     async def run(self):
         # Main Validation Loop

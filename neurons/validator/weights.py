@@ -53,14 +53,6 @@ def set_weights(self):
     except:
         bt.logging.info("Error logging weights to the Weights API")
 
-    self.weights_df = pd.concat(
-        [
-            self.weights_df,
-            pd.DataFrame({i: [value.item()] for i, value in enumerate(raw_weights)}),
-        ]
-    ).reset_index(drop=True)
-    self.weights_df.to_csv(f"{self.config.alchemy.full_path}/weights.csv", index=False)
-
     # print("raw_weights", raw_weights)
     # print("top10 values", raw_weights.sort()[0])
     # print("top10 uids", raw_weights.sort()[1])

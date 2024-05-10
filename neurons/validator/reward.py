@@ -351,15 +351,15 @@ class NSFWRewardModel(BaseRewardModel):
         return rewards
 
 
-class HumanValidationBotRewardModel(BaseRewardModel):
+class HumanValidationRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.nsfw.value
+        return RewardModelType.human.value
 
     def __init__(self, metagraph, api_url):
         super().__init__()
         self.device = "cuda"
-        self.human_voting_bot_scores = torch.zeros((metagraph.n)).to(self.device)
+        self.human_voting_scores = torch.zeros((metagraph.n)).to(self.device)
         self.api_url = api_url
 
     def get_rewards(self, hotkeys) -> torch.FloatTensor:
@@ -368,7 +368,7 @@ class HumanValidationBotRewardModel(BaseRewardModel):
 
         bt.logging.info("Extracting human votes")
 
-        human_voting_bot_scores = None
+        human_voting_scores = None
 
         for attempt in range(0, max_retries):
             try:
@@ -380,7 +380,7 @@ class HumanValidationBotRewardModel(BaseRewardModel):
                     bt.logging.info(
                         f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step."
                     )
-                    human_voting_bot_scores = None
+                    human_voting_scores = None
                     break
 
                 elif (human_voting_scores.status_code != 200) and (
@@ -389,16 +389,16 @@ class HumanValidationBotRewardModel(BaseRewardModel):
                     continue
 
                 else:
-                    human_voting_bot_round_scores = human_voting_scores.json()
+                    human_voting_round_scores = human_voting_scores.json()
 
-                    human_voting_bot_scores = {}
+                    human_voting_scores = {}
 
-                    for inner_dict in human_voting_bot_round_scores.values():
+                    for inner_dict in human_voting_round_scores.values():
                         for key, value in inner_dict.items():
-                            if key in human_voting_bot_scores:
-                                human_voting_bot_scores[key] += value
+                            if key in human_voting_scores:
+                                human_voting_scores[key] += value
                             else:
-                                human_voting_bot_scores[key] = value
+                                human_voting_scores[key] = value
 
                     break
 
@@ -410,18 +410,18 @@ class HumanValidationBotRewardModel(BaseRewardModel):
                 human_voting_scores = None
                 break
 
-        if human_voting_bot_scores is not None:
+        if human_voting_scores is not None:
             for index, hotkey in enumerate(hotkeys):
-                if hotkey in human_voting_bot_scores.keys():
-                    self.human_voting_bot_scores[index] = human_voting_bot_scores[
+                if hotkey in human_voting_scores.keys():
+                    self.human_voting_scores[index] = human_voting_scores[
                         hotkey
                     ]
 
-        human_voting_bot_scores_normalised = (
-            self.human_voting_bot_scores / self.human_voting_bot_scores.sum()
+        human_voting_scores_normalised = (
+            self.human_voting_scores / self.human_voting_scores.sum()
         )
 
-        return self.human_voting_bot_scores, human_voting_bot_scores_normalised
+        return self.human_voting_scores, human_voting_scores_normalised
 
 
 class ImageRewardModel(BaseRewardModel):

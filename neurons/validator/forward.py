@@ -297,21 +297,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     except:
         bt.logging.info("Error logging moving averages to the Averages API")
 
-    self.ma_df = pd.concat(
-        [
-            self.ma_df,
-            pd.DataFrame(
-                {
-                    i: [value.item()]
-                    for i, value in enumerate(self.moving_averaged_scores)
-                }
-            ),
-        ]
-    ).reset_index(drop=True)
-    self.ma_df.to_csv(
-        f"{self.config.alchemy.full_path}/moving_averages.csv", index=False
-    )
-
     try:
         for i, average in enumerate(self.moving_averaged_scores):
             if (self.metagraph.axons[i].hotkey in self.hotkey_blacklist) or (
