@@ -104,7 +104,7 @@ class StableValidator:
 
         # Init prompt backup db
         try:
-            self.prompt_history_db = get_promptdb_backup(self.config.netuid)
+            self.prompt_history_db = get_promptdb_backup(self.config.netuid, limit = 10)
         except Exception as e:
             print(f"Unexpected error occurred loading the backup prompts: {e}")
             self.prompt_history_db = []
