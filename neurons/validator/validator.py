@@ -220,6 +220,7 @@ class StableValidator:
         self.reward_weights = self.reward_weights / self.reward_weights.sum(
             dim=-1
         ).unsqueeze(-1)
+
         self.reward_names = ["image_reward_model", "manual_reward_model"]
 
         self.human_voting_bot_scores = torch.zeros((self.metagraph.n)).to(self.device)

@@ -109,7 +109,8 @@ class BaseMiner(ABC):
             bt.axon(
                 wallet=self.wallet,
                 ip=bt.utils.networking.get_external_ip(),
-                external_ip=self.config.axon.get("external_ip") or bt.utils.networking.get_external_ip(),
+                external_ip=self.config.axon.get("external_ip")
+                or bt.utils.networking.get_external_ip(),
                 config=self.config,
             )
             .attach(

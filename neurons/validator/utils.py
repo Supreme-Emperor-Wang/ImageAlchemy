@@ -69,7 +69,7 @@ async def check_uid(dendrite, self, uid, response_times):
             return True
         else:
             try:
-                self.isalive_dict[uid] += 1
+                self.isalive_failed_count[uid] += 1
                 key = self.metagraph.axons[uid].hotkey
                 self.miner_query_history_fail_count[key] += 1
                 # If miner doesn't respond for 3 iterations rest it's count to the average to avoid spamming

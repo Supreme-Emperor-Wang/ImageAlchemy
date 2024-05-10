@@ -413,9 +413,7 @@ class HumanValidationRewardModel(BaseRewardModel):
         if human_voting_scores is not None:
             for index, hotkey in enumerate(hotkeys):
                 if hotkey in human_voting_scores.keys():
-                    self.human_voting_scores[index] = human_voting_scores[
-                        hotkey
-                    ]
+                    self.human_voting_scores[index] = human_voting_scores[hotkey]
 
         human_voting_scores_normalised = (
             self.human_voting_scores / self.human_voting_scores.sum()
