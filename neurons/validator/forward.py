@@ -176,14 +176,8 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         self.reward_functions = self.reward_functions_custom
 
     for weight_i, reward_fn_i in zip(self.reward_weights, self.reward_functions):
-        if reward_fn_i.name == "model_diversity_reward_model":
-            reward_i, reward_i_normalized = reward_fn_i.apply(
-                responses, rewards, synapse
-            )
-            rewards += weight_i * reward_i_normalized.to(self.device)
-        else:
-            reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
-            rewards += weight_i * reward_i_normalized.to(self.device)
+        reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards, synapse)
+        rewards += weight_i * reward_i_normalized.to(self.device)
         event[reward_fn_i.name] = reward_i.tolist()
         event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
         print(str(reward_fn_i.name), reward_i_normalized.tolist())

@@ -226,6 +226,7 @@ class BaseRewardModel:
         self,
         responses: List[bt.Synapse],
         rewards,
+        synapse = None,
     ) -> torch.FloatTensor:
         """Applies the reward model across each call. Unsuccessful responses are zeroed."""
         # Get indices of correctly responding calls.
@@ -241,7 +242,7 @@ class BaseRewardModel:
             responses[idx] for idx in successful_generations_indices
         ]
         # Reward each completion.
-        successful_rewards = self.get_rewards(successful_generations, rewards)
+        successful_rewards = self.get_rewards(successful_generations, rewards, synapse)
 
         # Softmax rewards across samples.
         successful_rewards_normalized = self.normalize_rewards(successful_rewards)
@@ -303,7 +304,7 @@ class BlacklistFilter(BaseRewardModel):
 
         return 1.0
 
-    def get_rewards(self, responses, rewards) -> torch.FloatTensor:
+    def get_rewards(self, responses, rewards, synapse = None) -> torch.FloatTensor:
         return torch.tensor(
             [
                 self.reward(response) if reward != 0.0 else 0.0
@@ -358,7 +359,7 @@ class NSFWRewardModel(BaseRewardModel):
 
         return 1.0
 
-    def get_rewards(self, responses, rewards) -> torch.FloatTensor:
+    def get_rewards(self, responses, rewards, synapse = None) -> torch.FloatTensor:
         return torch.tensor(
             [
                 self.reward(response) if reward != 0.0 else 0.0
@@ -471,7 +472,7 @@ class ImageRewardModel(BaseRewardModel):
             print("ImageReward score is 0. No image in response.")
             return 0.0
 
-    def get_rewards(self, responses, rewards) -> torch.FloatTensor:
+    def get_rewards(self, responses, rewards, synapse = None) -> torch.FloatTensor:
         return torch.tensor(
             [self.reward(response) for response in responses],
             dtype=torch.float32,
@@ -523,7 +524,7 @@ class DiversityRewardModel(BaseRewardModel):
 
         return pp
 
-    def get_rewards(self, responses, rewards) -> torch.FloatTensor:
+    def get_rewards(self, responses, rewards, synapse = None) -> torch.FloatTensor:
         extract_fn = self.extract_embeddings(self.model.to(self.device))
 
         images = [
