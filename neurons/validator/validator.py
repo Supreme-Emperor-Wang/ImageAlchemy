@@ -10,16 +10,17 @@ from traceback import print_exception
 from typing import List
 
 import numpy as np
+import pandas as pd
 import streamlit
 import torch
 from datasets import load_dataset
-from neurons.constants import N_NEURONS
+from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
 from neurons.utils import BackgroundTimer, background_loop, get_defaults
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
 from neurons.validator.reward import (
     BlacklistFilter,
-    DiversityRewardModel,
+    HumanValidationRewardModel,
     ImageRewardModel,
     NSFWRewardModel,
 )
@@ -107,8 +108,6 @@ class StableValidator:
                 "You must set either the CORCEL_API_KEY or OPENAI_API_KEY environment variables. It is preferable to use both."
             )
 
-        print("This is a test print statement prior to wandb.")
-
         wandb.login(anonymous="must")
 
         # Init prompt backup db
@@ -122,6 +121,11 @@ class StableValidator:
         # Init subtensor
         self.subtensor = bt.subtensor(config=self.config)
         print(f"Loaded subtensor: {self.subtensor}")
+
+        self.api_url = DEV_URL if self.subtensor.network == "test" else PROD_URL
+        if self.config.alchemy.force_prod:
+            self.api_url = PROD_URL
+        print(f"Using server {self.api_url}")
 
         # Init wallet.
         self.wallet = bt.wallet(config=self.config)
@@ -219,6 +223,12 @@ class StableValidator:
 
         self.reward_names = ["image_reward_model", "manual_reward_model"]
 
+        self.human_voting_bot_scores = torch.zeros((self.metagraph.n)).to(self.device)
+        self.human_voting_bot_weight = 0.02 / 32
+        self.human_voting_bot_reward_model = HumanValidationRewardModel(
+            self.metagraph, self.api_url
+        )
+
         # Init masking function
         self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]
 
@@ -252,6 +262,10 @@ class StableValidator:
         self.coldkey_blacklist = set()
         self.hotkey_whitelist = set()
         self.coldkey_whitelist = set()
+
+        # Init IsAlive counter
+        self.isalive_threshold = 8
+        self.isalive_dict = {i: 0 for i in range(self.metagraph.n.item())}
 
         # Init stats
         self.stats = get_defaults(self)
@@ -428,9 +442,14 @@ class StableValidator:
             min_len = min(len(self.hotkeys), len(self.scores))
             new_moving_average[:min_len] = self.scores[:min_len]
             self.scores = new_moving_average
+            for uid in self.metagraph.n.item():
+                if uid not in self.isalive_dict:
+                    self.isalive_dict[uid] = 0
 
         # Update the hotkeys.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+
+        self.human_voting_bot_scores = torch.zeros((self.metagraph.n)).to(self.device)
 
     def check_registered(self):
         # --- Check for registration.

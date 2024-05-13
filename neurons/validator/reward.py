@@ -1,3 +1,4 @@
+import time
 from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -5,6 +6,7 @@ from typing import List
 
 import ImageReward as RM
 import numpy as np
+import requests
 import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
@@ -347,6 +349,77 @@ class NSFWRewardModel(BaseRewardModel):
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards
+
+
+class HumanValidationRewardModel(BaseRewardModel):
+    @property
+    def name(self) -> str:
+        return RewardModelType.human.value
+
+    def __init__(self, metagraph, api_url):
+        super().__init__()
+        self.device = "cuda"
+        self.human_voting_scores = torch.zeros((metagraph.n)).to(self.device)
+        self.api_url = api_url
+
+    def get_rewards(self, hotkeys) -> torch.FloatTensor:
+        max_retries = 3
+        backoff = 2
+
+        bt.logging.info("Extracting human votes")
+
+        human_voting_scores = None
+
+        for attempt in range(0, max_retries):
+            try:
+                human_voting_scores = requests.get(f"{self.api_url}/votes", timeout=2)
+
+                if (human_voting_scores.status_code != 200) and (
+                    attempt == max_retries
+                ):
+                    bt.logging.info(
+                        f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step."
+                    )
+                    human_voting_scores = None
+                    break
+
+                elif (human_voting_scores.status_code != 200) and (
+                    attempt != max_retries
+                ):
+                    continue
+
+                else:
+                    human_voting_round_scores = human_voting_scores.json()
+
+                    human_voting_scores = {}
+
+                    for inner_dict in human_voting_round_scores.values():
+                        for key, value in inner_dict.items():
+                            if key in human_voting_scores:
+                                human_voting_scores[key] += value
+                            else:
+                                human_voting_scores[key] = value
+
+                    break
+
+            except Exception as e:
+                print(
+                    f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds."
+                )
+                time.sleep(backoff)
+                human_voting_scores = None
+                break
+
+        if human_voting_scores is not None:
+            for index, hotkey in enumerate(hotkeys):
+                if hotkey in human_voting_scores.keys():
+                    self.human_voting_scores[index] = human_voting_scores[hotkey]
+
+        human_voting_scores_normalised = (
+            self.human_voting_scores / self.human_voting_scores.sum()
+        )
+
+        return self.human_voting_scores, human_voting_scores_normalised
 
 
 class ImageRewardModel(BaseRewardModel):

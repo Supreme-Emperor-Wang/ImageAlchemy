@@ -65,9 +65,11 @@ async def check_uid(dendrite, self, uid, response_times):
         )
         if response.is_success:
             response_times.append(time.perf_counter() - t1)
+            self.isalive_dict[uid] = 0
             return True
         else:
             try:
+                self.isalive_failed_count[uid] += 1
                 key = self.metagraph.axons[uid].hotkey
                 self.miner_query_history_fail_count[key] += 1
                 # If miner doesn't respond for 3 iterations rest it's count to the average to avoid spamming
@@ -531,4 +533,5 @@ def get_promptdb_backup(netuid, prompt_history=[]):
                     else:
                         prompt_history.append(prompt_tuple)
 
+    return prompt_history
     return prompt_history

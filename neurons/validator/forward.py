@@ -8,12 +8,13 @@ from dataclasses import asdict
 from datetime import datetime
 from io import BytesIO
 
+import pandas as pd
 import requests
 import torch
 import torchvision.transforms as T
 from event import EventSchema
 from loguru import logger
-from neurons.constants import HVB_MAINNET_IP, MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
+from neurons.constants import MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
 from neurons.protocol import ImageGeneration
 from neurons.utils import output_log, sh
 from utils import ttl_get_block
@@ -159,6 +160,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         print(f"Saving prompt")
         with open("neurons/validator/images/prompt.txt", "w") as f:
             f.write(prompt)
+
     # Initialise rewards tensor
     rewards: torch.FloatTensor = torch.zeros(len(responses), dtype=torch.float32).to(
         self.device
@@ -248,90 +250,52 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         0, uids, rewards
     ).to(self.device)
 
-    print(f"Before: Moving average scores: {self.moving_averaged_scores}")
+    reward_i, reward_i_normalized = self.human_voting_bot_reward_model.get_rewards(
+        self.hotkeys
+    )
+    scattered_rewards_adjusted = scattered_rewards + (
+        self.human_voting_bot_weight * self.human_voting_bot_scores
+    )
+    self.hvb_df = pd.concat(
+        [
+            self.hvb_df,
+            pd.DataFrame(
+                {i: value.item() for i, value in enumerate(reward_i_normalized)},
+                index=[0],
+            ),
+        ]
+    ).reset_index(drop=True)
+    self.hvb_df.to_csv(f"{self.config.alchemy.full_path}/hvb_rewards.csv")
+
+    for uid, count in self.isalive_dict.items():
+        if count >= self.isalive_threshold:
+            scattered_rewards_adjusted[uid] = 0
 
     self.moving_averaged_scores: torch.FloatTensor = (
-        MOVING_AVERAGE_ALPHA * scattered_rewards
+        MOVING_AVERAGE_ALPHA * scattered_rewards_adjusted
         + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
     )
 
-    print(f"After: Moving average scores: {self.moving_averaged_scores}")
-
-    max_retries = 3
-    backoff = 2
-    print("Querying for human votes...")
-    for attempt in range(0, max_retries):
-        try:
-            api_host = f"{HVB_MAINNET_IP}:5000/api"
-
-            human_voting_scores = requests.get(f"http://{api_host}/votes", timeout=2)
-
-            if (human_voting_scores.status_code != 200) and (attempt == max_retries):
-                print(
-                    f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step."
-                )
-                break
-
-            elif (human_voting_scores.status_code != 200) and (attempt != max_retries):
-                continue
-
-            else:
-                human_voting_bot_round_scores = human_voting_scores.json()
-
-                human_voting_bot_scores = {}
-
-                for inner_dict in human_voting_bot_round_scores.values():
-                    for key, value in inner_dict.items():
-                        if key in human_voting_bot_scores:
-                            human_voting_bot_scores[key] += value
-                        else:
-                            human_voting_bot_scores[key] = value
-
-                human_voting_bot_scores = torch.tensor(
-                    [
-                        (
-                            human_voting_bot_scores[key]
-                            if key in human_voting_bot_scores.keys()
-                            else 0
-                        )
-                        for key in self.hotkeys
-                    ]
-                ).to(self.device)
-
-                if human_voting_bot_scores.sum() == 0:
-                    continue
-
-                else:
-                    human_voting_bot_scores = human_voting_bot_scores.float()
-                    print(f"Raw human bot votes: {human_voting_bot_scores}")
-
-                    human_voting_bot_scores = torch.nn.functional.normalize(
-                        human_voting_bot_scores, dim=0
+    try:
+        response = requests.post(
+            f"{self.api_url}/validator/averages",
+            json={
+                "averages": {
+                    hotkey: moving_average.item()
+                    for hotkey, moving_average in zip(
+                        self.hotkeys, self.moving_averaged_scores
                     )
-
-                    print(f"Normalized human bot scores: {human_voting_bot_scores}")
-
-                    print(
-                        f"Before HV: Moving average scores: {self.moving_averaged_scores}"
-                    )
-
-                    self.moving_averaged_scores: (
-                        torch.FloatTensor
-                    ) = MOVING_AVERAGE_BETA * (0.02 * human_voting_bot_scores) + (
-                        1 - MOVING_AVERAGE_BETA
-                    ) * self.moving_averaged_scores.to(
-                        self.device
-                    )
-
-                    print(
-                        f"After HV: Moving average scores: {self.moving_averaged_scores}"
-                    )
-                    break
-
-        except Exception as e:
-            print(
-                f"Encountered the following error retrieving the human validation bot scores: {e}. Retrying in {backoff} seconds."
-            )
+                }
+            },
+            headers={"Content-Type": "application/json"},
+            timeout=30,
+        )
+        if response.status_code != 200:
+            bt.logging.info("Error logging moving averages to the Averages API")
+        else:
+            bt.logging.info("Successfully logged moving averages to the Averages API")
+    except:
+        bt.logging.info("Error logging moving averages to the Averages API")
 
     try:
         for i, average in enumerate(self.moving_averaged_scores):

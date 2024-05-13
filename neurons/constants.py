@@ -27,5 +27,5 @@ IA_VALIDATOR_WEIGHT_FILES = "weights.json"
 IA_VALIDATOR_SETTINGS_FILE = "validator_settings.json"
 IA_MINER_WARNINGLIST = "warninglist_for_miners.json"
 
-HVB_TESTNET_IP = "34.68.182.152"
-HVB_MAINNET_IP = "34.105.38.253"
+PROD_URL = "https://api.tensoralchemy.ai/api"
+DEV_URL = "https://api-dev.tensoralchemy.ai/api"

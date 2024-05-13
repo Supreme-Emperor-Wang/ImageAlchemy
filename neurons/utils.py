@@ -12,6 +12,7 @@ import requests
 import torch
 from google.cloud import storage
 from neurons.constants import (
+    DEV_URL,
     IA_BUCKET_NAME,
     IA_MINER_BLACKLIST,
     IA_MINER_WARNINGLIST,
@@ -21,12 +22,11 @@ from neurons.constants import (
     IA_VALIDATOR_SETTINGS_FILE,
     IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
+    PROD_URL,
     VALIDATOR_DEFAULT_QUERY_TIMEOUT,
     VALIDATOR_DEFAULT_REQUEST_FREQUENCY,
     WANDB_MINER_PATH,
     WANDB_VALIDATOR_PATH,
-    HVB_MAINNET_IP,
-    HVB_TESTNET_IP,
 )
 from neurons.validator.utils import init_wandb
 
@@ -136,11 +136,10 @@ def background_loop(self, is_validator):
         except Exception as e:
             print(f">>> An unexpected error occurred syncing the metagraph: {e}")
 
-    print(f"Number of batches in queue: {len(self.batches)}")
-
     #### Send new batches to the Human Validation Bot
     try:
         if (self.background_steps % 1 == 0) and is_validator and (self.batches != []):
+            print(f"Number of batches in queue: {len(self.batches)}")
             max_retries = 3
             backoff = 2
             batches_for_deletion = []
@@ -149,7 +148,7 @@ def background_loop(self, is_validator):
                 for attempt in range(0, max_retries):
                     try:
                         response = requests.post(
-                            f"http://{HVB_MAINNET_IP}:5000/api/batch",
+                            f"{self.api_url}/batch",
                             data=json.dumps(batch),
                             headers={"Content-Type": "application/json"},
                             timeout=30,
