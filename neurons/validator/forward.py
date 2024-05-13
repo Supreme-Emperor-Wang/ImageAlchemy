@@ -29,11 +29,12 @@ import wandb
 
 transform = T.Compose([T.PILToTensor()])
 
+
 def update_moving_averages(self, rewards):
-    self.moving_averaged_scores: torch.FloatTensor = (
-        MOVING_AVERAGE_ALPHA * rewards
-        + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
-    )
+    self.moving_averaged_scores: torch.FloatTensor = MOVING_AVERAGE_ALPHA * rewards + (
+        1 - MOVING_AVERAGE_ALPHA
+    ) * self.moving_averaged_scores.to(self.device)
+
 
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     time_elapsed = datetime.now() - self.stats.start_time
@@ -170,8 +171,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         with open("neurons/validator/images/prompt.txt", "w") as f:
             f.write(prompt)
 
-
-    scattered_rewards, event, rewards = get_automated_rewards(self, responses, uids, task_type)
+    scattered_rewards, event, rewards = get_automated_rewards(
+        self, responses, uids, task_type
+    )
 
     scattered_rewards_adjusted = get_human_rewards(self, scattered_rewards)
 

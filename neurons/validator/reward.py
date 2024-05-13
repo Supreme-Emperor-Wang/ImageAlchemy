@@ -40,7 +40,6 @@ class RewardModelType(Enum):
 
 
 def get_automated_rewards(self, responses, uids, task_type):
-
     event = {"task_type": task_type}
 
     # Initialise rewards tensor
@@ -134,6 +133,7 @@ def get_automated_rewards(self, responses, uids, task_type):
 
     return scattered_rewards, event, rewards
 
+
 def get_human_rewards(self, rewards):
     _, human_voting_scores_normalised = self.human_voting_reward_model.get_rewards(
         self.hotkeys
@@ -145,12 +145,12 @@ def get_human_rewards(self, rewards):
 
 
 def filter_rewards(self, rewards):
-
     for uid, count in self.isalive_dict.items():
         if count >= self.isalive_threshold:
             rewards[uid] = 0
-    
+
     return rewards
+
 
 @dataclass(frozen=True)
 class DefaultRewardFrameworkConfig:

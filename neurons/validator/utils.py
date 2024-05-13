@@ -538,5 +538,5 @@ def get_promptdb_backup(netuid, prompt_history=[], limit=1):
                         continue
                     else:
                         prompt_history.append(prompt_tuple)
-    
+
     return prompt_history
