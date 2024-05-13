@@ -17,12 +17,23 @@ from loguru import logger
 from neurons.constants import MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
 from neurons.protocol import ImageGeneration
 from neurons.utils import output_log, sh
+from neurons.validator.reward import (
+    filter_rewards,
+    get_automated_rewards,
+    get_human_rewards,
+)
 from utils import ttl_get_block
 
 import bittensor as bt
 import wandb
 
 transform = T.Compose([T.PILToTensor()])
+
+
+def update_moving_averages(self, rewards):
+    self.moving_averaged_scores: torch.FloatTensor = MOVING_AVERAGE_ALPHA * rewards + (
+        1 - MOVING_AVERAGE_ALPHA
+    ) * self.moving_averaged_scores.to(self.device)
 
 
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
@@ -121,7 +132,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     )
 
     self.stats.total_requests += 1
-    event = {"task_type": task_type}
 
     start_time = time.time()
 
@@ -161,120 +171,15 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         with open("neurons/validator/images/prompt.txt", "w") as f:
             f.write(prompt)
 
-    # Initialise rewards tensor
-    rewards: torch.FloatTensor = torch.zeros(len(responses), dtype=torch.float32).to(
-        self.device
+    scattered_rewards, event, rewards = get_automated_rewards(
+        self, responses, uids, task_type
     )
 
-    for weight_i, reward_fn_i in zip(self.reward_weights, self.reward_functions):
-        reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
-        rewards += weight_i * reward_i_normalized.to(self.device)
-        event[reward_fn_i.name] = reward_i.tolist()
-        event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
-        print(str(reward_fn_i.name), reward_i_normalized.tolist())
-    for masking_fn_i in self.masking_functions:
-        mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
-        rewards *= mask_i_normalized.to(self.device)
-        event[masking_fn_i.name] = mask_i.tolist()
-        event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
-        print(str(masking_fn_i.name), mask_i_normalized.tolist())
+    scattered_rewards_adjusted = get_human_rewards(self, scattered_rewards)
 
-    if not self.config.alchemy.disable_manual_validator:
-        print(f"Waiting {self.manual_validator_timeout} seconds for manual vote...")
-        start_time = time.perf_counter()
+    scattered_rewards_adjusted = filter_rewards(self, scattered_rewards_adjusted)
 
-        received_vote = False
-
-        while (time.perf_counter() - start_time) < self.manual_validator_timeout:
-            time.sleep(1)
-            # If manual vote received
-            if os.path.exists("neurons/validator/images/vote.txt"):
-                # loop until vote is successfully saved
-                while open("neurons/validator/images/vote.txt", "r").read() == "":
-                    time.sleep(0.05)
-                    continue
-
-                try:
-                    reward_i = (
-                        int(open("neurons/validator/images/vote.txt", "r").read()) - 1
-                    )
-                except Exception as e:
-                    print(f"An unexpected error occurred parsing the vote: {e}")
-                    break
-
-                ### There is a small possibility that not every miner queried will respond.
-                ### If 12 are queried, but only 10 respond, we need to handle the error if
-                ### the user selects the 11th or 12th image (which don't exist)
-                if reward_i >= len(rewards):
-                    print(
-                        f"Received invalid vote for Image {reward_i+1}: it doesn't exist."
-                    )
-                    break
-
-                print(f"Received manual vote for Image {reward_i+1}")
-
-                ### Set to true so we don't normalize the rewards later
-                received_vote = True
-
-                reward_i_normalized: torch.FloatTensor = torch.zeros(
-                    len(rewards), dtype=torch.float32
-                ).to(self.device)
-                reward_i_normalized[reward_i] = 1.0
-                rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
-                if not self.config.alchemy.disable_log_rewards:
-                    event["human_reward_model"] = reward_i_normalized.tolist()
-                    event[
-                        "human_reward_model_normalized"
-                    ] = reward_i_normalized.tolist()
-
-                break
-
-        if not received_vote:
-            delta = 1 - self.reward_weights[-1]
-            if delta != 0:
-                rewards /= delta
-            else:
-                print("The reward weight difference was 0 which is unexpected.")
-            print("No valid vote was received")
-
-        # Delete contents of images folder except for black image
-        if os.path.exists("neurons/validator/images"):
-            for file in os.listdir("neurons/validator/images"):
-                (
-                    os.remove(f"neurons/validator/images/{file}")
-                    if file != "black.png"
-                    else "_"
-                )
-
-    scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
-        0, uids, rewards
-    ).to(self.device)
-
-    reward_i, reward_i_normalized = self.human_voting_bot_reward_model.get_rewards(
-        self.hotkeys
-    )
-    scattered_rewards_adjusted = scattered_rewards + (
-        self.human_voting_bot_weight * self.human_voting_bot_scores
-    )
-    self.hvb_df = pd.concat(
-        [
-            self.hvb_df,
-            pd.DataFrame(
-                {i: value.item() for i, value in enumerate(reward_i_normalized)},
-                index=[0],
-            ),
-        ]
-    ).reset_index(drop=True)
-    self.hvb_df.to_csv(f"{self.config.alchemy.full_path}/hvb_rewards.csv")
-
-    for uid, count in self.isalive_dict.items():
-        if count >= self.isalive_threshold:
-            scattered_rewards_adjusted[uid] = 0
-
-    self.moving_averaged_scores: torch.FloatTensor = (
-        MOVING_AVERAGE_ALPHA * scattered_rewards_adjusted
-        + (1 - MOVING_AVERAGE_ALPHA) * self.moving_averaged_scores.to(self.device)
-    )
+    update_moving_averages(self, scattered_rewards_adjusted)
 
     try:
         response = requests.post(

@@ -82,10 +82,9 @@ class StableValidator:
         bt.logging(
             config=self.config,
             logging_dir=self.config.alchemy.full_path,
-            debug=True,
-            trace=True,
+            debug=self.config.debug,
+            trace=self.config.trace,
         )
-        bt.trace()
 
         # Init device.
         self.device = torch.device(self.config.alchemy.device)
@@ -111,11 +110,11 @@ class StableValidator:
         wandb.login(anonymous="must")
 
         # Init prompt backup db
-        try:
-            self.prompt_history_db = get_promptdb_backup(self.config.netuid)
-        except Exception as e:
-            print(f"Unexpected error occurred loading the backup prompts: {e}")
-            self.prompt_history_db = []
+        # try:
+        #     self.prompt_history_db = get_promptdb_backup(self.config.netuid)
+        # except Exception as e:
+        #     print(f"Unexpected error occurred loading the backup prompts: {e}")
+        #     self.prompt_history_db = []
         self.prompt_generation_failures = 0
 
         # Init subtensor
@@ -223,9 +222,9 @@ class StableValidator:
 
         self.reward_names = ["image_reward_model", "manual_reward_model"]
 
-        self.human_voting_bot_scores = torch.zeros((self.metagraph.n)).to(self.device)
-        self.human_voting_bot_weight = 0.02 / 32
-        self.human_voting_bot_reward_model = HumanValidationRewardModel(
+        self.human_voting_scores = torch.zeros((self.metagraph.n)).to(self.device)
+        self.human_voting_weight = 0.02 / 32
+        self.human_voting_reward_model = HumanValidationRewardModel(
             self.metagraph, self.api_url
         )
 
@@ -448,8 +447,6 @@ class StableValidator:
 
         # Update the hotkeys.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
-
-        self.human_voting_bot_scores = torch.zeros((self.metagraph.n)).to(self.device)
 
     def check_registered(self):
         # --- Check for registration.

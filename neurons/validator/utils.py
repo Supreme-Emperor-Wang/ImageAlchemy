@@ -503,11 +503,14 @@ def reinit_wandb(self):
     init_wandb(self, reinit=True)
 
 
-def get_promptdb_backup(netuid, prompt_history=[]):
+def get_promptdb_backup(netuid, prompt_history=[], limit=1):
     api = wandb.Api()
     project = "ImageAlchemy" if netuid == 26 else "ImageAlchemyTest"
     runs = api.runs(f"tensoralchemists/{project}")
+
     for run in runs:
+        if len(prompt_history) >= limit:
+            break
         if run.historyLineCount >= 100:
             history = run.history()
             if ("prompt_t2i" not in history.columns) or (
@@ -515,6 +518,9 @@ def get_promptdb_backup(netuid, prompt_history=[]):
             ):
                 continue
             for i in range(0, len(history) - 1, 2):
+                if len(prompt_history) >= limit:
+                    break
+
                 if (
                     pd.isna(history.loc[i, "prompt_t2i"])
                     or (history.loc[i, "prompt_t2i"] is None)
@@ -533,5 +539,4 @@ def get_promptdb_backup(netuid, prompt_history=[]):
                     else:
                         prompt_history.append(prompt_tuple)
 
-    return prompt_history
     return prompt_history
