@@ -1,3 +1,4 @@
+import os
 import time
 from abc import abstractmethod
 from dataclasses import dataclass
@@ -37,6 +38,119 @@ class RewardModelType(Enum):
     blacklist = "blacklist_filter"
     nsfw = "nsfw_filter"
 
+
+def get_automated_rewards(self, responses, uids, task_type):
+
+    event = {"task_type": task_type}
+
+    # Initialise rewards tensor
+    rewards: torch.FloatTensor = torch.zeros(len(responses), dtype=torch.float32).to(
+        self.device
+    )
+
+    for weight_i, reward_fn_i in zip(self.reward_weights, self.reward_functions):
+        reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
+        rewards += weight_i * reward_i_normalized.to(self.device)
+        event[reward_fn_i.name] = reward_i.tolist()
+        event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
+        print(str(reward_fn_i.name), reward_i_normalized.tolist())
+    for masking_fn_i in self.masking_functions:
+        mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
+        rewards *= mask_i_normalized.to(self.device)
+        event[masking_fn_i.name] = mask_i.tolist()
+        event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
+        print(str(masking_fn_i.name), mask_i_normalized.tolist())
+
+    if not self.config.alchemy.disable_manual_validator:
+        print(f"Waiting {self.manual_validator_timeout} seconds for manual vote...")
+        start_time = time.perf_counter()
+
+        received_vote = False
+
+        while (time.perf_counter() - start_time) < self.manual_validator_timeout:
+            time.sleep(1)
+            # If manual vote received
+            if os.path.exists("neurons/validator/images/vote.txt"):
+                # loop until vote is successfully saved
+                while open("neurons/validator/images/vote.txt", "r").read() == "":
+                    time.sleep(0.05)
+                    continue
+
+                try:
+                    reward_i = (
+                        int(open("neurons/validator/images/vote.txt", "r").read()) - 1
+                    )
+                except Exception as e:
+                    print(f"An unexpected error occurred parsing the vote: {e}")
+                    break
+
+                ### There is a small possibility that not every miner queried will respond.
+                ### If 12 are queried, but only 10 respond, we need to handle the error if
+                ### the user selects the 11th or 12th image (which don't exist)
+                if reward_i >= len(rewards):
+                    print(
+                        f"Received invalid vote for Image {reward_i+1}: it doesn't exist."
+                    )
+                    break
+
+                print(f"Received manual vote for Image {reward_i+1}")
+
+                ### Set to true so we don't normalize the rewards later
+                received_vote = True
+
+                reward_i_normalized: torch.FloatTensor = torch.zeros(
+                    len(rewards), dtype=torch.float32
+                ).to(self.device)
+                reward_i_normalized[reward_i] = 1.0
+                rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
+                if not self.config.alchemy.disable_log_rewards:
+                    event["human_reward_model"] = reward_i_normalized.tolist()
+                    event[
+                        "human_reward_model_normalized"
+                    ] = reward_i_normalized.tolist()
+
+                break
+
+        if not received_vote:
+            delta = 1 - self.reward_weights[-1]
+            if delta != 0:
+                rewards /= delta
+            else:
+                print("The reward weight difference was 0 which is unexpected.")
+            print("No valid vote was received")
+
+        # Delete contents of images folder except for black image
+        if os.path.exists("neurons/validator/images"):
+            for file in os.listdir("neurons/validator/images"):
+                (
+                    os.remove(f"neurons/validator/images/{file}")
+                    if file != "black.png"
+                    else "_"
+                )
+
+    scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
+        0, uids, rewards
+    ).to(self.device)
+
+    return scattered_rewards, event, rewards
+
+def get_human_rewards(self, rewards):
+    _, human_voting_scores_normalised = self.human_voting_reward_model.get_rewards(
+        self.hotkeys
+    )
+    scattered_rewards_adjusted = rewards + (
+        self.human_voting_weight * human_voting_scores_normalised
+    )
+    return scattered_rewards_adjusted
+
+
+def filter_rewards(self, rewards):
+
+    for uid, count in self.isalive_dict.items():
+        if count >= self.isalive_threshold:
+            rewards[uid] = 0
+    
+    return rewards
 
 @dataclass(frozen=True)
 class DefaultRewardFrameworkConfig:
@@ -378,7 +492,7 @@ class HumanValidationRewardModel(BaseRewardModel):
                     attempt == max_retries
                 ):
                     bt.logging.info(
-                        f"Failed to retrieve the human validation bot votes {attempt+1} times. Skipping until the next step."
+                        f"Failed to retrieve the human validation votes {attempt+1} times. Skipping until the next step."
                     )
                     human_voting_scores = None
                     break
@@ -415,9 +529,12 @@ class HumanValidationRewardModel(BaseRewardModel):
                 if hotkey in human_voting_scores.keys():
                     self.human_voting_scores[index] = human_voting_scores[hotkey]
 
-        human_voting_scores_normalised = (
-            self.human_voting_scores / self.human_voting_scores.sum()
-        )
+        if self.human_voting_scores.sum() == 0:
+            human_voting_scores_normalised = self.human_voting_scores
+        else:
+            human_voting_scores_normalised = (
+                self.human_voting_scores / self.human_voting_scores.sum()
+            )
 
         return self.human_voting_scores, human_voting_scores_normalised
 
