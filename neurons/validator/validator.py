@@ -110,11 +110,11 @@ class StableValidator:
         wandb.login(anonymous="must")
 
         # Init prompt backup db
-        try:
-            self.prompt_history_db = get_promptdb_backup(self.config.netuid)
-        except Exception as e:
-            print(f"Unexpected error occurred loading the backup prompts: {e}")
-            self.prompt_history_db = []
+        # try:
+        #     self.prompt_history_db = get_promptdb_backup(self.config.netuid)
+        # except Exception as e:
+        #     print(f"Unexpected error occurred loading the backup prompts: {e}")
+        #     self.prompt_history_db = []
         self.prompt_generation_failures = 0
 
         # Init subtensor
