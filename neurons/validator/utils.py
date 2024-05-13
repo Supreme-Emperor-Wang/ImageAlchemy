@@ -509,7 +509,6 @@ def get_promptdb_backup(netuid, prompt_history=[], limit=100):
     runs = api.runs(f"tensoralchemists/{project}")
 
     for run in runs:
-        print(len(prompt_history))
         if len(prompt_history) >= limit:
             break
         if run.historyLineCount >= 100:
