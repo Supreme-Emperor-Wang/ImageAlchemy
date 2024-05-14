@@ -8,7 +8,9 @@ from typing import Dict, List
 
 import regex as re
 from google.cloud import storage
-from neurons.utils import COLORS, output_log, sh
+from loguru import logger
+
+from neurons.utils import COLORS, colored_log, sh
 
 import bittensor as bt
 
@@ -72,25 +74,25 @@ def do_logs(self, synapse, local_args):
     time_elapsed = datetime.now() - self.stats.start_time
     hotkey = synapse.dendrite.hotkey
 
-    output_log(
+    colored_log(
         f"{sh('Info')} -> Date {datetime.strftime(self.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.stats.total_requests/(time_elapsed.total_seconds()/60):.2f} | Model {self.config.miner.model} | Default seed {self.config.miner.seed}.",
-        color_key="g",
+        color="green",
     )
-    output_log(
+    colored_log(
         f"{sh('Request')} -> Type: {synapse.generation_type} | Request seed: {synapse.seed} | Total requests {self.stats.total_requests:,} | Timeouts {self.stats.timeouts:,}.",
-        color_key="y",
+        color="yellow",
     )
 
     args_list = [
         f"{k.capitalize()}: {f'{v:.2f}' if isinstance(v, float) else v}"
         for k, v in local_args.items()
     ]
-    output_log(f"{sh('Args')} -> {' | '.join(args_list)}.", color_key="m")
+    colored_log(f"{sh('Args')} -> {' | '.join(args_list)}.", color="magenta")
 
     miner_info = self.get_miner_info()
-    output_log(
+    colored_log(
         f"{sh('Stats')} -> Block: {miner_info['block']} | Stake: {miner_info['stake']:.4f} | Incentive: {miner_info['incentive']:.4f} | Trust: {miner_info['trust']:.4f} | Consensus: {miner_info['consensus']:.4f}.",
-        color_key="c",
+        color="cyan",
     )
 
     ### Output stake
@@ -106,9 +108,9 @@ def do_logs(self, synapse, local_args):
     if hotkey in self.hotkey_whitelist or caller_coldkey in self.coldkey_whitelist:
         temp_string = "Whitelisted key"
 
-    output_log(
+    colored_log(
         f"{sh('Caller')} -> {temp_string} | Hotkey {hotkey}.",
-        color_key="y",
+        color="yellow",
     )
 
 
@@ -120,7 +122,7 @@ def warm_up(model, local_args):
     c_args = copy.deepcopy(local_args)
     c_args["prompt"] = "An alchemist brewing a vibrant glowing potion."
     images = model(**c_args).images
-    print(f"Warm up is complete after {time.perf_counter() - start}")
+    logger.info(f"Warm up is complete after {time.perf_counter() - start}")
 
 
 def nsfw_image_filter(self, images):
@@ -138,5 +140,5 @@ def clean_nsfw_from_prompt(prompt):
     for word in NSFW_WORDS:
         if re.search(r"\b{}\b".format(word), prompt):
             prompt = re.sub(r"\b{}\b".format(word), "", prompt).strip()
-            print(f"Removed NSFW word {word.strip()} from prompt...")
+            logger.warning(f"Removed NSFW word {word.strip()} from prompt...")
     return prompt

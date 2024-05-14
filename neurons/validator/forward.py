@@ -16,7 +16,7 @@ from event import EventSchema
 from loguru import logger
 from neurons.constants import MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
 from neurons.protocol import ImageGeneration
-from neurons.utils import output_log, sh
+from neurons.utils import sh, colored_log
 from neurons.validator.reward import (
     filter_rewards,
     get_automated_rewards,
@@ -39,13 +39,13 @@ def update_moving_averages(self, rewards):
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     time_elapsed = datetime.now() - self.stats.start_time
 
-    output_log(
+    colored_log(
         f"{sh('Info')} -> Date {datetime.strftime(self.stats.start_time, '%Y/%m/%d %H:%M')} | Elapsed {time_elapsed} | RPM {self.stats.total_requests/(time_elapsed.total_seconds()/60):.2f}",
-        color_key="g",
+        color="green",
     )
-    output_log(
+    colored_log(
         f"{sh('Request')} -> Type: {task_type} | Total requests sent {self.stats.total_requests:,} | Timeouts {self.stats.timeouts:,}",
-        color_key="c",
+        color="cyan",
     )
 
     ### Set seed to -1 so miners will use a random seed by default
@@ -64,9 +64,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         )
     )
 
-    output_log(
+    colored_log(
         f"{sh('Prompt')} -> {synapse.__dict__['prompt']}",
-        color_key="y",
+        color="yellow",
     )
 
     synapse_dict = {
@@ -95,17 +95,17 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Log query to hisotry
     try:
         for uid in uids:
-            self.miner_query_history_duration[
-                self.metagraph.axons[uid].hotkey
-            ] = time.perf_counter()
+            self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = (
+                time.perf_counter()
+            )
         for uid in uids:
             self.miner_query_history_count[self.metagraph.axons[uid].hotkey] += 1
     except:
-        print("Failed to log miner counts and histories")
+        logger.error("Failed to log miner counts and histories")
 
-    output_log(
+    colored_log(
         f"{sh('Miner Counts')} -> Max: {max(self.miner_query_history_count.values()):.2f} | Min: {min(self.miner_query_history_count.values()):.2f} | Mean: {sum(self.miner_query_history_count.values()) / len(self.miner_query_history_count.values()):.2f}",
-        color_key="y",
+        color="yellow",
     )
 
     responses_empty_flag = [1 if not response.images else 0 for response in responses]
@@ -119,16 +119,16 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     uids = torch.tensor([uids[index] for index in sorted_index]).to(self.device)
     responses = [responses[index] for index in sorted_index]
 
-    output_log(f"{sh('Info')} -> {' | '.join(args_list)}", color_key="m")
-    output_log(
+    colored_log(f"{sh('Info')} -> {' | '.join(args_list)}", color="magenta")
+    colored_log(
         f"{sh('UIDs')} -> {' | '.join([str(uid) for uid in uids.tolist()])}",
-        color_key="y",
+        color="yellow",
     )
 
     validator_info = self.get_validator_info()
-    output_log(
+    colored_log(
         f"{sh('Stats')} -> Block: {validator_info['block']} | Stake: {validator_info['stake']:.4f} | Rank: {validator_info['rank']:.4f} | VTrust: {validator_info['vtrust']:.4f} | Dividends: {validator_info['dividends']:.4f} | Emissions: {validator_info['emissions']:.4f}",
-        color_key="c",
+        color="cyan",
     )
 
     self.stats.total_requests += 1
@@ -152,22 +152,22 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             }
             for response in responses
         ]
-        print(
+        logger.info(
             f"Received {len(responses)} response(s) for the prompt '{prompt}': {formatted_responses}"
         )
     except Exception as e:
-        print(f"Failed to log formatted responses: {e}")
+        logger.error(f"Failed to log formatted responses: {e}")
 
     # Save images for manual validator
     if not self.config.alchemy.disable_manual_validator:
-        print(f"Saving images")
+        logger.info(f"Saving images...")
         for i, r in enumerate(responses):
             for image in r.images:
                 T.transforms.ToPILImage()(bt.Tensor.deserialize(image)).save(
                     f"neurons/validator/images/{i}.png"
                 )
 
-        print(f"Saving prompt")
+        logger.info(f"Saving prompt...")
         with open("neurons/validator/images/prompt.txt", "w") as f:
             f.write(prompt)
 
@@ -196,11 +196,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             timeout=30,
         )
         if response.status_code != 200:
-            bt.logging.info("Error logging moving averages to the Averages API")
+            logger.info("Error logging moving averages to the Averages API")
         else:
-            bt.logging.info("Successfully logged moving averages to the Averages API")
+            logger.info("Successfully logged moving averages to the Averages API")
     except:
-        bt.logging.info("Error logging moving averages to the Averages API")
+        logger.info("Error logging moving averages to the Averages API")
 
     try:
         for i, average in enumerate(self.moving_averaged_scores):
@@ -210,7 +210,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 self.moving_averaged_scores[i] = 0
 
     except Exception as e:
-        print(f"An unexpected error occurred (E1): {e}")
+        logger.error(f"An unexpected error occurred (E1): {e}")
 
     try:
         # Log the step event.
@@ -236,7 +236,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         )
         event.update(validator_info)
     except Exception as err:
-        print("Error updating event dict", str(err))
+        logger.error(f"Error updating event dict: {err}")
 
     try:
         should_drop_entries = []
@@ -276,9 +276,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
             }
         )
     except Exception as e:
-        print(f"An unexpected error occurred appending the batch: {e}")
+        logger.error(f"An unexpected error occurred appending the batch: {e}")
 
-    print(f"Events: {str(event)}")
+    logger.info(f"Events: {str(event)}")
     logger.log("EVENTS", "events", **event)
 
     # Log the event to wandb.
@@ -304,8 +304,8 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     try:
         self.wandb.log(asdict(wandb_event))
-        print("Logged event to wandb.")
+        logger.info("Logged event to wandb.")
     except Exception as e:
-        print(f"Unable to log event to wandb due to the following error: {e}")
+        logger.error(f"Unable to log event to wandb due to the following error: {e}")
 
     return event

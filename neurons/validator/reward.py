@@ -12,6 +12,8 @@ import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
 from datasets import Dataset
+from loguru import logger
+
 from neurons.safety import StableDiffusionSafetyChecker
 from neurons.validator.utils import calculate_mean_dissimilarity, cosine_distance
 from sklearn.metrics.pairwise import cosine_similarity
@@ -52,16 +54,18 @@ def get_automated_rewards(self, responses, uids, task_type):
         rewards += weight_i * reward_i_normalized.to(self.device)
         event[reward_fn_i.name] = reward_i.tolist()
         event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
-        print(str(reward_fn_i.name), reward_i_normalized.tolist())
+        logger.info(f"{reward_fn_i.name}, {reward_i_normalized.tolist()}")
     for masking_fn_i in self.masking_functions:
         mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
         rewards *= mask_i_normalized.to(self.device)
         event[masking_fn_i.name] = mask_i.tolist()
         event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
-        print(str(masking_fn_i.name), mask_i_normalized.tolist())
+        logger.info(f"{masking_fn_i.name} {mask_i_normalized.tolist()}")
 
     if not self.config.alchemy.disable_manual_validator:
-        print(f"Waiting {self.manual_validator_timeout} seconds for manual vote...")
+        logger.info(
+            f"Waiting {self.manual_validator_timeout} seconds for manual vote..."
+        )
         start_time = time.perf_counter()
 
         received_vote = False
@@ -80,19 +84,19 @@ def get_automated_rewards(self, responses, uids, task_type):
                         int(open("neurons/validator/images/vote.txt", "r").read()) - 1
                     )
                 except Exception as e:
-                    print(f"An unexpected error occurred parsing the vote: {e}")
+                    logger.error(f"An unexpected error occurred parsing the vote: {e}")
                     break
 
                 ### There is a small possibility that not every miner queried will respond.
                 ### If 12 are queried, but only 10 respond, we need to handle the error if
                 ### the user selects the 11th or 12th image (which don't exist)
                 if reward_i >= len(rewards):
-                    print(
+                    logger.info(
                         f"Received invalid vote for Image {reward_i+1}: it doesn't exist."
                     )
                     break
 
-                print(f"Received manual vote for Image {reward_i+1}")
+                logger.info(f"Received manual vote for Image {reward_i+1}")
 
                 ### Set to true so we don't normalize the rewards later
                 received_vote = True
@@ -104,9 +108,9 @@ def get_automated_rewards(self, responses, uids, task_type):
                 rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
                 if not self.config.alchemy.disable_log_rewards:
                     event["human_reward_model"] = reward_i_normalized.tolist()
-                    event[
-                        "human_reward_model_normalized"
-                    ] = reward_i_normalized.tolist()
+                    event["human_reward_model_normalized"] = (
+                        reward_i_normalized.tolist()
+                    )
 
                 break
 
@@ -115,8 +119,10 @@ def get_automated_rewards(self, responses, uids, task_type):
             if delta != 0:
                 rewards /= delta
             else:
-                print("The reward weight difference was 0 which is unexpected.")
-            print("No valid vote was received")
+                logger.warning(
+                    "The reward weight difference was 0 which is unexpected."
+                )
+            logger.info("No valid vote was received")
 
         # Delete contents of images folder except for black image
         if os.path.exists("neurons/validator/images"):
@@ -233,7 +239,7 @@ class DefaultRewardFrameworkConfig:
                         images[idx] = np.zeros((1024, 1024, 3))
 
         if any(has_nsfw_concepts):
-            print(
+            logger.warning(
                 "Potential NSFW content was detected in one or more images. A black image will be returned instead."
                 " Try again with a different prompt and/or seed."
             )
@@ -244,8 +250,7 @@ class DefaultRewardFrameworkConfig:
 class BaseRewardModel:
     @property
     @abstractmethod
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
     def __str__(self) -> str:
         return str(self.name)
@@ -254,8 +259,7 @@ class BaseRewardModel:
         return str(self.name)
 
     @abstractmethod
-    def get_rewards(self, responses: List, rewards) -> torch.FloatTensor:
-        ...
+    def get_rewards(self, responses: List, rewards) -> torch.FloatTensor: ...
 
     def __init__(self) -> None:
         self.count = 0
@@ -446,8 +450,8 @@ class NSFWRewardModel(BaseRewardModel):
                 return 0.0
 
         except Exception as e:
-            print(response.images)
-            print(f"Error in NSFW detection: {e}")
+            logger.error(f"Error in NSFW detection: {e}")
+            logger.error(f"images={response.images}")
             return 1.0
 
         return 1.0
@@ -480,7 +484,7 @@ class HumanValidationRewardModel(BaseRewardModel):
         max_retries = 3
         backoff = 2
 
-        bt.logging.info("Extracting human votes")
+        logger.info("Extracting human votes")
 
         human_voting_scores = None
         human_voting_scores_dict = {}
@@ -492,7 +496,7 @@ class HumanValidationRewardModel(BaseRewardModel):
                 if (human_voting_scores.status_code != 200) and (
                     attempt == max_retries
                 ):
-                    bt.logging.info(
+                    logger.warning(
                         f"Failed to retrieve the human validation votes {attempt+1} times. Skipping until the next step."
                     )
                     human_voting_scores = None
@@ -516,7 +520,7 @@ class HumanValidationRewardModel(BaseRewardModel):
                     break
 
             except Exception as e:
-                print(
+                logger.error(
                     f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds."
                 )
                 time.sleep(backoff)
@@ -564,7 +568,7 @@ class ImageRewardModel(BaseRewardModel):
                 return mean_image_scores
 
         except Exception as e:
-            print("ImageReward score is 0. No image in response.")
+            logger.error("ImageReward score is 0. No image in response.")
             return 0.0
 
     def get_rewards(self, responses, rewards) -> torch.FloatTensor:
