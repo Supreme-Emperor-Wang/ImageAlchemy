@@ -1,6 +1,7 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
 # Copyright © 2023 Opentensor Foundation
+from loguru import logger
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -47,11 +48,11 @@ def set_weights(self):
             timeout=30,
         )
         if response.status_code != 200:
-            bt.logging.info("Error logging weights to the Weights API")
+            logger.info("Error logging weights to the Weights API")
         else:
-            bt.logging.info("Successfully logged weights to the Weights API")
+            logger.info("Successfully logged weights to the Weights API")
     except:
-        bt.logging.info("Error logging weights to the Weights API")
+        logger.info("Error logging weights to the Weights API")
 
     # print("raw_weights", raw_weights)
     # print("top10 values", raw_weights.sort()[0])
@@ -67,8 +68,8 @@ def set_weights(self):
         subtensor=self.subtensor,
         metagraph=self.metagraph,
     )
-    print("processed_weights", processed_weights)
-    print("processed_weight_uids", processed_weight_uids)
+    logger.info("processed_weights", processed_weights)
+    logger.info("processed_weight_uids", processed_weight_uids)
     # Set the weights on chain via our subtensor connection.
     self.subtensor.set_weights(
         wallet=self.wallet,

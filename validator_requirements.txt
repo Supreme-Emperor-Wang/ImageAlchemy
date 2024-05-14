@@ -8,3 +8,4 @@ google-cloud-storage
 wandb
 passwordgenerator==1.5.1
 streamlit
+loguru

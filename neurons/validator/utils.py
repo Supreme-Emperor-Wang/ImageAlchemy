@@ -7,7 +7,9 @@ import time
 import traceback
 from functools import lru_cache, update_wrapper
 from math import floor
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Tuple
+
+from loguru import logger
 
 import neurons.validator as validator
 import numpy as np
@@ -82,7 +84,7 @@ async def check_uid(dendrite, self, uid, response_times):
                 pass
             return False
     except Exception as e:
-        print(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
+        logger.error(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
         return False
 
 
@@ -159,8 +161,8 @@ async def get_random_uids(
     for uid in range(0, len(candidate_uids), N_NEURONS_TO_QUERY):
         tasks = []
 
-        print(f"UIDs in pool: {final_uids}")
-        print(f"Querying uids: {candidate_uids[uid:uid+N_NEURONS_TO_QUERY]}")
+        logger.info(f"UIDs in pool: {final_uids}")
+        logger.info(f"Querying uids: {candidate_uids[uid:uid+N_NEURONS_TO_QUERY]}")
 
         t1 = time.perf_counter()
 
@@ -172,12 +174,12 @@ async def get_random_uids(
         responses = await asyncio.gather(*tasks)
         attempt_counter += 1
 
-        print(f"Time to get responses: {time.perf_counter() - t1:.2f}s")
+        logger.info(f"Time to get responses: {time.perf_counter() - t1:.2f}s")
 
         list_slice = times_list[-25:]
         time_sum = sum(list_slice)
 
-        print(
+        logger.info(
             f"Number of times stored: {len(times_list)} | Average successful response across {len(list_slice)} samples: {time_sum / len(list_slice) if len(list_slice) > 0 else 0:.2f}"
         )
 
@@ -197,7 +199,7 @@ async def get_random_uids(
                 else:
                     continue
 
-            print(f"Added uids: {temp_list} in {time.perf_counter() - t2:.2f}s")
+            logger.info(f"Added uids: {temp_list} in {time.perf_counter() - t2:.2f}s")
 
             avg_num_list.append(len(temp_list))
 
@@ -213,7 +215,7 @@ async def get_random_uids(
     except:
         pass
 
-    print(
+    logger.info(
         f"Time to find all {len(final_uids)} uids: {time.perf_counter() - t0:.2f}s in {attempt_counter} attempts | Avg active UIDs per attempt: {sum_avg:.2f}"
     )
 
@@ -287,7 +289,7 @@ def corcel_parse_response(text):
         if split:
             split = split[0]
         else:
-            print(f"Returning (X1) default text: {text}")
+            logger.info(f"Returning (X1) default text: {text}")
             return text
     elif len(split) == 1:
         split = split[0]
@@ -296,11 +298,11 @@ def corcel_parse_response(text):
         if len(split) > 0:
             split = split[0]
     else:
-        print(f"Split: {split}")
-        print(f"Returning (X2) default text: {text}")
+        logger.info(f"Split: {split}")
+        logger.info(f"Returning (X2) default text: {text}")
         return text
 
-    print(f"Returning parsed text: {split}")
+    logger.info(f"Returning parsed text: {split}")
     return split
 
 
@@ -319,10 +321,10 @@ def call_openai(client, model, prompt):
         frequency_penalty=0,
         presence_penalty=0,
     )
-    print(f"OpenAI response object: {response}")
+    logger.info(f"OpenAI response object: {response}")
     response = response.choices[0].message.content
     if response:
-        print(f"Prompt generated with OpenAI: {response}")
+        logger.info(f"Prompt generated with OpenAI: {response}")
     return response
 
 
@@ -350,7 +352,7 @@ def call_corcel(self, prompt):
         "seed": random.randint(0, 1_000_000),
     }
 
-    print(f"Using args: {JSON}")
+    logger.info(f"Using args: {JSON}")
 
     response = None
 
@@ -360,10 +362,10 @@ def call_corcel(self, prompt):
         )
         response = response.json()[0]["choices"][0]["delta"]["content"]
     except requests.exceptions.ReadTimeout as e:
-        print(f"Corcel request timed out after 15 seconds... falling back to OpenAI...")
+        logger.info(f"Corcel request timed out after 15 seconds... falling back to OpenAI...")
 
     if response:
-        print(f"Prompt generated with Corcel: {response}")
+        logger.info(f"Prompt generated with Corcel: {response}")
 
     return response
 
@@ -385,8 +387,8 @@ def generate_random_prompt_gpt(
                 if response.startswith("{"):
                     response = None
         except Exception as e:
-            print(f"An unexpected error occurred calling corcel: {e}")
-            print(f"Falling back to OpenAI if available...")
+            logger.error(f"An unexpected error occurred calling corcel: {e}")
+            logger.error(f"Falling back to OpenAI if available...")
 
     if not response:
         if self.openai_client:
@@ -394,14 +396,14 @@ def generate_random_prompt_gpt(
                 try:
                     response = call_openai(self.openai_client, model, prompt)
                 except Exception as e:
-                    print(f"An unexpected error occurred calling OpenAI: {e}")
-                    print(f"Sleeping for 10 seconds and retrying once...")
+                    logger.error(f"An unexpected error occurred calling OpenAI: {e}")
+                    logger.error(f"Sleeping for 10 seconds and retrying once...")
                     time.sleep(10)
 
                 if response:
                     break
         else:
-            print(
+            logger.warning(
                 "Attempted to use OpenAI as a fallback but the OPENAI_API_KEY is not set."
             )
 
@@ -440,11 +442,11 @@ def generate_followup_prompt_gpt(
                 presence_penalty=0,
             )
             new_prompt = response.choices[0].message.content
-            print(f"I2I prompt is {new_prompt}")
+            logger.info(f"I2I prompt is {new_prompt}")
             return new_prompt
 
         except Exception as e:
-            print(f"Error when calling OpenAI: {e}")
+            logger.error(f"Error when calling OpenAI: {e}")
             time.sleep(0.5)
 
     return None
@@ -487,7 +489,7 @@ def init_wandb(self, reinit=False):
         dir=WANDB_VALIDATOR_PATH,
         tags=tags,
     )
-    bt.logging.success(
+    logger.success(
         prefix="Started a new wandb run",
         sufix=f"<blue> {self.wandb.name} </blue>",
     )

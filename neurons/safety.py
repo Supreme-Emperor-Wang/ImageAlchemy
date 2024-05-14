@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
+from loguru import logger
 from torch import nn
 from transformers import CLIPConfig, CLIPVisionModel, PreTrainedModel
 
@@ -94,7 +95,7 @@ class StableDiffusionSafetyChecker(PreTrainedModel):
                     except:
                         images[idx] = np.zeros((1024, 1024, 3))
         if any(has_nsfw_concepts):
-            print(
+            logger.warning(
                 "Potential NSFW content was detected in one or more images. A black image will be returned instead."
                 " Try again with a different prompt and/or seed."
             )
