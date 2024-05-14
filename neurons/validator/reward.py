@@ -139,9 +139,9 @@ def get_automated_rewards(self, responses, uids, task_type):
     return scattered_rewards, event, rewards
 
 
-def get_human_rewards(self, rewards, mock=False, mock_winner=None):
+def get_human_rewards(self, rewards, mock=False, mock_winner=None, mock_loser=None):
     _, human_voting_scores_normalised = self.human_voting_reward_model.get_rewards(
-        self.hotkeys, mock, mock_winner
+        self.hotkeys, mock, mock_winner, mock_loser
     )
     scattered_rewards_adjusted = rewards + (
         self.human_voting_weight * human_voting_scores_normalised
@@ -479,7 +479,7 @@ class HumanValidationRewardModel(BaseRewardModel):
         self.human_voting_scores = torch.zeros((metagraph.n)).to(self.device)
         self.api_url = api_url
 
-    def get_rewards(self, hotkeys, mock=False, mock_winner=None) -> torch.FloatTensor:
+    def get_rewards(self, hotkeys, mock=False, mock_winner=None, mock_loser=None) -> torch.FloatTensor:
         max_retries = 3
         backoff = 2
 
@@ -535,8 +535,11 @@ class HumanValidationRewardModel(BaseRewardModel):
                     break
 
         else:
-            human_voting_scores_dict = {hotkey: 1 for hotkey in hotkeys}
-            human_voting_scores_dict[mock_winner] = 100
+            human_voting_scores_dict = {hotkey: 50 for hotkey in hotkeys}
+            if mock_winner is not None:
+                human_voting_scores_dict[mock_winner] = 100
+            if mock_loser is not None:
+                human_voting_scores_dict[mock_loser] = 1
 
         if human_voting_scores_dict != {}:
             for index, hotkey in enumerate(hotkeys):
