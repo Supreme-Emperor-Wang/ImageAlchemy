@@ -141,7 +141,7 @@ class StableValidator:
         self.metagraph.sync(subtensor=self.subtensor)  # Sync metagraph with subtensor.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
-        if not self.config.wallet._mock:
+        if not "mock" in self.config.wallet.name:
             #### Wait until the miner is registered
             self.loop_until_registered()
 

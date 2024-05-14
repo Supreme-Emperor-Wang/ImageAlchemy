@@ -12,17 +12,17 @@ import pandas as pd
 import requests
 import torch
 import torchvision.transforms as T
-from event import EventSchema
 from loguru import logger
 from neurons.constants import MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
 from neurons.protocol import ImageGeneration
 from neurons.utils import output_log, sh
+from neurons.validator.event import EventSchema
 from neurons.validator.reward import (
     filter_rewards,
     get_automated_rewards,
     get_human_rewards,
 )
-from utils import ttl_get_block
+from neurons.validator.utils import ttl_get_block
 
 import bittensor as bt
 import wandb
