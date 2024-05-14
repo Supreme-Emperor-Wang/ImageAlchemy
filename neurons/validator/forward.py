@@ -31,6 +31,7 @@ transform = T.Compose([T.PILToTensor()])
 
 
 def update_moving_averages(self, rewards):
+    rewards = torch.nan_to_num(rewards, nan=0.0, posinf=0.0, neginf=0.0) 
     self.moving_averaged_scores: torch.FloatTensor = MOVING_AVERAGE_ALPHA * rewards + (
         1 - MOVING_AVERAGE_ALPHA
     ) * self.moving_averaged_scores.to(self.device)
