@@ -528,8 +528,8 @@ class HumanValidationRewardModel(BaseRewardModel):
                     break
 
         else:
-            human_voting_scores = {hotkey: 1 for hotkey in hotkeys}
-            human_voting_scores[mock_winner] = 100
+            human_voting_scores_dict = {hotkey: 1 for hotkey in hotkeys}
+            human_voting_scores_dict[mock_winner] = 100
 
         if human_voting_scores is not None:
             for index, hotkey in enumerate(hotkeys):
