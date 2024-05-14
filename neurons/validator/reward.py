@@ -483,6 +483,7 @@ class HumanValidationRewardModel(BaseRewardModel):
         bt.logging.info("Extracting human votes")
 
         human_voting_scores = None
+        human_voting_scores_dict = {}
 
         for attempt in range(0, max_retries):
             try:
@@ -505,14 +506,12 @@ class HumanValidationRewardModel(BaseRewardModel):
                 else:
                     human_voting_round_scores = human_voting_scores.json()
 
-                    human_voting_scores = {}
-
                     for inner_dict in human_voting_round_scores.values():
                         for key, value in inner_dict.items():
-                            if key in human_voting_scores:
-                                human_voting_scores[key] += value
+                            if key in human_voting_scores_dict:
+                                human_voting_scores_dict[key] += value
                             else:
-                                human_voting_scores[key] = value
+                                human_voting_scores_dict[key] = value
 
                     break
 
@@ -524,10 +523,10 @@ class HumanValidationRewardModel(BaseRewardModel):
                 human_voting_scores = None
                 break
 
-        if human_voting_scores is not None:
+        if human_voting_scores_dict != {}:
             for index, hotkey in enumerate(hotkeys):
-                if hotkey in human_voting_scores.keys():
-                    self.human_voting_scores[index] = human_voting_scores[hotkey]
+                if hotkey in human_voting_scores_dict.keys():
+                    self.human_voting_scores[index] = human_voting_scores_dict[hotkey]
 
         if self.human_voting_scores.sum() == 0:
             human_voting_scores_normalised = self.human_voting_scores
