@@ -3,7 +3,7 @@ import os
 from threading import Timer
 
 import torch
-from utils import output_log
+from utils import colored_log
 
 import bittensor as bt
 import wandb
@@ -39,7 +39,7 @@ class WandbUtils:
         if self.wandb:
             self._stop_run()
 
-        output_log(
+        logger.info(
             f"Wandb starting run with project {self.config.wandb.project} and entity {self.config.wandb.entity}."
         )
 
@@ -70,7 +70,7 @@ class WandbUtils:
             "-".join(self.wandb.name.split("-")[:2])
             + f"-{self.wallet.name}-{self.wallet.hotkey_str}-{self.uid}"
         )
-        output_log(f"Started new run: {self.wandb.name}", "c")
+        colored_log(f"Started new run: {self.wandb.name}", "c")
 
     def _add_images(self, synapse, file_type="jpg"):
         ### Store the images and prompts for uploading to wandb

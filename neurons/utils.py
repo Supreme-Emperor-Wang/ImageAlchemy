@@ -11,6 +11,8 @@ from threading import Timer
 import requests
 import torch
 from google.cloud import storage
+from loguru import logger
+
 from neurons.constants import (
     DEV_URL,
     IA_BUCKET_NAME,
@@ -56,16 +58,8 @@ COLORS = {
 
 
 #### Utility function for coloring logs
-def output_log(message: str, color_key: str = "w", type: str = "info") -> None:
-    log = print
-    if type == "debug":
-        log = print
-
-    if color_key == "na":
-        log(f"[{type.upper()}] {message}")
-    else:
-        log(f"{COLORS[color_key]}[{type.upper()}] {message}{COLORS['w']}")
-
+def colored_log(message: str, color: str = "white", level: str = "INFO") -> None:
+    logger.opt(colors=True).log(level, f"<bold><{color}>{message}</{color}></bold>")
 
 def sh(message: str):
     return f"{message: <12}"
@@ -121,25 +115,25 @@ def background_loop(self, is_validator):
         try:
             self.metagraph.sync(subtensor=self.subtensor)
             if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
-                print(f">>> {neuron_type} has deregistered... terminating.")
+                logger.info(f">>> {neuron_type} has deregistered... terminating.")
                 try:
                     _thread.interrupt_main()
                 except Exception as e:
-                    print(
+                    logger.info(
                         f"An error occurred trying to terminate the main thread: {e}."
                     )
                 try:
                     os._exit(0)
                 except Exception as e:
-                    print(f"An error occurred trying to use os._exit(): {e}.")
+                    logger.info(f"An error occurred trying to use os._exit(): {e}.")
                 sys.exit(0)
         except Exception as e:
-            print(f">>> An unexpected error occurred syncing the metagraph: {e}")
+            logger.info(f">>> An unexpected error occurred syncing the metagraph: {e}")
 
     #### Send new batches to the Human Validation Bot
     try:
         if (self.background_steps % 1 == 0) and is_validator and (self.batches != []):
-            print(f"Number of batches in queue: {len(self.batches)}")
+            logger.info(f"Number of batches in queue: {len(self.batches)}")
             max_retries = 3
             backoff = 2
             batches_for_deletion = []
@@ -154,7 +148,7 @@ def background_loop(self, is_validator):
                             timeout=30,
                         )
                         if response.status_code == 200:
-                            print(f"Successfully posted batch {batch['batch_id']}")
+                            logger.info(f"Successfully posted batch {batch['batch_id']}")
                             batches_for_deletion.append(batch)
                             break
                         else:
@@ -167,35 +161,35 @@ def background_loop(self, is_validator):
                             ):
                                 invalid_batches.append(batch)
 
-                            print(f"{response_data=}")
+                            logger.info(f"{response_data=}")
                             raise Exception(
                                 f"Failed to post batch. Status code: {response.status_code}"
                             )
                     except Exception as e:
                         if attempt != max_retries:
-                            print(
+                            logger.info(
                                 f"Attempt number {attempt+1} failed to send batch {batch['batch_id']}. Retrying in {backoff} seconds. Error: {e}"
                             )
                             time.sleep(backoff)
                             continue
                         else:
-                            print(
+                            logger.info(
                                 f"Attempted to post batch {batch['batch_id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch. Error: {e}"
                             )
                             break
 
             ### Delete any invalid batches
             for batch in invalid_batches:
-                print(f"Removing invalid batch: {batch['batch_id']}")
+                logger.info(f"Removing invalid batch: {batch['batch_id']}")
                 self.batches.remove(batch)
 
             ### Delete any successful batches
             for batch in batches_for_deletion:
-                print(f"Removing successful batch: {batch['batch_id']}")
+                logger.info(f"Removing successful batch: {batch['batch_id']}")
                 self.batches.remove(batch)
 
     except Exception as e:
-        print(f"An error occurred trying to submit a batch: {e}")
+        logger.info(f"An error occurred trying to submit a batch: {e}")
 
     #### Update the whitelists and blacklists
     if self.background_steps % 5 == 0:
@@ -203,7 +197,7 @@ def background_loop(self, is_validator):
             ### Create client if needed
             if not self.storage_client:
                 self.storage_client = storage.Client.create_anonymous_client()
-                print("Created anonymous storage client.")
+                logger.info("Created anonymous storage client.")
 
             ### Update the blacklists
             blacklist_for_neuron = retrieve_public_file(
@@ -224,7 +218,7 @@ def background_loop(self, is_validator):
                         if v["type"] == "coldkey"
                     ]
                 )
-                print("Retrieved the latest blacklists.")
+                logger.info("Retrieved the latest blacklists.")
 
             ### Update the whitelists
             whitelist_for_neuron = retrieve_public_file(
@@ -245,7 +239,7 @@ def background_loop(self, is_validator):
                         if v["type"] == "coldkey"
                     ]
                 )
-                print("Retrieved the latest whitelists.")
+                logger.info("Retrieved the latest whitelists.")
 
             ### Update the warning list
             warninglist_for_neuron = retrieve_public_file(
@@ -262,17 +256,17 @@ def background_loop(self, is_validator):
                     for k, v in warninglist_for_neuron.items()
                     if v["type"] == "coldkey"
                 }
-                print("Retrieved the latest warninglists.")
+                logger.info("Retrieved the latest warninglists.")
                 if self.wallet.hotkey.ss58_address in self.hotkey_warninglist.keys():
-                    output_log(
+                    colored_log(
                         f"This hotkey is on the warning list: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][0]} | Date for rectification: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][1]}",
-                        color_key="r",
+                        color="red",
                     )
                 coldkey = get_coldkey_for_hotkey(self, self.wallet.hotkey.ss58_address)
                 if coldkey in self.coldkey_warninglist.keys():
-                    output_log(
+                    colored_log(
                         f"This coldkey is on the warning list: {self.coldkey_warninglist[coldkey][0]} | Date for rectification: {self.coldkey_warninglist[coldkey][1]}",
-                        color_key="r",
+                        color="red",
                     )
 
             ### Validator only
@@ -293,18 +287,18 @@ def background_loop(self, is_validator):
                         if rw_name in validator_weights:
                             weights_to_add.append(validator_weights[rw_name])
 
-                    print(f"Raw model weights: {weights_to_add}")
+                    logger.info(f"Raw model weights: {weights_to_add}")
 
                     if weights_to_add:
                         ### Normalize weights
                         if sum(weights_to_add) != 1:
                             weights_to_add = normalize_weights(weights_to_add)
-                            print(f"Normalized model weights: {weights_to_add}")
+                            logger.info(f"Normalized model weights: {weights_to_add}")
 
                         self.reward_weights = torch.tensor(
                             weights_to_add, dtype=torch.float32
                         ).to(self.device)
-                        print(
+                        logger.info(
                             f"Retrieved the latest validator weights: {self.reward_weights}"
                         )
 
@@ -342,16 +336,16 @@ def background_loop(self, is_validator):
                     if self.config.alchemy.disable_manual_validator:
                         self.request_frequency += self.manual_validator_timeout
 
-                    print(
+                    logger.info(
                         f"Retrieved the latest validator settings: {validator_settings}"
                     )
 
         except Exception as e:
-            print(f"An error occurred trying to update settings from the cloud: {e}.")
+            logger.info(f"An error occurred trying to update settings from the cloud: {e}.")
 
     #### Clean up the wandb runs and cache folders
     if self.background_steps == 1 or self.background_steps % 180 == 0:
-        print("Trying to clean wandb directoy...")
+        logger.info("Trying to clean wandb directoy...")
         wandb_path = WANDB_VALIDATOR_PATH if is_validator else WANDB_MINER_PATH
         try:
             if os.path.exists(wandb_path):
@@ -367,25 +361,25 @@ def background_loop(self, is_validator):
                         f"cd {wandb_path} && echo 'y' | wandb sync --clean --clean-old-hours 3",
                         shell=True,
                     )
-                    print("Cleaned all synced wandb runs.")
+                    logger.info("Cleaned all synced wandb runs.")
                     cleanup_cache_process = subprocess.Popen(
                         ["wandb artifact cache cleanup 5GB"], shell=True
                     )
-                    print("Cleaned all wandb cache data > 5GB.")
+                    logger.info("Cleaned all wandb cache data > 5GB.")
             else:
-                print(f"The path {wandb_path} doesn't exist yet.")
+                logger.warning(f"The path {wandb_path} doesn't exist yet.")
         except Exception as e:
-            print(f"An error occurred trying to clean wandb artifacts and runs: {e}.")
+            logger.error(f"An error occurred trying to clean wandb artifacts and runs: {e}.")
 
     #### Attempt to init wandb if it wasn't sucessfully originally
     if (self.background_steps % 5 == 0) and is_validator and not self.wandb_loaded:
         try:
             init_wandb(self)
-            print("Loaded wandb")
+            logger.info("Loaded wandb")
             self.wandb_loaded = True
         except Exception as e:
             self.wandb_loaded = False
-            print("Unable to load wandb. Retrying in 5 minutes.")
+            logger.error("Unable to load wandb. Retrying in 5 minutes.")
 
     self.background_steps += 1
 
@@ -409,11 +403,11 @@ def retrieve_public_file(client, bucket_name, source_name):
         try:
             file = blob.download_as_text()
             file = json.loads(file)
-            print(f"Successfully downloaded {source_name} from {bucket_name}")
+            logger.info(f"Successfully downloaded {source_name} from {bucket_name}")
         except Exception as e:
-            print(f"Failed to download {source_name} from {bucket_name}: {e}")
+            logger.info(f"Failed to download {source_name} from {bucket_name}: {e}")
 
     except Exception as e:
-        print(f"An error occurred downloading from Google Cloud: {e}")
+        logger.info(f"An error occurred downloading from Google Cloud: {e}")
 
     return file
