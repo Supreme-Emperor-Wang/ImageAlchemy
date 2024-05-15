@@ -30,11 +30,16 @@ import wandb
 transform = T.Compose([T.PILToTensor()])
 
 
-def update_moving_averages(self, rewards):
-    rewards = torch.nan_to_num(rewards, nan=0.0, posinf=0.0, neginf=0.0) 
-    self.moving_averaged_scores: torch.FloatTensor = MOVING_AVERAGE_ALPHA * rewards + (
-        1 - MOVING_AVERAGE_ALPHA
-    ) * self.moving_averaged_scores.to(self.device)
+def updated_moving_averages(
+    moving_averaged_scores: torch.Tensor,
+    rewards: torch.Tensor,
+    device: torch.device,
+    alpha=MOVING_AVERAGE_ALPHA,
+) -> torch.FloatTensor:
+    rewards = torch.nan_to_num(rewards, nan=0.0, posinf=0.0, neginf=0.0)
+    moving_averaged_scores: torch.FloatTensor = alpha * rewards + (
+        1 - alpha
+    ) * moving_averaged_scores.to(device)
 
 
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
@@ -96,9 +101,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Log query to hisotry
     try:
         for uid in uids:
-            self.miner_query_history_duration[self.metagraph.axons[uid].hotkey] = (
-                time.perf_counter()
-            )
+            self.miner_query_history_duration[
+                self.metagraph.axons[uid].hotkey
+            ] = time.perf_counter()
         for uid in uids:
             self.miner_query_history_count[self.metagraph.axons[uid].hotkey] += 1
     except:
@@ -178,9 +183,13 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
 
     scattered_rewards_adjusted = get_human_rewards(self, scattered_rewards)
 
-    scattered_rewards_adjusted = filter_rewards(self, scattered_rewards_adjusted)
+    scattered_rewards_adjusted = filter_rewards(
+        self.isalive_dict, self.isalive_threshold, scattered_rewards_adjusted
+    )
 
-    update_moving_averages(self, scattered_rewards_adjusted)
+    self.moving_average_scores = updated_moving_averages(
+        self.moving_average_scores, scattered_rewards_adjusted, self.device
+    )
 
     try:
         response = requests.post(
@@ -189,7 +198,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 "averages": {
                     hotkey: moving_average.item()
                     for hotkey, moving_average in zip(
-                        self.hotkeys, self.moving_averaged_scores
+                        self.hotkeys, self.moving_average_scores
                     )
                 }
             },
@@ -204,11 +213,11 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         logger.info("Error logging moving averages to the Averages API")
 
     try:
-        for i, average in enumerate(self.moving_averaged_scores):
+        for i, average in enumerate(self.moving_average_scores):
             if (self.metagraph.axons[i].hotkey in self.hotkey_blacklist) or (
                 self.metagraph.axons[i].coldkey in self.coldkey_blacklist
             ):
-                self.moving_averaged_scores[i] = 0
+                self.moving_average_scores[i] = 0
 
     except Exception as e:
         logger.error(f"An unexpected error occurred (E1): {e}")
@@ -232,7 +241,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                     for response, reward in zip(responses, rewards.tolist())
                 ],
                 "rewards": rewards.tolist(),
-                # "moving_averages": self.moving_averaged_scores
+                # "moving_averages": self.moving_average_scores
             }
         )
         event.update(validator_info)

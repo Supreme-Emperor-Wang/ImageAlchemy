@@ -3,7 +3,7 @@ import time
 from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import List
+from typing import Any, Dict, List
 
 import ImageReward as RM
 import numpy as np
@@ -40,6 +40,98 @@ class RewardModelType(Enum):
     nsfw = "nsfw_filter"
 
 
+def apply_reward_functions(
+    reward_weights: list,
+    reward_functions: list,
+    responses: list,
+    rewards: torch.Tensor,
+    device: torch.device,
+) -> tuple[torch.Tensor, dict]:
+    event = {}
+    for weight_i, reward_fn_i in zip(reward_weights, reward_functions):
+        reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
+        rewards += weight_i * reward_i_normalized.to(device)
+        event[reward_fn_i.name] = reward_i.tolist()
+        event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
+        logger.info(f"{reward_fn_i.name}, {reward_i_normalized.tolist()}")
+    return rewards, event
+
+
+def apply_masking_functions(
+    masking_functions: list,
+    responses: list,
+    rewards: torch.Tensor,
+    device: torch.device,
+) -> tuple[torch.Tensor, dict]:
+    event = {}
+    for masking_fn_i in masking_functions:
+        mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
+        rewards *= mask_i_normalized.to(device)
+        event[masking_fn_i.name] = mask_i.tolist()
+        event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
+        logger.info(f"{masking_fn_i.name} {mask_i_normalized.tolist()}")
+    return rewards, event
+
+
+def process_manual_vote(
+    rewards: torch.Tensor,
+    reward_weights: list,
+    config: Any,
+    start_time: float,
+    manual_validator_timeout: float,
+) -> tuple[torch.Tensor, dict, bool]:
+    event = {}
+    received_vote = False
+
+    while (time.perf_counter() - start_time) < manual_validator_timeout:
+        time.sleep(1)
+        # If manual vote received
+        if os.path.exists("neurons/validator/images/vote.txt"):
+            # loop until vote is successfully saved
+            while open("neurons/validator/images/vote.txt", "r").read() == "":
+                time.sleep(0.05)
+                continue
+
+            try:
+                reward_i = (
+                    int(open("neurons/validator/images/vote.txt", "r").read()) - 1
+                )
+            except Exception as e:
+                logger.error(f"An unexpected error occurred parsing the vote: {e}")
+                break
+
+            if reward_i >= len(rewards):
+                logger.info(
+                    f"Received invalid vote for Image {reward_i+1}: it doesn't exist."
+                )
+                break
+
+            logger.info(f"Received manual vote for Image {reward_i+1}")
+
+            received_vote = True
+
+            reward_i_normalized: torch.FloatTensor = torch.zeros(
+                len(rewards), dtype=torch.float32
+            ).to(self.device)
+            reward_i_normalized[reward_i] = 1.0
+            rewards += reward_weights[-1] * reward_i_normalized.to(self.device)
+            if not config.alchemy.disable_log_rewards:
+                event["human_reward_model"] = reward_i_normalized.tolist()
+                event["human_reward_model_normalized"] = reward_i_normalized.tolist()
+
+            break
+
+    if not received_vote:
+        delta = 1 - reward_weights[-1]
+        if delta != 0:
+            rewards /= delta
+        else:
+            logger.warning("The reward weight difference was 0 which is unexpected.")
+        logger.info("No valid vote was received")
+
+    return rewards, event, received_vote
+
+
 def get_automated_rewards(self, responses, uids, task_type):
     event = {"task_type": task_type}
 
@@ -48,18 +140,15 @@ def get_automated_rewards(self, responses, uids, task_type):
         self.device
     )
 
-    for weight_i, reward_fn_i in zip(self.reward_weights, self.reward_functions):
-        reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
-        rewards += weight_i * reward_i_normalized.to(self.device)
-        event[reward_fn_i.name] = reward_i.tolist()
-        event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
-        logger.info(f"{reward_fn_i.name}, {reward_i_normalized.tolist()}")
-    for masking_fn_i in self.masking_functions:
-        mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
-        rewards *= mask_i_normalized.to(self.device)
-        event[masking_fn_i.name] = mask_i.tolist()
-        event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
-        logger.info(f"{masking_fn_i.name} {mask_i_normalized.tolist()}")
+    rewards, reward_event = apply_reward_functions(
+        self.reward_weights, self.reward_functions, responses, rewards, self.device
+    )
+    event.update(reward_event)
+
+    rewards, masking_event = apply_masking_functions(
+        self.masking_functions, responses, rewards, self.device
+    )
+    event.update(masking_event)
 
     if not self.config.alchemy.disable_manual_validator:
         logger.info(
@@ -67,72 +156,23 @@ def get_automated_rewards(self, responses, uids, task_type):
         )
         start_time = time.perf_counter()
 
-        received_vote = False
-
-        while (time.perf_counter() - start_time) < self.manual_validator_timeout:
-            time.sleep(1)
-            # If manual vote received
-            if os.path.exists("neurons/validator/images/vote.txt"):
-                # loop until vote is successfully saved
-                while open("neurons/validator/images/vote.txt", "r").read() == "":
-                    time.sleep(0.05)
-                    continue
-
-                try:
-                    reward_i = (
-                        int(open("neurons/validator/images/vote.txt", "r").read()) - 1
-                    )
-                except Exception as e:
-                    logger.error(f"An unexpected error occurred parsing the vote: {e}")
-                    break
-
-                ### There is a small possibility that not every miner queried will respond.
-                ### If 12 are queried, but only 10 respond, we need to handle the error if
-                ### the user selects the 11th or 12th image (which don't exist)
-                if reward_i >= len(rewards):
-                    logger.info(
-                        f"Received invalid vote for Image {reward_i+1}: it doesn't exist."
-                    )
-                    break
-
-                logger.info(f"Received manual vote for Image {reward_i+1}")
-
-                ### Set to true so we don't normalize the rewards later
-                received_vote = True
-
-                reward_i_normalized: torch.FloatTensor = torch.zeros(
-                    len(rewards), dtype=torch.float32
-                ).to(self.device)
-                reward_i_normalized[reward_i] = 1.0
-                rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
-                if not self.config.alchemy.disable_log_rewards:
-                    event["human_reward_model"] = reward_i_normalized.tolist()
-                    event["human_reward_model_normalized"] = (
-                        reward_i_normalized.tolist()
-                    )
-
-                break
-
-        if not received_vote:
-            delta = 1 - self.reward_weights[-1]
-            if delta != 0:
-                rewards /= delta
-            else:
-                logger.warning(
-                    "The reward weight difference was 0 which is unexpected."
-                )
-            logger.info("No valid vote was received")
+        rewards, manual_event, received_vote = process_manual_vote(
+            rewards,
+            self.reward_weights,
+            self.config,
+            start_time,
+            self.manual_validator_timeout,
+        )
+        event.update(manual_event)
 
         # Delete contents of images folder except for black image
         if os.path.exists("neurons/validator/images"):
             for file in os.listdir("neurons/validator/images"):
-                (
-                    os.remove(f"neurons/validator/images/{file}")
-                    if file != "black.png"
-                    else "_"
-                )
+                os.remove(
+                    f"neurons/validator/images/{file}"
+                ) if file != "black.png" else "_"
 
-    scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
+    scattered_rewards: torch.FloatTensor = self.moving_average_scores.scatter(
         0, uids, rewards
     ).to(self.device)
 
@@ -149,9 +189,47 @@ def get_human_rewards(self, rewards, mock=False, mock_winner=None, mock_loser=No
     return scattered_rewards_adjusted
 
 
-def filter_rewards(self, rewards):
-    for uid, count in self.isalive_dict.items():
-        if count >= self.isalive_threshold:
+def get_human_voting_scores(
+    human_voting_reward_model,
+    hotkeys: str,
+    mock: bool,
+    mock_winner: str = None,
+    mock_loser: str = None,
+) -> torch.Tensor:
+    _, human_voting_scores_normalised = human_voting_reward_model.get_rewards(
+        hotkeys, mock, mock_winner, mock_loser
+    )
+    return human_voting_scores_normalised
+
+
+def apply_human_voting_weight(
+    rewards: torch.Tensor, human_voting_scores: torch.Tensor, human_voting_weight: float
+) -> torch.Tensor:
+    scattered_rewards_adjusted = rewards + (human_voting_weight * human_voting_scores)
+    return scattered_rewards_adjusted
+
+
+def get_human_rewards(
+    self,
+    rewards: torch.Tensor,
+    mock: bool = False,
+    mock_winner: str = None,
+    mock_loser: str = None,
+) -> torch.Tensor:
+    human_voting_scores = get_human_voting_scores(
+        self.human_voting_reward_model, self.hotkeys, mock, mock_winner, mock_loser
+    )
+    scattered_rewards_adjusted = apply_human_voting_weight(
+        rewards, human_voting_scores, self.human_voting_weight
+    )
+    return scattered_rewards_adjusted
+
+
+def filter_rewards(
+    isalive_dict: Dict[int, int], isalive_threshold: int, rewards: torch.Tensor
+) -> torch.Tensor:
+    for uid, count in isalive_dict.items():
+        if count >= isalive_threshold:
             rewards[uid] = 0
 
     return rewards
@@ -249,7 +327,8 @@ class DefaultRewardFrameworkConfig:
 class BaseRewardModel:
     @property
     @abstractmethod
-    def name(self) -> str: ...
+    def name(self) -> str:
+        ...
 
     def __str__(self) -> str:
         return str(self.name)
@@ -258,7 +337,8 @@ class BaseRewardModel:
         return str(self.name)
 
     @abstractmethod
-    def get_rewards(self, responses: List, rewards) -> torch.FloatTensor: ...
+    def get_rewards(self, responses: List, rewards) -> torch.FloatTensor:
+        ...
 
     def __init__(self) -> None:
         self.count = 0
@@ -479,7 +559,9 @@ class HumanValidationRewardModel(BaseRewardModel):
         self.human_voting_scores = torch.zeros((metagraph.n)).to(self.device)
         self.api_url = api_url
 
-    def get_rewards(self, hotkeys, mock=False, mock_winner=None, mock_loser=None) -> torch.FloatTensor:
+    def get_rewards(
+        self, hotkeys, mock=False, mock_winner=None, mock_loser=None
+    ) -> torch.FloatTensor:
         max_retries = 3
         backoff = 2
 
@@ -491,7 +573,9 @@ class HumanValidationRewardModel(BaseRewardModel):
 
             for attempt in range(0, max_retries):
                 try:
-                    human_voting_scores = requests.get(f"{self.api_url}/votes", timeout=2)
+                    human_voting_scores = requests.get(
+                        f"{self.api_url}/votes", timeout=2
+                    )
 
                     if (human_voting_scores.status_code != 200) and (
                         attempt == max_retries
@@ -536,9 +620,13 @@ class HumanValidationRewardModel(BaseRewardModel):
 
         else:
             human_voting_scores_dict = {hotkey: 50 for hotkey in hotkeys}
-            if mock_winner is not None:
+            if (mock_winner is not None) and (
+                mock_winner in human_voting_scores_dict.keys()
+            ):
                 human_voting_scores_dict[mock_winner] = 100
-            if mock_loser is not None:
+            if (mock_loser is not None) and (
+                mock_loser in human_voting_scores_dict.keys()
+            ):
                 human_voting_scores_dict[mock_loser] = 1
 
         if human_voting_scores_dict != {}:

@@ -6,20 +6,10 @@ import time
 import traceback
 from time import sleep
 
-import bittensor as bt
 import torch
-import wandb
 from loguru import logger
-from openai import OpenAI
-from passwordgenerator import pwgenerator
-
 from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
-from neurons.utils import (
-    BackgroundTimer,
-    background_loop,
-    get_defaults,
-    colored_log,
-)
+from neurons.utils import BackgroundTimer, background_loop, colored_log, get_defaults
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
 from neurons.validator.reward import (
@@ -36,6 +26,11 @@ from neurons.validator.utils import (
     ttl_get_block,
 )
 from neurons.validator.weights import set_weights
+from openai import OpenAI
+from passwordgenerator import pwgenerator
+
+import bittensor as bt
+import wandb
 
 
 class StableValidator:
@@ -147,9 +142,9 @@ class StableValidator:
         self.scores = torch.zeros_like(self.metagraph.stake, dtype=torch.float32)
 
         # Init Weights.
-        self.moving_averaged_scores = torch.zeros((self.metagraph.n)).to(self.device)
+        self.moving_average_scores = torch.zeros((self.metagraph.n)).to(self.device)
         # print(
-        #     f"Loaded moving_averaged_scores: {str(self.moving_averaged_scores)}"
+        #     f"Loaded moving_averaged_scores: {str(self.moving_average_scores)}"
         # )
 
         # Each validator gets a unique identity (UID) in the network for differentiation.
@@ -471,7 +466,7 @@ class StableValidator:
 
     def should_set_weights(self) -> bool:
         # Check if all moving_averages_socres are the 0s or 1s
-        ma_scores = self.moving_averaged_scores
+        ma_scores = self.moving_average_scores
         ma_scores_sum = sum(ma_scores)
         if any([ma_scores_sum == len(ma_scores), ma_scores_sum == 0]):
             return False
@@ -484,7 +479,7 @@ class StableValidator:
         logger.info("save_state()")
         try:
             neuron_state_dict = {
-                "neuron_weights": self.moving_averaged_scores.to("cpu").tolist(),
+                "neuron_weights": self.moving_average_scores.to("cpu").tolist(),
             }
             torch.save(
                 neuron_state_dict, f"{self.config.alchemy.full_path}/model.torch"
@@ -521,23 +516,23 @@ class StableValidator:
                     f"Neuron weights shape {neuron_weights.shape} does not match metagraph n {self.metagraph.n}"
                     "Populating new moving_averaged_scores IDs with zeros"
                 )
-                self.moving_averaged_scores[: len(neuron_weights)] = neuron_weights.to(
+                self.moving_average_scores[: len(neuron_weights)] = neuron_weights.to(
                     self.device
                 )
                 # self.update_hotkeys()
 
             # Check for nans in saved state dict
             elif not any([has_nans, has_infs]):
-                self.moving_averaged_scores = neuron_weights.to(self.device)
-                logger.info(f"MA scores: {self.moving_averaged_scores}")
+                self.moving_average_scores = neuron_weights.to(self.device)
+                logger.info(f"MA scores: {self.moving_average_scores}")
                 # self.update_hotkeys()
             else:
                 logger.info("Loaded MA scores from scratch.")
 
             # Zero out any negative scores
-            for i, average in enumerate(self.moving_averaged_scores):
+            for i, average in enumerate(self.moving_average_scores):
                 if average < 0:
-                    self.moving_averaged_scores[i] = 0
+                    self.moving_average_scores[i] = 0
 
             colored_log(
                 f"Reloaded model {self.config.alchemy.full_path}/model.torch",

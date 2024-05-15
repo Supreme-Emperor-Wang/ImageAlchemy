@@ -362,7 +362,9 @@ def call_corcel(self, prompt):
         )
         response = response.json()[0]["choices"][0]["delta"]["content"]
     except requests.exceptions.ReadTimeout as e:
-        logger.info(f"Corcel request timed out after 15 seconds... falling back to OpenAI...")
+        logger.info(
+            f"Corcel request timed out after 15 seconds... falling back to OpenAI..."
+        )
 
     if response:
         logger.info(f"Prompt generated with Corcel: {response}")
