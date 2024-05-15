@@ -2,16 +2,9 @@ import sys
 
 sys.path.append("/home/ubuntu/ImageAlchemy/")
 
-import os
-
-import scipy.stats as ss
 import torch
 from dotenv import load_dotenv
 from neurons.validator.forward import update_moving_averages
-from neurons.validator.reward import get_human_rewards
-from neurons.validator.validator import StableValidator
-
-load_dotenv()
 
 
 def test_non_zero_moving_averages():

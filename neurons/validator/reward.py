@@ -76,9 +76,10 @@ def apply_masking_functions(
 def process_manual_vote(
     rewards: torch.Tensor,
     reward_weights: list,
-    config: Any,
+    disable_log_rewards: bool,
     start_time: float,
     manual_validator_timeout: float,
+    device: torch.device,
 ) -> tuple[torch.Tensor, dict, bool]:
     event = {}
     received_vote = False
@@ -112,10 +113,10 @@ def process_manual_vote(
 
             reward_i_normalized: torch.FloatTensor = torch.zeros(
                 len(rewards), dtype=torch.float32
-            ).to(self.device)
+            ).to(device)
             reward_i_normalized[reward_i] = 1.0
-            rewards += reward_weights[-1] * reward_i_normalized.to(self.device)
-            if not config.alchemy.disable_log_rewards:
+            rewards += reward_weights[-1] * reward_i_normalized.to(device)
+            if not disable_log_rewards:
                 event["human_reward_model"] = reward_i_normalized.tolist()
                 event["human_reward_model_normalized"] = reward_i_normalized.tolist()
 
@@ -129,7 +130,7 @@ def process_manual_vote(
             logger.warning("The reward weight difference was 0 which is unexpected.")
         logger.info("No valid vote was received")
 
-    return rewards, event, received_vote
+    return rewards, event
 
 
 def get_automated_rewards(self, responses, uids, task_type):
@@ -156,12 +157,13 @@ def get_automated_rewards(self, responses, uids, task_type):
         )
         start_time = time.perf_counter()
 
-        rewards, manual_event, received_vote = process_manual_vote(
+        rewards, manual_event = process_manual_vote(
             rewards,
             self.reward_weights,
-            self.config,
+            self.config.alchemy.disable_log_rewards,
             start_time,
             self.manual_validator_timeout,
+            self.device,
         )
         event.update(manual_event)
 
