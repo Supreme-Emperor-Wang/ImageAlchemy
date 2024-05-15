@@ -61,6 +61,7 @@ COLORS = {
 def colored_log(message: str, color: str = "white", level: str = "INFO") -> None:
     logger.opt(colors=True).log(level, f"<bold><{color}>{message}</{color}></bold>")
 
+
 def sh(message: str):
     return f"{message: <12}"
 
@@ -148,7 +149,9 @@ def background_loop(self, is_validator):
                             timeout=30,
                         )
                         if response.status_code == 200:
-                            logger.info(f"Successfully posted batch {batch['batch_id']}")
+                            logger.info(
+                                f"Successfully posted batch {batch['batch_id']}"
+                            )
                             batches_for_deletion.append(batch)
                             break
                         else:
@@ -341,7 +344,9 @@ def background_loop(self, is_validator):
                     )
 
         except Exception as e:
-            logger.info(f"An error occurred trying to update settings from the cloud: {e}.")
+            logger.info(
+                f"An error occurred trying to update settings from the cloud: {e}."
+            )
 
     #### Clean up the wandb runs and cache folders
     if self.background_steps == 1 or self.background_steps % 180 == 0:
@@ -369,7 +374,9 @@ def background_loop(self, is_validator):
             else:
                 logger.warning(f"The path {wandb_path} doesn't exist yet.")
         except Exception as e:
-            logger.error(f"An error occurred trying to clean wandb artifacts and runs: {e}.")
+            logger.error(
+                f"An error occurred trying to clean wandb artifacts and runs: {e}."
+            )
 
     #### Attempt to init wandb if it wasn't sucessfully originally
     if (self.background_steps % 5 == 0) and is_validator and not self.wandb_loaded:
