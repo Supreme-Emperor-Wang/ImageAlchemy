@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import time
+import traceback
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Timer
@@ -170,13 +171,13 @@ def background_loop(self, is_validator):
                             )
                     except Exception as e:
                         if attempt != max_retries:
-                            logger.info(
+                            logger.error(
                                 f"Attempt number {attempt+1} failed to send batch {batch['batch_id']}. Retrying in {backoff} seconds. Error: {e}"
                             )
                             time.sleep(backoff)
                             continue
                         else:
-                            logger.info(
+                            logger.error(
                                 f"Attempted to post batch {batch['batch_id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch. Error: {e}"
                             )
                             break
@@ -192,7 +193,9 @@ def background_loop(self, is_validator):
                 self.batches.remove(batch)
 
     except Exception as e:
-        logger.info(f"An error occurred trying to submit a batch: {e}")
+        logger.info(
+            f"An error occurred trying to submit a batch: {e}\n{traceback.format_exc()}"
+        )
 
     #### Update the whitelists and blacklists
     if self.background_steps % 5 == 0:
