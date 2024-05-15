@@ -25,35 +25,116 @@ sys.argv += [
 self = StableValidator()
 self.load_state()
 
-mock_loser_index = (
-    (
-        self.moving_average_scores
-        == torch.max(self.moving_average_scores[self.moving_average_scores > 0])
-    )
-    .nonzero()[0]
-    .item()
-)
-mock_winner_index = (
-    (
-        self.moving_average_scores
-        == torch.min(self.moving_average_scores[self.moving_average_scores > 0])
-    )
-    .nonzero()[0]
-    .item()
-)
-previous_rank = ss.rankdata(self.moving_average_scores.tolist())[mock_loser_index]
-scores = self.moving_average_scores
-for i in range(0, 10000):
-    scores = get_human_rewards(
-        self,
-        scores,
-        mock=True,
-        mock_winner=self.hotkeys[mock_winner_index],
-        mock_loser=self.hotkeys[mock_loser_index],
-    )
-    weights = torch.nn.functional.normalize(scores, p=1, dim=0)
-    print(weights[mock_loser_index].item())
-current_rank = ss.rankdata(scores.tolist())[mock_loser_index]
+if self.moving_average_scores.sum() == 0:
+    self.moving_average_scores = torch.tensor(
+        [
+            0.0000e00,
+            4.5834e-01,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            3.5371e-10,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            1.4045e-11,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            7.6022e-08,
+            0.0000e00,
+            0.0000e00,
+            1.2612e-44,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            5.2420e-01,
+            4.5746e-01,
+            4.6468e-01,
+            4.6027e-01,
+            5.1175e-01,
+            5.2633e-01,
+            5.0278e-01,
+            4.9042e-01,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            5.5324e-08,
+            0.0000e00,
+            6.8319e-08,
+            0.0000e00,
+            0.0000e00,
+            5.4010e-12,
+            0.0000e00,
+            1.2612e-44,
+            0.0000e00,
+            7.8911e-08,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            7.3861e-08,
+            5.3888e-08,
+            0.0000e00,
+            0.0000e00,
+            7.0852e-08,
+            7.7377e-08,
+            7.6482e-08,
+            7.1486e-08,
+            6.4163e-08,
+            3.0326e-12,
+            8.3539e-08,
+            7.2657e-08,
+            0.0000e00,
+            5.4044e-08,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            1.3815e-08,
+            7.1958e-08,
+            0.0000e00,
+            3.9497e-08,
+            2.1916e-07,
+            0.0000e00,
+            7.7840e-08,
+            7.4375e-08,
+            5.8878e-08,
+            0.0000e00,
+            0.0000e00,
+            1.9986e-01,
+            0.0000e00,
+            0.0000e00,
+            4.4630e-08,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+            0.0000e00,
+        ]
+    ).to(self.device)
 
 
 def test_human_rewards_score_increase():
