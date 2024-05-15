@@ -13,23 +13,10 @@ from neurons.validator.validator import StableValidator
 
 load_dotenv()
 
-sys.argv += [
-    "--netuid",
-    "25",
-    "--subtensor.network",
-    "test",
-    "--wallet.name",
-    "validator",
-    "--wallet.hotkey default",
-    "--alchemy.disable_manual_validator",
-]
-self = StableValidator()
-self.load_state()
-
 
 def test_non_zero_moving_averages():
     device = "cpu"
-    moving_averaged_scores = torch.zeros(256)
+    moving_average_scores = torch.zeros(256)
     rewards = torch.tensor(
         [
             0.6522690057754517,
@@ -46,51 +33,68 @@ def test_non_zero_moving_averages():
     ).to(device)
     uids = torch.tensor([39, 34, 37, 35, 40, 38, 36, 33, 22, 58]).to(device)
 
-    scattered_rewards: torch.FloatTensor = moving_averaged_scores.scatter(
-        0, uids, rewards
-    ).to(self.device)
+    scattered_rewards = moving_average_scores.scatter(0, uids, rewards).to(device)
 
-    moving_averaged_scores = update_moving_averages(self, scattered_rewards)
+    moving_average_scores = update_moving_averages(
+        moving_average_scores, scattered_rewards, device
+    )
 
-    assert moving_averaged_scores.sum().item() != 0
+    assert moving_average_scores.sum().item() != 0
 
 
 def test_large_rewards():
     test_uid_index = 39
-    uids = torch.tensor([test_uid_index]).to(self.device)
-    rewards = torch.tensor([self.moving_average_scores[test_uid_index] * 2]).to(
-        self.device
+    moving_average_scores = torch.zeros(256)
+    device = "cpu"
+    uids = torch.tensor([test_uid_index]).to(device)
+    rewards = torch.tensor([0.7715857625007629 * 20]).to(device)
+
+    scattered_rewards = moving_average_scores.scatter(0, uids, rewards).to(device)
+
+    previous_moving_average = moving_average_scores[test_uid_index]
+    moving_average_scores = update_moving_averages(
+        moving_average_scores, scattered_rewards, device
     )
-
-    scattered_rewards: torch.FloatTensor = self.moving_average_scores.scatter(
-        0, uids, rewards
-    ).to(self.device)
-
-    previous_moving_average = self.moving_average_scores[test_uid_index]
-    update_moving_averages(self, scattered_rewards)
-    current_moving_average = self.moving_average_scores[test_uid_index]
+    current_moving_average = moving_average_scores[test_uid_index]
 
     assert current_moving_average > previous_moving_average
 
 
 def test_rewards_with_nans():
-    rewards = torch.zeros(len(self.moving_average_scores)).to(self.device)
+    moving_average_scores = torch.zeros(256)
+    device = "cpu"
+    rewards = torch.zeros(len(moving_average_scores)).to(device)
     rewards[0] = float("nan")
-    update_moving_averages(self, rewards)
-    torch.isnan(self.moving_average_scores).sum().item() == 0
+
+    moving_average_scores = update_moving_averages(
+        moving_average_scores, rewards, device
+    )
+    assert torch.isnan(moving_average_scores).sum().item() == 0
 
 
 def test_zero_rewards():
-    rewards = torch.zeros(len(self.moving_average_scores)).to(self.device)
-    previous_moving_averaged_scores_sum = self.moving_average_scores.sum()
-    update_moving_averages(self, rewards)
-    current_moving_averaged_scores_sum = self.moving_average_scores.sum()
-    assert previous_moving_averaged_scores_sum >= current_moving_averaged_scores_sum
+    moving_average_scores = torch.zeros(256)
+    device = "cpu"
+    rewards = torch.zeros(len(moving_average_scores)).to(device)
+
+    previous_moving_average_scores_sum = moving_average_scores.sum()
+    moving_average_scores = update_moving_averages(
+        moving_average_scores, rewards, device
+    )
+    current_moving_average_scores_sum = moving_average_scores.sum()
+
+    assert previous_moving_average_scores_sum >= current_moving_average_scores_sum
 
 
 def test_ones_rewards():
-    rewards = torch.ones(len(self.moving_average_scores)).to(self.device)
-    previous_moving_averaged_scores_sum = self.moving_average_scores.sum()
-    update_moving_averages(self, rewards)
-    current_moving_averaged_scores_sum = self.moving_average_scores.sum()
-    assert previous_moving_averaged_scores_sum < current_moving_averaged_scores_sum
+    moving_average_scores = torch.zeros(256)
+    device = "cpu"
+    rewards = torch.ones(len(moving_average_scores)).to(device)
+
+    previous_moving_average_scores_sum = moving_average_scores.sum()
+    moving_average_scores = update_moving_averages(
+        moving_average_scores, rewards, device
+    )
+    current_moving_average_scores_sum = moving_average_scores.sum()
+
+    assert previous_moving_average_scores_sum < current_moving_average_scores_sum

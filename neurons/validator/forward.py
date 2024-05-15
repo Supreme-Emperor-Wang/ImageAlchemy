@@ -30,16 +30,17 @@ import wandb
 transform = T.Compose([T.PILToTensor()])
 
 
-def updated_moving_averages(
+def update_moving_averages(
     moving_averaged_scores: torch.Tensor,
     rewards: torch.Tensor,
     device: torch.device,
     alpha=MOVING_AVERAGE_ALPHA,
 ) -> torch.FloatTensor:
-    rewards = torch.nan_to_num(rewards, nan=0.0, posinf=0.0, neginf=0.0)
+    rewards = torch.nan_to_num(rewards, nan=0.0, posinf=0.0, neginf=0.0).to(device)
     moving_averaged_scores: torch.FloatTensor = alpha * rewards + (
         1 - alpha
     ) * moving_averaged_scores.to(device)
+    return moving_averaged_scores
 
 
 def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
@@ -187,7 +188,7 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         self.isalive_dict, self.isalive_threshold, scattered_rewards_adjusted
     )
 
-    self.moving_average_scores = updated_moving_averages(
+    self.moving_average_scores = update_moving_averages(
         self.moving_average_scores, scattered_rewards_adjusted, self.device
     )
 
