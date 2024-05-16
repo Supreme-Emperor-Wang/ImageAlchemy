@@ -12,7 +12,6 @@ import requests
 import torch
 from google.cloud import storage
 from loguru import logger
-
 from neurons.constants import (
     DEV_URL,
     IA_BUCKET_NAME,
