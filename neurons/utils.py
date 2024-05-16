@@ -23,6 +23,7 @@ from neurons.constants import (
     IA_VALIDATOR_SETTINGS_FILE,
     IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
+    N_NEURONS,
     PROD_URL,
     VALIDATOR_DEFAULT_QUERY_TIMEOUT,
     VALIDATOR_DEFAULT_REQUEST_FREQUENCY,
@@ -277,11 +278,17 @@ def background_loop(self, is_validator):
                 validator_weights = retrieve_public_file(
                     self.storage_client, bucket_name, IA_VALIDATOR_WEIGHT_FILES
                 )
+
                 if (
                     "manual_reward_model" in validator_weights
                     and self.config.alchemy.disable_manual_validator
                 ):
                     validator_weights["manual_reward_model"] = 0.0
+
+                if "human_reward_model" in validator_weights:
+                    self.human_voting_weight = validator_weights[
+                        "human_reward_model"
+                    ] / ((256 / N_NEURONS) * 1.5)
 
                 if validator_weights:
                     weights_to_add = []
