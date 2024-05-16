@@ -9,14 +9,13 @@ from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List, Tuple
 
-from loguru import logger
-
 import neurons.validator as validator
 import numpy as np
 import pandas as pd
 import requests
 import torch
 import torch.nn as nn
+from loguru import logger
 from neurons.constants import N_NEURONS_TO_QUERY, VPERMIT_TAO, WANDB_VALIDATOR_PATH
 from neurons.protocol import IsAlive
 
@@ -491,10 +490,7 @@ def init_wandb(self, reinit=False):
         dir=WANDB_VALIDATOR_PATH,
         tags=tags,
     )
-    logger.success(
-        prefix="Started a new wandb run",
-        sufix=f"<blue> {self.wandb.name} </blue>",
-    )
+    logger.success(f"Started a new wandb run called {self.wandb.name}.")
 
 
 def reinit_wandb(self):
