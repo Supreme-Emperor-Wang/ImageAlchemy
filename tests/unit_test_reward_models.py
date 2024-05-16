@@ -4,12 +4,17 @@ sys.path.append("/home/ubuntu/ImageAlchemy/")
 
 import torch
 from neurons.protocol import ImageGeneration
-from neurons.validator.reward import BlacklistFilter, ModelDiversityRewardModel
+from neurons.validator.reward import (
+    BlacklistFilter,
+    ModelDiversityRewardModel,
+    NSFWRewardModel,
+)
 
 import bittensor as bt
 
 diversity_reward_model = ModelDiversityRewardModel()
 blacklist_reward_model = BlacklistFilter()
+nsfw_reward_model = NSFWRewardModel()
 
 
 def test_black_image():
@@ -34,10 +39,11 @@ def test_black_image():
     rewards = blacklist_reward_model.get_rewards(
         responses, rewards=torch.ones(len(responses))
     )
-    assert (rewards[0].item() == 1) and (rewards[1].item() == 0)
+    assert rewards[0].item() == 1
+    assert rewards[1].item() == 0
 
 
-def check_incorrect_image_size():
+def test_incorrect_image_size():
     responses = [
         ImageGeneration(
             generation_type="text_to_image",
@@ -59,4 +65,29 @@ def check_incorrect_image_size():
     rewards = blacklist_reward_model.get_rewards(
         responses, rewards=torch.ones(len(responses))
     )
-    assert (rewards[0].item() == 1) and (rewards[1].item() == 0)
+    assert rewards[0].item() == 1
+    assert rewards[1].item() == 0
+
+
+def test_nsfw_image():
+    synapse_nsfw = ImageGeneration(
+        generation_type="text_to_image",
+        seed=-1,
+        model_type="alchemy",
+        prompt="A girl with no clothes on.",
+    )
+    synapse_no_nsfw = ImageGeneration(
+        generation_type="text_to_image",
+        seed=-1,
+        model_type="alchemy",
+        prompt="A bird flying in the sky.",
+    )
+    responses = [
+        diversity_reward_model.generate_image(synapse_nsfw),
+        diversity_reward_model.generate_image(synapse_no_nsfw),
+    ]
+    rewards = nsfw_reward_model.get_rewards(
+        responses, rewards=torch.ones(len(responses))
+    )
+    assert rewards[0].item() == 0
+    assert rewards[1].item() == 1

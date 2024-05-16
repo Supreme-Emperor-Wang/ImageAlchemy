@@ -978,7 +978,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
                 ]
                 colored_log(
                     f"{sh('Generating')} -> Succesful image generation after {attempt+1} attempt(s).",
-                    color_key="c",
+                    color="cyan",
                 )
                 break
             except Exception as e:
