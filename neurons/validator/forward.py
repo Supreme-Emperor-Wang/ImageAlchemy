@@ -29,7 +29,7 @@ from neurons.validator.reward import (
 from neurons.validator.utils import ttl_get_block
 
 import bittensor as bt
-import wandb
+import wandb as wandb_lib
 
 transform = T.Compose([T.PILToTensor()])
 
@@ -165,7 +165,7 @@ def log_event_to_wandb(wandb, event: dict, prompt: str):
             else bt.Tensor.deserialize(image)
         )
 
-        wandb_event["images"][e] = wandb.Image(
+        wandb_event["images"][e] = wandb_lib.Image(
             wandb_img,
             caption=gen_caption(prompt, e),
             file_type=file_type,
