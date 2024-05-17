@@ -250,6 +250,7 @@ class StableValidator:
         except Exception as e:
             self.wandb_loaded = False
             logger.error("Unable to load wandb. Retrying in 5 minnutes.")
+            logger.error(f"wandb loading error: {traceback.format_exc()}")
 
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
