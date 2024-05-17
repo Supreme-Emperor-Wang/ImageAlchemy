@@ -31,7 +31,7 @@ import bittensor as bt
 def set_weights(self):
     # Calculate the average reward for each uid across non-zero values.
     # Replace any NaN values with 0.
-    raw_weights = torch.nn.functional.normalize(self.moving_averaged_scores, p=1, dim=0)
+    raw_weights = torch.nn.functional.normalize(self.moving_average_scores, p=1, dim=0)
 
     try:
         response = requests.post(
@@ -40,7 +40,7 @@ def set_weights(self):
                 "weights": {
                     hotkey: moving_average.item()
                     for hotkey, moving_average in zip(
-                        self.hotkeys, self.moving_averaged_scores
+                        self.hotkeys, self.moving_average_scores
                     )
                 }
             },
