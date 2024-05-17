@@ -395,7 +395,8 @@ def background_loop(self, is_validator):
             self.wandb_loaded = True
         except Exception as e:
             self.wandb_loaded = False
-            logger.error("Unable to load wandb. Retrying in 5 minutes.")
+            logger.error(f"Unable to load wandb. Retrying in 5 minutes.")
+            logger.error(f"wandb loading error: {traceback.format_exc()}")
 
     self.background_steps += 1
 
