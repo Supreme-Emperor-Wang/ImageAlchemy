@@ -10,6 +10,7 @@ from datetime import datetime
 from threading import Timer
 
 import requests
+import sentry_sdk
 import torch
 from google.cloud import storage
 from loguru import logger
@@ -196,6 +197,7 @@ def background_loop(self, is_validator):
         logger.info(
             f"An error occurred trying to submit a batch: {e}\n{traceback.format_exc()}"
         )
+        sentry_sdk.capture_exception(e)
 
     #### Update the whitelists and blacklists
     if self.background_steps % 5 == 0:
