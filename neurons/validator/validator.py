@@ -6,6 +6,7 @@ import time
 import traceback
 from time import sleep
 
+import sentry_sdk
 import torch
 from loguru import logger
 from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
@@ -24,6 +25,7 @@ from neurons.validator.utils import (
     init_wandb,
     reinit_wandb,
     ttl_get_block,
+    get_device_name,
 )
 from neurons.validator.weights import set_weights
 from openai import OpenAI
@@ -70,6 +72,7 @@ class StableValidator:
         # Init config
         self.config = StableValidator.config()
         self.check_config(self.config)
+
         bt.logging(
             config=self.config,
             logging_dir=self.config.alchemy.full_path,
@@ -111,6 +114,16 @@ class StableValidator:
         # Init subtensor
         self.subtensor = bt.subtensor(config=self.config)
         logger.info(f"Loaded subtensor: {self.subtensor}")
+
+        try:
+            sentry_sdk.set_context(
+                "bittensor", {"network": str(self.subtensor.network)}
+            )
+            sentry_sdk.set_context(
+                "cuda_device", {"name": get_device_name(self.device)}
+            )
+        except:
+            logger.error("failed to set sentry context")
 
         self.api_url = DEV_URL if self.subtensor.network == "test" else PROD_URL
         if self.config.alchemy.force_prod:
@@ -365,8 +378,9 @@ class StableValidator:
                         self.wandb_loaded = False
 
             # If we encounter an unexpected error, log it for debugging.
-            except Exception as err:
-                logger.error(f"Error in training loop: {err}\n{traceback.format_exc()}")
+            except Exception as e:
+                logger.error(f"Error in training loop: {e}\n{traceback.format_exc()}")
+                sentry_sdk.capture_exception(e)
 
             # If the user interrupts the program, gracefully exit.
             except KeyboardInterrupt:
@@ -490,7 +504,7 @@ class StableValidator:
                 color="blue",
             )
         except Exception as e:
-            logger.info(f"Failed to save model with error: {e}")
+            logger.error(f"Failed to save model with error: {e}")
 
         # empty cache
         torch.cuda.empty_cache()
