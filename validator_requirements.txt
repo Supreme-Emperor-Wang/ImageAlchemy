@@ -10,3 +10,4 @@ passwordgenerator==1.5.1
 streamlit
 loguru
 pytest==7.4.4
+sentry-sdk==2.2.0
