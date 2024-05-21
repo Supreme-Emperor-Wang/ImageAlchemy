@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 import ImageReward as RM
 import numpy as np
 import requests
+import sentry_sdk
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as transforms
@@ -606,7 +607,7 @@ class HumanValidationRewardModel(BaseRewardModel):
                         if (human_voting_scores.status_code != 200) and (
                             attempt == max_retries
                         ):
-                            bt.logging.info(
+                            logger.warning(
                                 f"Failed to retrieve the human validation votes {attempt+1} times. Skipping until the next step."
                             )
                             human_voting_scores = None
@@ -630,9 +631,10 @@ class HumanValidationRewardModel(BaseRewardModel):
                             break
 
                 except Exception as e:
-                    print(
+                    logger.error(
                         f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds."
                     )
+                    sentry_sdk.capture_exception(e)
                     time.sleep(backoff)
                     human_voting_scores = None
                     break
@@ -949,12 +951,14 @@ class ModelDiversityRewardModel(BaseRewardModel):
             if synapse.negative_prompt:
                 local_args["negative_prompt"] = [synapse.negative_prompt]
         except:
-            print("Values for guidance_scale or negative_prompt were not provided.")
+            logger.error(
+                "Values for guidance_scale or negative_prompt were not provided."
+            )
 
         try:
             local_args["num_inference_steps"] = synapse.steps
         except:
-            print("Values for steps were not provided.")
+            logger.error("Values for steps were not provided.")
 
         ### Get the model
         model = self.mapping[synapse.generation_type]["model"]
@@ -982,14 +986,17 @@ class ModelDiversityRewardModel(BaseRewardModel):
                 )
                 break
             except Exception as e:
-                print(
+                logger.error(
                     f"Error in attempt number {attempt+1} to generate an image: {e}... sleeping for 5 seconds..."
                 )
                 time.sleep(5)
                 if attempt == 2:
                     images = []
                     synapse.images = []
-                    print(f"Failed to generate any images after {attempt+1} attempts.")
+                    logger.error(
+                        f"Failed to generate any images after {attempt+1} attempts."
+                    )
+                    sentry_sdk.capture_exception(e)
 
         ### Count timeouts
         if time.perf_counter() - start_time > timeout:
@@ -997,7 +1004,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
 
         ### Log NSFW images
         if any(nsfw_image_filter(self, images)):
-            print(f"An image was flagged as NSFW: discarding image.")
+            logger.error(f"An image was flagged as NSFW: discarding image.")
             self.stats.nsfw_count += 1
             synapse.images = []
 

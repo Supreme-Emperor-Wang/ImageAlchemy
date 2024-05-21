@@ -1,9 +1,6 @@
-import sys
-
-sys.path.append("/home/ubuntu/ImageAlchemy/")
-
 import torch
 from dotenv import load_dotenv
+
 from neurons.validator.forward import update_moving_averages
 
 
