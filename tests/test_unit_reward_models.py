@@ -1,4 +1,5 @@
 import torch
+import pytest
 import bittensor as bt
 
 
