@@ -3,6 +3,7 @@ import sys
 sys.path.append("/home/ubuntu/ImageAlchemy/")
 
 
+import base64
 import copy
 import uuid
 from io import BytesIO
@@ -98,6 +99,16 @@ def get_args(network, neuron):
 def create_dummy_batches(metagraph):
     uids = [0, 1, 2, 3, 4, 5]
 
+    images = []
+    for _ in uids:
+        im_file = BytesIO()
+        T.transforms.ToPILImage()(
+            torch.full([3, 1024, 1024], 254, dtype=torch.float)
+        ).save(im_file, format="PNG")
+        im_bytes = im_file.getvalue()
+        im_b64 = base64.b64encode(im_bytes)
+        images.append(im_b64.decode())
+
     batches = [
         {
             "batch_id": str(uuid.uuid4()),
@@ -107,12 +118,7 @@ def create_dummy_batches(metagraph):
             "blacklist_scores": [1 for _ in uids],
             "miner_hotkeys": [metagraph.hotkeys[uid] for uid in uids],
             "miner_coldkeys": [metagraph.coldkeys[uid] for uid in uids],
-            "computes": [
-                T.transforms.ToPILImage()(
-                    torch.full([3, 1024, 1024], 255, dtype=torch.float)
-                ).save(BytesIO(), format="PNG")
-                for _ in uids
-            ],
+            "computes": images,
             "should_drop_entries": [0 for uid in uids],
         }
     ]
@@ -139,9 +145,9 @@ def test_post_weights(network):
 
 @pytest.mark.parametrize("network", ["test", "finney"])
 def test_submit_batch(network):
-    metagraph, _, api_url, _ = get_args(neuron, network)
+    metagraph, _, api_url, _ = get_args(network, neuron)
     dummy_batch = create_dummy_batches(metagraph)
-    response = post_batch(api_url, dummy_batch)
+    response = post_batch(api_url, dummy_batch[0])
     assert response.status_code == 200
 
 
