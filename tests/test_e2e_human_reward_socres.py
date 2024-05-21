@@ -1,12 +1,8 @@
 import sys
 
-sys.path.append("/home/ubuntu/ImageAlchemy/")
-
-import os
-
-import scipy.stats as ss
 import torch
 from dotenv import load_dotenv
+
 from neurons.validator.reward import get_human_rewards
 from neurons.validator.validator import StableValidator
 

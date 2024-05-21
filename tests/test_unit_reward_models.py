@@ -1,8 +1,7 @@
-import sys
-
-sys.path.append("/home/ubuntu/ImageAlchemy/")
-
 import torch
+import bittensor as bt
+
+
 from neurons.protocol import ImageGeneration
 from neurons.validator.reward import (
     BlacklistFilter,
@@ -10,7 +9,6 @@ from neurons.validator.reward import (
     NSFWRewardModel,
 )
 
-import bittensor as bt
 
 diversity_reward_model = ModelDiversityRewardModel()
 blacklist_reward_model = BlacklistFilter()
