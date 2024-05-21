@@ -100,6 +100,16 @@ def get_coldkey_for_hotkey(self, hotkey):
     return None
 
 
+def post_batch(api_url: str, batch: dict):
+    response = requests.post(
+        f"{api_url}/batch",
+        data=json.dumps(batch),
+        headers={"Content-Type": "application/json"},
+        timeout=30,
+    )
+    return response
+
+
 def background_loop(self, is_validator):
     """
     Handles terminating the miner after deregistration and updating the blacklist and whitelist.
@@ -144,12 +154,7 @@ def background_loop(self, is_validator):
             for batch in self.batches:
                 for attempt in range(0, max_retries):
                     try:
-                        response = requests.post(
-                            f"{self.api_url}/batch",
-                            data=json.dumps(batch),
-                            headers={"Content-Type": "application/json"},
-                            timeout=30,
-                        )
+                        response = post_batch(self.api_url, batch)
                         if response.status_code == 200:
                             logger.info(
                                 f"Successfully posted batch {batch['batch_id']}"

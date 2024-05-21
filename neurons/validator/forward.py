@@ -14,9 +14,7 @@ import pandas as pd
 import requests
 import torch
 import torchvision.transforms as T
-from bittensor import AxonInfo
 from loguru import logger
-
 from neurons.constants import MOVING_AVERAGE_ALPHA, MOVING_AVERAGE_BETA
 from neurons.protocol import ImageGeneration
 from neurons.utils import colored_log, sh
@@ -30,6 +28,7 @@ from neurons.validator.utils import ttl_get_block
 
 import bittensor as bt
 import wandb as wandb_lib
+from bittensor import AxonInfo
 
 transform = T.Compose([T.PILToTensor()])
 
@@ -141,10 +140,13 @@ def post_moving_averages(
         )
         if response.status_code != 200:
             logger.info("Error logging moving averages to the Averages API")
+            return False
         else:
             logger.info("Successfully logged moving averages to the Averages API")
+            return True
     except:
         logger.info("Error logging moving averages to the Averages API")
+        return False
 
 
 def log_event_to_wandb(wandb, event: dict, prompt: str):

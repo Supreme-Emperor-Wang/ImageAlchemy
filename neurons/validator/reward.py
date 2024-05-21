@@ -579,6 +579,10 @@ class HumanValidationRewardModel(BaseRewardModel):
         self.human_voting_scores = torch.zeros((metagraph.n)).to(self.device)
         self.api_url = api_url
 
+    def get_votes(self, api_url: str, timeout: int = 2):
+        human_voting_scores = requests.get(f"{api_url}/votes", timeout=timeout)
+        return human_voting_scores
+
     def get_rewards(
         self, hotkeys, mock=False, mock_winner=None, mock_loser=None
     ) -> torch.FloatTensor:
@@ -593,10 +597,7 @@ class HumanValidationRewardModel(BaseRewardModel):
 
             for attempt in range(0, max_retries):
                 try:
-                    human_voting_scores = requests.get(
-                        f"{self.api_url}/votes", timeout=2
-                    )
-
+                    human_voting_scores = self.get_votes(self.api_url)
                     if (human_voting_scores.status_code != 200) and (
                         attempt == max_retries
                     ):
