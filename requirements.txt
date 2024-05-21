@@ -16,3 +16,4 @@ streamlit
 
 python-dotenv>=1.0.1
 pytest==7.4.4
+loguru>=0.7.2
