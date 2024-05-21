@@ -58,7 +58,7 @@ def check_config(cls, to_check: bt.config):
 
 def add_args(cls, parser):
     # Netuid Arg
-    parser.add_argument("--netuid", type=int, help="Network netuid", default=1)
+    parser.add_argument("--netuid", type=int, help="Network netuid", default=26)
 
     parser.add_argument(
         "--alchemy.name",
