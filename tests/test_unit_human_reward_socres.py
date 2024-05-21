@@ -1,12 +1,12 @@
-import sys
-
-sys.path.append("/home/ubuntu/ImageAlchemy/")
-
 import copy
 import time
 
 import torch
-from neurons.validator.reward import apply_human_voting_weight, process_manual_vote
+
+from neurons.validator.reward import (
+    apply_human_voting_weight,
+    process_manual_vote,
+)
 
 
 def test_process_manual_vote():
