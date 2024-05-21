@@ -9,10 +9,18 @@ from neurons.validator.reward import (
     NSFWRewardModel,
 )
 
+diversity_reward_model: ModelDiversityRewardModel = None
+blacklist_reward_model: BlacklistFilter = None
+nsfw_reward_model: NSFWRewardModel = None
 
-diversity_reward_model = ModelDiversityRewardModel()
-blacklist_reward_model = BlacklistFilter()
-nsfw_reward_model = NSFWRewardModel()
+
+@pytest.fixture(autouse=True, scope="session")
+def setup() -> None:
+    global diversity_reward_model, blacklist_reward_model, nsfw_reward_model
+
+    diversity_reward_model = ModelDiversityRewardModel()
+    blacklist_reward_model = BlacklistFilter()
+    nsfw_reward_model = NSFWRewardModel()
 
 
 def test_black_image():
