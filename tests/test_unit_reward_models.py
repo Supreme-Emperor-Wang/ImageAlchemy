@@ -14,8 +14,6 @@ diversity_reward_model: ModelDiversityRewardModel = None
 blacklist_reward_model: BlacklistFilter = None
 nsfw_reward_model: NSFWRewardModel = None
 
-pytest.skip(allow_module_level=True)
-
 
 @pytest.fixture(autouse=True, scope="session")
 def setup() -> None:
