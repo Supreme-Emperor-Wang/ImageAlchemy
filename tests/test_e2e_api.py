@@ -1,3 +1,8 @@
+import sys
+
+sys.path.append("/home/ubuntu/ImageAlchemy/")
+
+
 import base64
 import copy
 import uuid
@@ -14,8 +19,6 @@ from neurons.validator.reward import HumanValidationRewardModel
 from neurons.validator.weights import post_weights
 
 import bittensor as bt
-
-pytest.skip(allow_module_level=True)
 
 
 class Neuron:
@@ -66,6 +69,8 @@ class Neuron:
 
 
 neuron: Neuron = None
+
+pytest.skip(allow_module_level=True)
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -135,9 +140,6 @@ def create_dummy_batches(metagraph):
         }
     ]
     return batches
-
-
-pytest.skip(allow_module_level=True)
 
 
 @pytest.mark.parametrize("network", ["test", "finney"])
