@@ -1,5 +1,4 @@
 import sys
-
 import torch
 import pytest
 from dotenv import load_dotenv

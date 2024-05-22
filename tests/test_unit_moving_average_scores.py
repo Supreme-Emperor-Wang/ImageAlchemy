@@ -1,4 +1,5 @@
 import torch
+import pytest
 from dotenv import load_dotenv
 
 from neurons.validator.forward import update_moving_averages
