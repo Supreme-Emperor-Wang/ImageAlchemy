@@ -11,40 +11,41 @@ IS_TEST: bool = False
 
 def get_default_device() -> str:
     if IS_TEST:
+        logger.info("Using CPU for test environment (CI)")
         return "cpu:0"
 
     return "cuda:0"
 
 
-def check_config(cls, config: "bt.Config"):
+def check_config(cls, to_check: bt.Config):
     r"""Checks/validates the config namespace object."""
-    bt.logging.check_config(config)
+    bt.logging.check_config(to_check)
     # bt.wallet.check_config(config)
     # bt.subtensor.check_config(config)
 
-    if config.mock:
-        config.neuron.mock_reward_models = True
-        config.neuron.mock_gating_model = True
-        config.neuron.mock_dataset = True
-        config.wallet._mock = True
+    if to_check.mock:
+        to_check.neuron.mock_reward_models = True
+        to_check.neuron.mock_gating_model = True
+        to_check.neuron.mock_dataset = True
+        to_check.wallet._mock = True
 
     full_path = os.path.expanduser(
         "{}/{}/{}/netuid{}/{}".format(
-            config.logging.logging_dir,
-            config.wallet.name,
-            config.wallet.hotkey,
-            config.netuid,
-            config.alchemy.name,
+            to_check.logging.logging_dir,
+            to_check.wallet.name,
+            to_check.wallet.hotkey,
+            to_check.netuid,
+            to_check.alchemy.name,
         )
     )
-    config.alchemy.full_path = os.path.expanduser(full_path)
-    if not os.path.exists(config.alchemy.full_path):
-        os.makedirs(config.alchemy.full_path, exist_ok=True)
+    to_check.alchemy.full_path = os.path.expanduser(full_path)
+    if not os.path.exists(to_check.alchemy.full_path):
+        os.makedirs(to_check.alchemy.full_path, exist_ok=True)
 
     # Add custom event logger for the events.
     logger.level("EVENTS", no=38, icon="📝")
     logger.add(
-        config.alchemy.full_path + "/" + "completions.log",
+        to_check.alchemy.full_path + "/" + "completions.log",
         rotation=EVENTS_RETENTION_SIZE,
         serialize=True,
         enqueue=True,

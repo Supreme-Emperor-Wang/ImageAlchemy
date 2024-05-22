@@ -37,7 +37,7 @@ import wandb
 
 class StableValidator:
     @classmethod
-    def check_config(cls, config: "bt.Config"):
+    def check_config(cls, config: bt.Config):
         check_config(cls, config)
 
     @classmethod
@@ -145,7 +145,7 @@ class StableValidator:
         self.metagraph.sync(subtensor=self.subtensor)  # Sync metagraph with subtensor.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
-        if not "mock" in self.config.wallet.name:
+        if "mock" not in self.config.wallet.name:
             #### Wait until the miner is registered
             self.loop_until_registered()
 
