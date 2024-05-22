@@ -69,15 +69,15 @@ def check_password():
         del st.session_state["password"]
         del st.session_state["username"]
 
-        # Username + password validated and all ok
-        if st.session_state.get("password_correct", False):
-            return True
+    # Username + password validated and all ok
+    if st.session_state.get("password_correct", False):
+        return True
 
-        # Return to login
-        login_form()
-        if "password_correct" in st.session_state:
-            st.error("😕 User not known or password incorrect")
-        return False
+    # Return to login
+    login_form()
+    if "password_correct" in st.session_state:
+        st.error("😕 User not known or password incorrect")
+    return False
 
 
 if not check_password():
