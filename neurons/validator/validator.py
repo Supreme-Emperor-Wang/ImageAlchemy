@@ -21,11 +21,11 @@ from neurons.validator.reward import (
 )
 from neurons.validator.utils import (
     generate_random_prompt_gpt,
+    get_device_name,
     get_random_uids,
     init_wandb,
     reinit_wandb,
     ttl_get_block,
-    get_device_name,
 )
 from neurons.validator.weights import set_weights
 from openai import OpenAI
@@ -194,8 +194,23 @@ class StableValidator:
                         f.write(
                             f"hashkey={hashkey}\nusername={username}\npassword={password}"
                         )
-                    # Sleep until the credentials file is written
-                    sleep(5)
+                else:
+                    credentials = open("streamlit_credentials.txt", "r").read()
+                    credentials_split = credentials.split("\n")
+                    if (
+                        ("hashkey" not in credentials_split[0])
+                        or ("username" not in credentials_split[0])
+                        or ("password" not in credentials_split[0])
+                    ):
+                        hashkey = pwgenerator.generate()
+                        password = pwgenerator.generate()
+                        username = self.wallet.hotkey.ss58_address
+                        with open("streamlit_credentials.txt", "w") as f:
+                            f.write(
+                                f"hashkey={hashkey}\nusername={username}\npassword={password}"
+                            )
+                # Sleep until the credentials file is written
+                sleep(5)
                 logger.info("Loading Manual Validator")
                 process = subprocess.Popen(
                     [
