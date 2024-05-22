@@ -2,13 +2,12 @@ import torch
 import pytest
 from dotenv import load_dotenv
 
+from neurons.validator import config
 from neurons.validator.forward import update_moving_averages
-
-pytest.skip(allow_module_level=True)
 
 
 def test_non_zero_moving_averages():
-    device = "cpu"
+    device = config.get_default_device()
     moving_average_scores = torch.zeros(256)
     rewards = torch.tensor(
         [
@@ -38,7 +37,7 @@ def test_non_zero_moving_averages():
 def test_large_rewards():
     test_uid_index = 39
     moving_average_scores = torch.zeros(256)
-    device = "cpu"
+    device = config.get_default_device()
     uids = torch.tensor([test_uid_index]).to(device)
     rewards = torch.tensor([0.7715857625007629 * 20]).to(device)
 
@@ -55,7 +54,7 @@ def test_large_rewards():
 
 def test_rewards_with_nans():
     moving_average_scores = torch.zeros(256)
-    device = "cpu"
+    device = config.get_default_device()
     rewards = torch.zeros(len(moving_average_scores)).to(device)
     rewards[0] = float("nan")
 
@@ -67,7 +66,7 @@ def test_rewards_with_nans():
 
 def test_zero_rewards():
     moving_average_scores = torch.zeros(256)
-    device = "cpu"
+    device = config.get_default_device()
     rewards = torch.zeros(len(moving_average_scores)).to(device)
 
     previous_moving_average_scores_sum = moving_average_scores.sum()
@@ -81,7 +80,7 @@ def test_zero_rewards():
 
 def test_ones_rewards():
     moving_average_scores = torch.zeros(256)
-    device = "cpu"
+    device = config.get_default_device()
     rewards = torch.ones(len(moving_average_scores)).to(device)
 
     previous_moving_average_scores_sum = moving_average_scores.sum()
