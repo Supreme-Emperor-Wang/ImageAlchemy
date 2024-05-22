@@ -37,8 +37,11 @@ def constant_time_compare(val1, val2):
     if not isinstance(val2, bytes):
         val2 = val2.encode()
 
+    key: str = hashkey
+    if not isinstance(key, bytes):
+        key = key.encode()
+
     # Use an arbitrary key to prevent the values being leaked via timing.
-    key = hashkey
     hmac1 = hmac.new(key, msg=val1, digestmod="sha256").digest()
     hmac2 = hmac.new(key, msg=val2, digestmod="sha256").digest()
 

@@ -187,10 +187,13 @@ class StableValidator:
                     )
                 logger.info("Setting streamlit credentials")
                 if not os.path.exists("streamlit_credentials.txt"):
-                    username = self.wallet.hotkey.ss58_address
+                    hashkey = pwgenerator.generate()
                     password = pwgenerator.generate()
+                    username = self.wallet.hotkey.ss58_address
                     with open("streamlit_credentials.txt", "w") as f:
-                        f.write(f"username={username}\npassword={password}")
+                        f.write(
+                            f"hashkey={hashkey}\nusername={username}\npassword={password}"
+                        )
                     # Sleep until the credentials file is written
                     sleep(5)
                 logger.info("Loading Manual Validator")
