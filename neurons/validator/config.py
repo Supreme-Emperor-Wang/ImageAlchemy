@@ -6,6 +6,15 @@ from neurons.constants import EVENTS_RETENTION_SIZE
 
 import bittensor as bt
 
+IS_TEST: bool = False
+
+
+def get_default_device() -> str:
+    if IS_TEST:
+        return "cpu:0"
+
+    return "cuda:0"
+
 
 def check_config(cls, config: "bt.Config"):
     r"""Checks/validates the config namespace object."""
@@ -60,7 +69,7 @@ def add_args(cls, parser):
         "--alchemy.device",
         type=str,
         help="Device to run the validator on.",
-        default="cuda:0",
+        default=get_default_device(),
     )
     parser.add_argument("--alchemy.force_prod", action="store_true", default=False)
     parser.add_argument(
@@ -79,9 +88,11 @@ def add_args(cls, parser):
 
 def config(cls):
     parser = argparse.ArgumentParser()
+
     bt.wallet.add_args(parser)
     bt.subtensor.add_args(parser)
     bt.logging.add_args(parser)
     bt.axon.add_args(parser)
     cls.add_args(parser)
+
     return bt.config(parser)

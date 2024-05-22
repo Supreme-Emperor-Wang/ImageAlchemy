@@ -795,7 +795,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
     def name(self) -> str:
         return RewardModelType.model_diversity.value
 
-    def get_config(self) -> "bt.config":
+    def get_config(self) -> bt.config:
         argp = argparse.ArgumentParser(description="Miner Configs")
 
         #### Add any args from the parent class

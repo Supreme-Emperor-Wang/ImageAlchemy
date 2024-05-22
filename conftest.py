@@ -3,6 +3,10 @@
 import os
 import sys
 
+from neurons.validator import config
+
+config.IS_TEST = True
+
 # Get the absolute path of the project's root directory
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "."))
 
