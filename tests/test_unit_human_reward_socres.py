@@ -4,16 +4,15 @@ import time
 import torch
 import pytest
 
+from neurons.validator import config
 from neurons.validator.reward import (
     apply_human_voting_weight,
     process_manual_vote,
 )
 
-pytest.skip(allow_module_level=True)
-
 
 def test_process_manual_vote():
-    device = "cpu"
+    device = config.get_default_device()
     start_time = time.perf_counter()
     manual_validator_timeout = 10
     reward_weights = [0.25]
@@ -51,7 +50,7 @@ def test_process_manual_vote():
 
 
 def test_apply_human_voting_weight():
-    device = "cpu"
+    device = config.get_default_device()
     human_voting_weight = 0.02 / 32
     test_index = 0
     rewards = torch.tensor(
