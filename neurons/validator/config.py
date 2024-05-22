@@ -17,7 +17,7 @@ def get_default_device() -> str:
     return "cuda:0"
 
 
-def check_config(cls, to_check: bt.Config):
+def check_config(cls, to_check: bt.config):
     r"""Checks/validates the config namespace object."""
     bt.logging.check_config(to_check)
     # bt.wallet.check_config(config)

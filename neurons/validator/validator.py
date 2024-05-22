@@ -37,7 +37,7 @@ import wandb
 
 class StableValidator:
     @classmethod
-    def check_config(cls, config: bt.Config):
+    def check_config(cls, config: bt.config):
         check_config(cls, config)
 
     @classmethod
