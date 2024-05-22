@@ -34,7 +34,7 @@ from neurons.protocol import ImageGeneration
 from neurons.safety import StableDiffusionSafetyChecker
 from neurons.utils import get_defaults
 from neurons.validator.utils import cosine_distance
-from neurons.validator import config
+from neurons.validator import config as validator_config
 
 from sklearn.metrics.pairwise import cosine_similarity
 from transformers import (
@@ -518,7 +518,7 @@ class NSFWRewardModel(BaseRewardModel):
 
     def __init__(self):
         super().__init__()
-        self.device = config.get_default_device()
+        self.device = validator_config.get_default_device()
         self.safetychecker = StableDiffusionSafetyChecker.from_pretrained(
             "CompVis/stable-diffusion-safety-checker"
         ).to(self.device)
@@ -573,7 +573,7 @@ class HumanValidationRewardModel(BaseRewardModel):
 
     def __init__(self, metagraph, api_url):
         super().__init__()
-        self.device = config.get_default_device()
+        self.device = validator_config.get_default_device()
         self.human_voting_scores = torch.zeros((metagraph.n)).to(self.device)
         self.api_url = api_url
 
@@ -670,7 +670,7 @@ class ImageRewardModel(BaseRewardModel):
 
     def __init__(self):
         super().__init__()
-        self.device = config.get_default_device()
+        self.device = validator_config.get_default_device()
         self.scoring_model = RM.load("ImageReward-v1.0", device=self.device)
 
     def reward(self, response) -> float:
@@ -723,7 +723,7 @@ class DiversityRewardModel(BaseRewardModel):
             ]
         )
         # TODO take device argument in
-        self.device = config.get_default_device()
+        self.device = validator_config.get_default_device()
 
     def extract_embeddings(self, model: torch.nn.Module):
         """Utility to compute embeddings."""
@@ -803,7 +803,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
         argp.add_argument("--wandb.api_key", type=str, default="")
         argp.add_argument("--miner.optimize", action="store_true")
         argp.add_argument(
-            "--miner.device", type=str, default=config.get_default_device()
+            "--miner.device", type=str, default=validator_config.get_default_device()
         )
 
         seed = random.randint(0, 100_000_000_000)
@@ -844,7 +844,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
         )
         ### Set up transform functionc
         self.transform = transforms.Compose([transforms.PILToTensor()])
-        self.device = config.get_default_device()
+        self.device = validator_config.get_default_device()
         self.threshold = 0.95
         self.config = self.get_config()
         self.stats = get_defaults(self)
