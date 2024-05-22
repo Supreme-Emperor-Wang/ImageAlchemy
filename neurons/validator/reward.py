@@ -33,9 +33,8 @@ from neurons.miners.StableMiner.utils import (
 from neurons.protocol import ImageGeneration
 from neurons.safety import StableDiffusionSafetyChecker
 from neurons.utils import get_defaults
-from neurons.validator.utils import cosine_distance
 from neurons.validator import config as validator_config
-
+from neurons.validator.utils import cosine_distance
 from sklearn.metrics.pairwise import cosine_similarity
 from transformers import (
     AutoFeatureExtractor,
@@ -968,7 +967,6 @@ class ModelDiversityRewardModel(BaseRewardModel):
             local_args["image"] = T.transforms.ToPILImage()(
                 bt.Tensor.deserialize(synapse.prompt_image)
             )
-
         ### Generate images & serialize
         for attempt in range(3):
             try:
