@@ -1,31 +1,47 @@
+import argparse
+import copy
 import os
+import random
 import time
 from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import List
+from typing import Dict, List
 
 import ImageReward as RM
 import numpy as np
 import requests
+import sentry_sdk
 import torch
+import torch.nn.functional as F
 import torchvision.transforms as transforms
 import torchvision.transforms as T
 from datasets import Dataset
+from diffusers import (
+    AutoPipelineForImage2Image,
+    AutoPipelineForText2Image,
+    DPMSolverMultistepScheduler,
+)
 from loguru import logger
-
+from neurons.miners.StableMiner.utils import (
+    clean_nsfw_from_prompt,
+    colored_log,
+    nsfw_image_filter,
+    sh,
+    warm_up,
+)
+from neurons.protocol import ImageGeneration
 from neurons.safety import StableDiffusionSafetyChecker
-from neurons.validator.utils import calculate_mean_dissimilarity, cosine_distance
+from neurons.utils import get_defaults
+from neurons.validator.utils import cosine_distance
+from neurons.validator import config as validator_config
+
 from sklearn.metrics.pairwise import cosine_similarity
-from torch import nn
 from transformers import (
     AutoFeatureExtractor,
     AutoImageProcessor,
     AutoModel,
-    CLIPConfig,
     CLIPImageProcessor,
-    CLIPVisionModel,
-    PreTrainedModel,
 )
 
 import bittensor as bt
@@ -41,6 +57,99 @@ class RewardModelType(Enum):
     nsfw = "nsfw_filter"
 
 
+def apply_reward_functions(
+    reward_weights: list,
+    reward_functions: list,
+    responses: list,
+    rewards: torch.Tensor,
+    device: torch.device,
+) -> tuple[torch.Tensor, dict]:
+    event = {}
+    for weight_i, reward_fn_i in zip(reward_weights, reward_functions):
+        reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
+        rewards += weight_i * reward_i_normalized.to(device)
+        event[reward_fn_i.name] = reward_i.tolist()
+        event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
+        logger.info(f"{reward_fn_i.name}, {reward_i_normalized.tolist()}")
+    return rewards, event
+
+
+def apply_masking_functions(
+    masking_functions: list,
+    responses: list,
+    rewards: torch.Tensor,
+    device: torch.device,
+) -> tuple[torch.Tensor, dict]:
+    event = {}
+    for masking_fn_i in masking_functions:
+        mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
+        rewards *= mask_i_normalized.to(device)
+        event[masking_fn_i.name] = mask_i.tolist()
+        event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
+        logger.info(f"{masking_fn_i.name} {mask_i_normalized.tolist()}")
+    return rewards, event
+
+
+def process_manual_vote(
+    rewards: torch.Tensor,
+    reward_weights: list,
+    disable_log_rewards: bool,
+    start_time: float,
+    manual_validator_timeout: float,
+    device: torch.device,
+) -> tuple[torch.Tensor, dict, bool]:
+    event = {}
+    received_vote = False
+
+    while (time.perf_counter() - start_time) < manual_validator_timeout:
+        time.sleep(1)
+        # If manual vote received
+        if os.path.exists("neurons/validator/images/vote.txt"):
+            # loop until vote is successfully saved
+            while open("neurons/validator/images/vote.txt", "r").read() == "":
+                time.sleep(0.05)
+                continue
+
+            try:
+                reward_i = (
+                    int(open("neurons/validator/images/vote.txt", "r").read()) - 1
+                )
+            except Exception as e:
+                logger.error(f"An unexpected error occurred parsing the vote: {e}")
+                break
+
+            if reward_i >= len(rewards):
+                logger.info(
+                    f"Received invalid vote for Image {reward_i+1}: it doesn't exist."
+                )
+                break
+
+            logger.info(f"Received manual vote for Image {reward_i+1}")
+
+            received_vote = True
+
+            reward_i_normalized: torch.FloatTensor = torch.zeros(
+                len(rewards), dtype=torch.float32
+            ).to(device)
+            reward_i_normalized[reward_i] = 1.0
+            rewards += reward_weights[-1] * reward_i_normalized.to(device)
+            if not disable_log_rewards:
+                event["human_reward_model"] = reward_i_normalized.tolist()
+                event["human_reward_model_normalized"] = reward_i_normalized.tolist()
+
+            break
+
+    if not received_vote:
+        delta = 1 - reward_weights[-1]
+        if delta != 0:
+            rewards /= delta
+        else:
+            logger.warning("The reward weight difference was 0 which is unexpected.")
+        logger.info("No valid vote was received")
+
+    return rewards, event
+
+
 def get_automated_rewards(self, responses, uids, task_type):
     event = {"task_type": task_type}
 
@@ -49,18 +158,15 @@ def get_automated_rewards(self, responses, uids, task_type):
         self.device
     )
 
-    for weight_i, reward_fn_i in zip(self.reward_weights, self.reward_functions):
-        reward_i, reward_i_normalized = reward_fn_i.apply(responses, rewards)
-        rewards += weight_i * reward_i_normalized.to(self.device)
-        event[reward_fn_i.name] = reward_i.tolist()
-        event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
-        logger.info(f"{reward_fn_i.name}, {reward_i_normalized.tolist()}")
-    for masking_fn_i in self.masking_functions:
-        mask_i, mask_i_normalized = masking_fn_i.apply(responses, rewards)
-        rewards *= mask_i_normalized.to(self.device)
-        event[masking_fn_i.name] = mask_i.tolist()
-        event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
-        logger.info(f"{masking_fn_i.name} {mask_i_normalized.tolist()}")
+    rewards, reward_event = apply_reward_functions(
+        self.reward_weights, self.reward_functions, responses, rewards, self.device
+    )
+    event.update(reward_event)
+
+    rewards, masking_event = apply_masking_functions(
+        self.masking_functions, responses, rewards, self.device
+    )
+    event.update(masking_event)
 
     if not self.config.alchemy.disable_manual_validator:
         logger.info(
@@ -68,81 +174,33 @@ def get_automated_rewards(self, responses, uids, task_type):
         )
         start_time = time.perf_counter()
 
-        received_vote = False
-
-        while (time.perf_counter() - start_time) < self.manual_validator_timeout:
-            time.sleep(1)
-            # If manual vote received
-            if os.path.exists("neurons/validator/images/vote.txt"):
-                # loop until vote is successfully saved
-                while open("neurons/validator/images/vote.txt", "r").read() == "":
-                    time.sleep(0.05)
-                    continue
-
-                try:
-                    reward_i = (
-                        int(open("neurons/validator/images/vote.txt", "r").read()) - 1
-                    )
-                except Exception as e:
-                    logger.error(f"An unexpected error occurred parsing the vote: {e}")
-                    break
-
-                ### There is a small possibility that not every miner queried will respond.
-                ### If 12 are queried, but only 10 respond, we need to handle the error if
-                ### the user selects the 11th or 12th image (which don't exist)
-                if reward_i >= len(rewards):
-                    logger.info(
-                        f"Received invalid vote for Image {reward_i+1}: it doesn't exist."
-                    )
-                    break
-
-                logger.info(f"Received manual vote for Image {reward_i+1}")
-
-                ### Set to true so we don't normalize the rewards later
-                received_vote = True
-
-                reward_i_normalized: torch.FloatTensor = torch.zeros(
-                    len(rewards), dtype=torch.float32
-                ).to(self.device)
-                reward_i_normalized[reward_i] = 1.0
-                rewards += self.reward_weights[-1] * reward_i_normalized.to(self.device)
-                if not self.config.alchemy.disable_log_rewards:
-                    event["human_reward_model"] = reward_i_normalized.tolist()
-                    event["human_reward_model_normalized"] = (
-                        reward_i_normalized.tolist()
-                    )
-
-                break
-
-        if not received_vote:
-            delta = 1 - self.reward_weights[-1]
-            if delta != 0:
-                rewards /= delta
-            else:
-                logger.warning(
-                    "The reward weight difference was 0 which is unexpected."
-                )
-            logger.info("No valid vote was received")
+        rewards, manual_event = process_manual_vote(
+            rewards,
+            self.reward_weights,
+            self.config.alchemy.disable_log_rewards,
+            start_time,
+            self.manual_validator_timeout,
+            self.device,
+        )
+        event.update(manual_event)
 
         # Delete contents of images folder except for black image
         if os.path.exists("neurons/validator/images"):
             for file in os.listdir("neurons/validator/images"):
-                (
-                    os.remove(f"neurons/validator/images/{file}")
-                    if file != "black.png"
-                    else "_"
-                )
+                os.remove(
+                    f"neurons/validator/images/{file}"
+                ) if file != "black.png" else "_"
 
-    scattered_rewards: torch.FloatTensor = self.moving_averaged_scores.scatter(
+    scattered_rewards: torch.FloatTensor = self.moving_average_scores.scatter(
         0, uids, rewards
     ).to(self.device)
 
     return scattered_rewards, event, rewards
 
 
-def get_human_rewards(self, rewards):
+def get_human_rewards(self, rewards, mock=False, mock_winner=None, mock_loser=None):
     _, human_voting_scores_normalised = self.human_voting_reward_model.get_rewards(
-        self.hotkeys
+        self.hotkeys, mock, mock_winner, mock_loser
     )
     scattered_rewards_adjusted = rewards + (
         self.human_voting_weight * human_voting_scores_normalised
@@ -150,9 +208,47 @@ def get_human_rewards(self, rewards):
     return scattered_rewards_adjusted
 
 
-def filter_rewards(self, rewards):
-    for uid, count in self.isalive_dict.items():
-        if count >= self.isalive_threshold:
+def get_human_voting_scores(
+    human_voting_reward_model,
+    hotkeys: str,
+    mock: bool,
+    mock_winner: str = None,
+    mock_loser: str = None,
+) -> torch.Tensor:
+    _, human_voting_scores_normalised = human_voting_reward_model.get_rewards(
+        hotkeys, mock, mock_winner, mock_loser
+    )
+    return human_voting_scores_normalised
+
+
+def apply_human_voting_weight(
+    rewards: torch.Tensor, human_voting_scores: torch.Tensor, human_voting_weight: float
+) -> torch.Tensor:
+    scattered_rewards_adjusted = rewards + (human_voting_weight * human_voting_scores)
+    return scattered_rewards_adjusted
+
+
+def get_human_rewards(
+    self,
+    rewards: torch.Tensor,
+    mock: bool = False,
+    mock_winner: str = None,
+    mock_loser: str = None,
+) -> torch.Tensor:
+    human_voting_scores = get_human_voting_scores(
+        self.human_voting_reward_model, self.hotkeys, mock, mock_winner, mock_loser
+    )
+    scattered_rewards_adjusted = apply_human_voting_weight(
+        rewards, human_voting_scores, self.human_voting_weight
+    )
+    return scattered_rewards_adjusted
+
+
+def filter_rewards(
+    isalive_dict: Dict[int, int], isalive_threshold: int, rewards: torch.Tensor
+) -> torch.Tensor:
+    for uid, count in isalive_dict.items():
+        if count >= isalive_threshold:
             rewards[uid] = 0
 
     return rewards
@@ -250,7 +346,8 @@ class DefaultRewardFrameworkConfig:
 class BaseRewardModel:
     @property
     @abstractmethod
-    def name(self) -> str: ...
+    def name(self) -> str:
+        ...
 
     def __str__(self) -> str:
         return str(self.name)
@@ -259,7 +356,8 @@ class BaseRewardModel:
         return str(self.name)
 
     @abstractmethod
-    def get_rewards(self, responses: List, rewards) -> torch.FloatTensor: ...
+    def get_rewards(self, responses: List, rewards) -> torch.FloatTensor:
+        ...
 
     def __init__(self) -> None:
         self.count = 0
@@ -398,7 +496,6 @@ class BlacklistFilter(BaseRewardModel):
                 and (image.shape[2] == response.width)
             ):
                 return 0.0
-
         return 1.0
 
     def get_rewards(self, responses, rewards) -> torch.FloatTensor:
@@ -421,7 +518,7 @@ class NSFWRewardModel(BaseRewardModel):
 
     def __init__(self):
         super().__init__()
-        self.device = "cuda"
+        self.device = validator_config.get_default_device()
         self.safetychecker = StableDiffusionSafetyChecker.from_pretrained(
             "CompVis/stable-diffusion-safety-checker"
         ).to(self.device)
@@ -476,56 +573,81 @@ class HumanValidationRewardModel(BaseRewardModel):
 
     def __init__(self, metagraph, api_url):
         super().__init__()
-        self.device = "cuda"
+        self.device = validator_config.get_default_device()
         self.human_voting_scores = torch.zeros((metagraph.n)).to(self.device)
         self.api_url = api_url
 
-    def get_rewards(self, hotkeys) -> torch.FloatTensor:
+    def get_votes(self, api_url: str, timeout: int = 2):
+        human_voting_scores = requests.get(f"{api_url}/votes", timeout=timeout)
+        return human_voting_scores
+
+    def get_rewards(
+        self, hotkeys, mock=False, mock_winner=None, mock_loser=None
+    ) -> torch.FloatTensor:
         max_retries = 3
         backoff = 2
 
         logger.info("Extracting human votes")
 
-        human_voting_scores = None
-        human_voting_scores_dict = {}
+        if not mock:
+            human_voting_scores = None
+            human_voting_scores_dict = {}
 
-        for attempt in range(0, max_retries):
-            try:
-                human_voting_scores = requests.get(f"{self.api_url}/votes", timeout=2)
+            for attempt in range(0, max_retries):
+                try:
+                    human_voting_scores = self.get_votes(self.api_url)
+                    if (human_voting_scores.status_code != 200) and (
+                        attempt == max_retries
+                    ):
+                        logger.warning(
+                            f"Failed to retrieve the human validation votes {attempt+1} times. Skipping until the next step."
+                        )
 
-                if (human_voting_scores.status_code != 200) and (
-                    attempt == max_retries
-                ):
-                    logger.warning(
-                        f"Failed to retrieve the human validation votes {attempt+1} times. Skipping until the next step."
+                        if (human_voting_scores.status_code != 200) and (
+                            attempt == max_retries
+                        ):
+                            logger.warning(
+                                f"Failed to retrieve the human validation votes {attempt+1} times. Skipping until the next step."
+                            )
+                            human_voting_scores = None
+                            break
+
+                        elif (human_voting_scores.status_code != 200) and (
+                            attempt != max_retries
+                        ):
+                            continue
+
+                        else:
+                            human_voting_round_scores = human_voting_scores.json()
+
+                            for inner_dict in human_voting_round_scores.values():
+                                for key, value in inner_dict.items():
+                                    if key in human_voting_scores_dict:
+                                        human_voting_scores_dict[key] += value
+                                    else:
+                                        human_voting_scores_dict[key] = value
+
+                            break
+
+                except Exception as e:
+                    logger.error(
+                        f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds."
                     )
+                    sentry_sdk.capture_exception(e)
+                    time.sleep(backoff)
                     human_voting_scores = None
                     break
 
-                elif (human_voting_scores.status_code != 200) and (
-                    attempt != max_retries
-                ):
-                    continue
-
-                else:
-                    human_voting_round_scores = human_voting_scores.json()
-
-                    for inner_dict in human_voting_round_scores.values():
-                        for key, value in inner_dict.items():
-                            if key in human_voting_scores_dict:
-                                human_voting_scores_dict[key] += value
-                            else:
-                                human_voting_scores_dict[key] = value
-
-                    break
-
-            except Exception as e:
-                logger.error(
-                    f"Encountered the following error retrieving the manual validator scores: {e}. Retrying in {backoff} seconds."
-                )
-                time.sleep(backoff)
-                human_voting_scores = None
-                break
+        else:
+            human_voting_scores_dict = {hotkey: 50 for hotkey in hotkeys}
+            if (mock_winner is not None) and (
+                mock_winner in human_voting_scores_dict.keys()
+            ):
+                human_voting_scores_dict[mock_winner] = 100
+            if (mock_loser is not None) and (
+                mock_loser in human_voting_scores_dict.keys()
+            ):
+                human_voting_scores_dict[mock_loser] = 1
 
         if human_voting_scores_dict != {}:
             for index, hotkey in enumerate(hotkeys):
@@ -549,7 +671,7 @@ class ImageRewardModel(BaseRewardModel):
 
     def __init__(self):
         super().__init__()
-        self.device = "cuda"
+        self.device = validator_config.get_default_device()
         self.scoring_model = RM.load("ImageReward-v1.0", device=self.device)
 
     def reward(self, response) -> float:
@@ -602,7 +724,7 @@ class DiversityRewardModel(BaseRewardModel):
             ]
         )
         # TODO take device argument in
-        self.device = "cuda"
+        self.device = validator_config.get_default_device()
 
     def extract_embeddings(self, model: torch.nn.Module):
         """Utility to compute embeddings."""
@@ -665,3 +787,267 @@ class DiversityRewardModel(BaseRewardModel):
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards / rewards.sum()
+
+
+class ModelDiversityRewardModel(BaseRewardModel):
+    @property
+    def name(self) -> str:
+        return RewardModelType.model_diversity.value
+
+    def get_config(self) -> bt.config:
+        argp = argparse.ArgumentParser(description="Miner Configs")
+
+        #### Add any args from the parent class
+        argp.add_argument("--netuid", type=int, default=1)
+        argp.add_argument("--wandb.project", type=str, default="")
+        argp.add_argument("--wandb.entity", type=str, default="")
+        argp.add_argument("--wandb.api_key", type=str, default="")
+        argp.add_argument("--miner.optimize", action="store_true")
+        argp.add_argument(
+            "--miner.device", type=str, default=validator_config.get_default_device()
+        )
+
+        seed = random.randint(0, 100_000_000_000)
+        argp.add_argument("--miner.seed", type=int, default=seed)
+
+        argp.add_argument(
+            "--miner.model",
+            type=str,
+            default="stabilityai/stable-diffusion-xl-base-1.0",
+        )
+
+        bt.subtensor.add_args(argp)
+        bt.logging.add_args(argp)
+        bt.wallet.add_args(argp)
+        bt.axon.add_args(argp)
+
+        config = bt.config(argp)
+
+        return config
+
+    def __init__(self):
+        super().__init__()
+        self.model_ckpt = "nateraw/vit-base-beans"
+        self.extractor = AutoFeatureExtractor.from_pretrained(self.model_ckpt)
+        self.processor = AutoImageProcessor.from_pretrained(self.model_ckpt)
+        self.model = AutoModel.from_pretrained(self.model_ckpt)
+        self.hidden_dim = self.model.config.hidden_size
+        self.transformation_chain = T.Compose(
+            [
+                # We first resize the input image to 256x256 and then we take center crop.
+                T.Resize(int((256 / 224) * self.extractor.size["height"])),
+                T.CenterCrop(self.extractor.size["height"]),
+                T.ToTensor(),
+                T.Normalize(
+                    mean=self.extractor.image_mean, std=self.extractor.image_std
+                ),
+            ]
+        )
+        ### Set up transform functionc
+        self.transform = transforms.Compose([transforms.PILToTensor()])
+        self.device = validator_config.get_default_device()
+        self.threshold = 0.95
+        self.config = self.get_config()
+        self.stats = get_defaults(self)
+
+        #### Load Defaut Arguments
+        self.t2i_args, self.i2i_args = self.get_args()
+
+        #### Load the model
+        self.load_models()
+
+        #### Optimize model
+        self.optimize_models()
+
+    def get_args(self) -> Dict:
+        return {
+            "guidance_scale": 7.5,
+            "num_inference_steps": 50,
+        }, {"guidance_scale": 5, "strength": 0.6}
+
+    def load_models(self):
+        ### Load the text-to-image model
+        self.t2i_model = AutoPipelineForText2Image.from_pretrained(
+            self.config.miner.model,
+            torch_dtype=torch.float16,
+            use_safetensors=True,
+            variant="fp16",
+        ).to(self.config.miner.device)
+        self.t2i_model.set_progress_bar_config(disable=True)
+        self.t2i_model.scheduler = DPMSolverMultistepScheduler.from_config(
+            self.t2i_model.scheduler.config
+        )
+
+        ### Load the image to image model using the same pipeline (efficient)
+        self.i2i_model = AutoPipelineForImage2Image.from_pipe(self.t2i_model).to(
+            self.config.miner.device,
+        )
+        self.i2i_model.set_progress_bar_config(disable=True)
+        self.i2i_model.scheduler = DPMSolverMultistepScheduler.from_config(
+            self.i2i_model.scheduler.config
+        )
+
+        self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
+            "CompVis/stable-diffusion-safety-checker"
+        ).to(self.config.miner.device)
+        self.processor = CLIPImageProcessor()
+
+        ### Set up mapping for the different synapse types
+        self.mapping = {
+            "text_to_image": {"args": self.t2i_args, "model": self.t2i_model},
+            "image_to_image": {"args": self.i2i_args, "model": self.i2i_model},
+        }
+
+    def optimize_models(self):
+        if self.config.miner.optimize:
+            self.t2i_model.unet = torch.compile(
+                self.t2i_model.unet, mode="reduce-overhead", fullgraph=True
+            )
+
+            #### Warm up model
+            colored_log(
+                ">>> Warming up model with compile... this takes roughly two minutes...",
+                color="yellow",
+            )
+            warm_up(self.t2i_model, self.t2i_args)
+
+    def extract_embeddings(self, model: torch.nn.Module):
+        """Utility to compute embeddings."""
+        device = model.device
+
+        def pp(batch):
+            images = batch["image"]
+            # `transformation_chain` is a compostion of preprocessing
+            # transformations we apply to the input images to prepare them
+            # for the model. For more details, check out the accompanying Colab Notebook.
+            image_batch_transformed = torch.stack(
+                [self.transformation_chain(image) for image in images]
+            )
+            new_batch = {"pixel_values": image_batch_transformed.to(device)}
+            with torch.no_grad():
+                embeddings = model(**new_batch).last_hidden_state[:, 0].cpu()
+            return {"embeddings": embeddings}
+
+        return pp
+
+    def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
+        """
+        Image generation logic shared between both text-to-image and image-to-image
+        """
+
+        ### Misc
+        timeout = synapse.timeout
+        self.stats.total_requests += 1
+        start_time = time.perf_counter()
+
+        ### Set up args
+        local_args = copy.deepcopy(self.mapping[synapse.generation_type]["args"])
+        local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
+        local_args["width"] = synapse.width
+        local_args["height"] = synapse.height
+        local_args["num_images_per_prompt"] = synapse.num_images_per_prompt
+        try:
+            local_args["guidance_scale"] = synapse.guidance_scale
+
+            if synapse.negative_prompt:
+                local_args["negative_prompt"] = [synapse.negative_prompt]
+        except:
+            logger.error(
+                "Values for guidance_scale or negative_prompt were not provided."
+            )
+
+        try:
+            local_args["num_inference_steps"] = synapse.steps
+        except:
+            logger.error("Values for steps were not provided.")
+
+        ### Get the model
+        model = self.mapping[synapse.generation_type]["model"]
+
+        if synapse.generation_type == "image_to_image":
+            local_args["image"] = T.transforms.ToPILImage()(
+                bt.Tensor.deserialize(synapse.prompt_image)
+            )
+
+        ### Generate images & serialize
+        for attempt in range(3):
+            try:
+                seed = synapse.seed if synapse.seed != -1 else self.config.miner.seed
+                local_args["generator"] = [
+                    torch.Generator(device=self.config.miner.device).manual_seed(seed)
+                ]
+                images = model(**local_args).images
+
+                synapse.images = [
+                    bt.Tensor.serialize(self.transform(image)) for image in images
+                ]
+                colored_log(
+                    f"{sh('Generating')} -> Succesful image generation after {attempt+1} attempt(s).",
+                    color="cyan",
+                )
+                break
+            except Exception as e:
+                logger.error(
+                    f"Error in attempt number {attempt+1} to generate an image: {e}... sleeping for 5 seconds..."
+                )
+                time.sleep(5)
+                if attempt == 2:
+                    images = []
+                    synapse.images = []
+                    logger.error(
+                        f"Failed to generate any images after {attempt+1} attempts."
+                    )
+                    sentry_sdk.capture_exception(e)
+
+        ### Count timeouts
+        if time.perf_counter() - start_time > timeout:
+            self.stats.timeouts += 1
+
+        ### Log NSFW images
+        if any(nsfw_image_filter(self, images)):
+            logger.error(f"An image was flagged as NSFW: discarding image.")
+            self.stats.nsfw_count += 1
+            synapse.images = []
+
+        #### Log time to generate image
+        generation_time = time.perf_counter() - start_time
+        self.stats.generation_time += generation_time
+        return synapse
+
+    def get_rewards(self, responses, rewards, synapse) -> torch.FloatTensor:
+        extract_fn = self.extract_embeddings(self.model.to(self.device))
+
+        images = [
+            T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0]))
+            if response.images != []
+            else []
+            for response, reward in zip(responses, rewards)
+        ]
+
+        validator_synapse = self.generate_image(synapse)
+        validator_embeddings = extract_fn(
+            {
+                "image": [
+                    T.transforms.ToPILImage()(
+                        bt.Tensor.deserialize(validator_synapse.images[0])
+                    )
+                ]
+            }
+        )
+
+        scores = []
+        exact_scores = []
+        for i, image in enumerate(images):
+            if image == []:
+                scores.append(0)
+            else:
+                image_embeddings = extract_fn({"image": [image]})
+                cosine_similarity = F.cosine_similarity(
+                    validator_embeddings["embeddings"], image_embeddings["embeddings"]
+                )
+                scores.append(float(cosine_similarity.item() > self.threshold))
+                exact_scores.append(cosine_similarity.item())
+        return torch.tensor(scores)
+
+    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
+        return rewards

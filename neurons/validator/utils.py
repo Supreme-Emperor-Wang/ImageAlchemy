@@ -9,14 +9,13 @@ from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List, Tuple
 
-from loguru import logger
-
 import neurons.validator as validator
 import numpy as np
 import pandas as pd
 import requests
 import torch
 import torch.nn as nn
+from loguru import logger
 from neurons.constants import N_NEURONS_TO_QUERY, VPERMIT_TAO, WANDB_VALIDATOR_PATH
 from neurons.protocol import IsAlive
 
@@ -362,7 +361,9 @@ def call_corcel(self, prompt):
         )
         response = response.json()[0]["choices"][0]["delta"]["content"]
     except requests.exceptions.ReadTimeout as e:
-        logger.info(f"Corcel request timed out after 15 seconds... falling back to OpenAI...")
+        logger.info(
+            f"Corcel request timed out after 15 seconds... falling back to OpenAI..."
+        )
 
     if response:
         logger.info(f"Prompt generated with Corcel: {response}")
@@ -489,10 +490,7 @@ def init_wandb(self, reinit=False):
         dir=WANDB_VALIDATOR_PATH,
         tags=tags,
     )
-    logger.success(
-        prefix="Started a new wandb run",
-        sufix=f"<blue> {self.wandb.name} </blue>",
-    )
+    logger.success(f"Started a new wandb run called {self.wandb.name}.")
 
 
 def reinit_wandb(self):
@@ -542,3 +540,22 @@ def get_promptdb_backup(netuid, prompt_history=[], limit=1):
                         prompt_history.append(prompt_tuple)
 
     return prompt_history
+
+
+def get_device_name(device: torch.device):
+    """Returns name of GPU model"""
+    try:
+        if device.type == "cuda":
+            # Fetch the device index and then get the device name
+            device_name = torch.cuda.get_device_name(
+                device.index
+                if device.index is not None
+                else torch.cuda.current_device()
+            )
+            return device_name
+        else:
+            # Return 'CPU' as it does not have a specific name like GPUs do
+            return "CPU"
+    except Exception as e:
+        logger.error(f"failed to get device name: {e}")
+        return "n/a"

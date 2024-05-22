@@ -4,15 +4,16 @@ import os
 import subprocess
 import sys
 import time
+import traceback
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Timer
 
 import requests
+import sentry_sdk
 import torch
 from google.cloud import storage
 from loguru import logger
-
 from neurons.constants import (
     DEV_URL,
     IA_BUCKET_NAME,
@@ -24,6 +25,7 @@ from neurons.constants import (
     IA_VALIDATOR_SETTINGS_FILE,
     IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
+    N_NEURONS,
     PROD_URL,
     VALIDATOR_DEFAULT_QUERY_TIMEOUT,
     VALIDATOR_DEFAULT_REQUEST_FREQUENCY,
@@ -61,6 +63,7 @@ COLORS = {
 def colored_log(message: str, color: str = "white", level: str = "INFO") -> None:
     logger.opt(colors=True).log(level, f"<bold><{color}>{message}</{color}></bold>")
 
+
 def sh(message: str):
     return f"{message: <12}"
 
@@ -95,6 +98,16 @@ def get_coldkey_for_hotkey(self, hotkey):
         index = self.metagraph.hotkeys.index(hotkey)
         return self.metagraph.coldkeys[index]
     return None
+
+
+def post_batch(api_url: str, batch: dict):
+    response = requests.post(
+        f"{api_url}/batch",
+        data=json.dumps(batch),
+        headers={"Content-Type": "application/json"},
+        timeout=30,
+    )
+    return response
 
 
 def background_loop(self, is_validator):
@@ -141,14 +154,11 @@ def background_loop(self, is_validator):
             for batch in self.batches:
                 for attempt in range(0, max_retries):
                     try:
-                        response = requests.post(
-                            f"{self.api_url}/batch",
-                            data=json.dumps(batch),
-                            headers={"Content-Type": "application/json"},
-                            timeout=30,
-                        )
+                        response = post_batch(self.api_url, batch)
                         if response.status_code == 200:
-                            logger.info(f"Successfully posted batch {batch['batch_id']}")
+                            logger.info(
+                                f"Successfully posted batch {batch['batch_id']}"
+                            )
                             batches_for_deletion.append(batch)
                             break
                         else:
@@ -167,13 +177,13 @@ def background_loop(self, is_validator):
                             )
                     except Exception as e:
                         if attempt != max_retries:
-                            logger.info(
+                            logger.error(
                                 f"Attempt number {attempt+1} failed to send batch {batch['batch_id']}. Retrying in {backoff} seconds. Error: {e}"
                             )
                             time.sleep(backoff)
                             continue
                         else:
-                            logger.info(
+                            logger.error(
                                 f"Attempted to post batch {batch['batch_id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch. Error: {e}"
                             )
                             break
@@ -189,7 +199,10 @@ def background_loop(self, is_validator):
                 self.batches.remove(batch)
 
     except Exception as e:
-        logger.info(f"An error occurred trying to submit a batch: {e}")
+        logger.info(
+            f"An error occurred trying to submit a batch: {e}\n{traceback.format_exc()}"
+        )
+        sentry_sdk.capture_exception(e)
 
     #### Update the whitelists and blacklists
     if self.background_steps % 5 == 0:
@@ -275,11 +288,17 @@ def background_loop(self, is_validator):
                 validator_weights = retrieve_public_file(
                     self.storage_client, bucket_name, IA_VALIDATOR_WEIGHT_FILES
                 )
+
                 if (
                     "manual_reward_model" in validator_weights
                     and self.config.alchemy.disable_manual_validator
                 ):
                     validator_weights["manual_reward_model"] = 0.0
+
+                if "human_reward_model" in validator_weights:
+                    self.human_voting_weight = validator_weights[
+                        "human_reward_model"
+                    ] / ((256 / N_NEURONS) * 1.5)
 
                 if validator_weights:
                     weights_to_add = []
@@ -341,7 +360,9 @@ def background_loop(self, is_validator):
                     )
 
         except Exception as e:
-            logger.info(f"An error occurred trying to update settings from the cloud: {e}.")
+            logger.info(
+                f"An error occurred trying to update settings from the cloud: {e}."
+            )
 
     #### Clean up the wandb runs and cache folders
     if self.background_steps == 1 or self.background_steps % 180 == 0:
@@ -369,7 +390,9 @@ def background_loop(self, is_validator):
             else:
                 logger.warning(f"The path {wandb_path} doesn't exist yet.")
         except Exception as e:
-            logger.error(f"An error occurred trying to clean wandb artifacts and runs: {e}.")
+            logger.error(
+                f"An error occurred trying to clean wandb artifacts and runs: {e}."
+            )
 
     #### Attempt to init wandb if it wasn't sucessfully originally
     if (self.background_steps % 5 == 0) and is_validator and not self.wandb_loaded:
@@ -379,7 +402,8 @@ def background_loop(self, is_validator):
             self.wandb_loaded = True
         except Exception as e:
             self.wandb_loaded = False
-            logger.error("Unable to load wandb. Retrying in 5 minutes.")
+            logger.error(f"Unable to load wandb. Retrying in 5 minutes.")
+            logger.error(f"wandb loading error: {traceback.format_exc()}")
 
     self.background_steps += 1
 

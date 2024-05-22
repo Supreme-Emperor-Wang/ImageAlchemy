@@ -6,20 +6,11 @@ import time
 import traceback
 from time import sleep
 
-import bittensor as bt
+import sentry_sdk
 import torch
-import wandb
 from loguru import logger
-from openai import OpenAI
-from passwordgenerator import pwgenerator
-
 from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
-from neurons.utils import (
-    BackgroundTimer,
-    background_loop,
-    get_defaults,
-    colored_log,
-)
+from neurons.utils import BackgroundTimer, background_loop, colored_log, get_defaults
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
 from neurons.validator.reward import (
@@ -30,17 +21,23 @@ from neurons.validator.reward import (
 )
 from neurons.validator.utils import (
     generate_random_prompt_gpt,
+    get_device_name,
     get_random_uids,
     init_wandb,
     reinit_wandb,
     ttl_get_block,
 )
 from neurons.validator.weights import set_weights
+from openai import OpenAI
+from passwordgenerator import pwgenerator
+
+import bittensor as bt
+import wandb
 
 
 class StableValidator:
     @classmethod
-    def check_config(cls, config: "bt.Config"):
+    def check_config(cls, config: bt.config):
         check_config(cls, config)
 
     @classmethod
@@ -75,6 +72,7 @@ class StableValidator:
         # Init config
         self.config = StableValidator.config()
         self.check_config(self.config)
+
         bt.logging(
             config=self.config,
             logging_dir=self.config.alchemy.full_path,
@@ -117,6 +115,16 @@ class StableValidator:
         self.subtensor = bt.subtensor(config=self.config)
         logger.info(f"Loaded subtensor: {self.subtensor}")
 
+        try:
+            sentry_sdk.set_context(
+                "bittensor", {"network": str(self.subtensor.network)}
+            )
+            sentry_sdk.set_context(
+                "cuda_device", {"name": get_device_name(self.device)}
+            )
+        except:
+            logger.error("failed to set sentry context")
+
         self.api_url = DEV_URL if self.subtensor.network == "test" else PROD_URL
         if self.config.alchemy.force_prod:
             self.api_url = PROD_URL
@@ -137,7 +145,7 @@ class StableValidator:
         self.metagraph.sync(subtensor=self.subtensor)  # Sync metagraph with subtensor.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
-        if not self.config.wallet._mock:
+        if "mock" not in self.config.wallet.name:
             #### Wait until the miner is registered
             self.loop_until_registered()
 
@@ -147,9 +155,9 @@ class StableValidator:
         self.scores = torch.zeros_like(self.metagraph.stake, dtype=torch.float32)
 
         # Init Weights.
-        self.moving_averaged_scores = torch.zeros((self.metagraph.n)).to(self.device)
+        self.moving_average_scores = torch.zeros((self.metagraph.n)).to(self.device)
         # print(
-        #     f"Loaded moving_averaged_scores: {str(self.moving_averaged_scores)}"
+        #     f"Loaded moving_averaged_scores: {str(self.moving_average_scores)}"
         # )
 
         # Each validator gets a unique identity (UID) in the network for differentiation.
@@ -179,12 +187,30 @@ class StableValidator:
                     )
                 logger.info("Setting streamlit credentials")
                 if not os.path.exists("streamlit_credentials.txt"):
-                    username = self.wallet.hotkey.ss58_address
+                    hashkey = pwgenerator.generate()
                     password = pwgenerator.generate()
+                    username = self.wallet.hotkey.ss58_address
                     with open("streamlit_credentials.txt", "w") as f:
-                        f.write(f"username={username}\npassword={password}")
-                    # Sleep until the credentials file is written
-                    sleep(5)
+                        f.write(
+                            f"hashkey={hashkey}\nusername={username}\npassword={password}"
+                        )
+                else:
+                    credentials = open("streamlit_credentials.txt", "r").read()
+                    credentials_split = credentials.split("\n")
+                    if (
+                        ("hashkey" not in credentials_split[0])
+                        or ("username" not in credentials_split[0])
+                        or ("password" not in credentials_split[0])
+                    ):
+                        hashkey = pwgenerator.generate()
+                        password = pwgenerator.generate()
+                        username = self.wallet.hotkey.ss58_address
+                        with open("streamlit_credentials.txt", "w") as f:
+                            f.write(
+                                f"hashkey={hashkey}\nusername={username}\npassword={password}"
+                            )
+                # Sleep until the credentials file is written
+                sleep(5)
                 logger.info("Loading Manual Validator")
                 process = subprocess.Popen(
                     [
@@ -255,6 +281,7 @@ class StableValidator:
         except Exception as e:
             self.wandb_loaded = False
             logger.error("Unable to load wandb. Retrying in 5 minnutes.")
+            logger.error(f"wandb loading error: {traceback.format_exc()}")
 
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
@@ -369,8 +396,9 @@ class StableValidator:
                         self.wandb_loaded = False
 
             # If we encounter an unexpected error, log it for debugging.
-            except Exception as err:
-                logger.error(f"Error in training loop: {err}\n{traceback.format_exc()}")
+            except Exception as e:
+                logger.error(f"Error in training loop: {e}\n{traceback.format_exc()}")
+                sentry_sdk.capture_exception(e)
 
             # If the user interrupts the program, gracefully exit.
             except KeyboardInterrupt:
@@ -471,7 +499,7 @@ class StableValidator:
 
     def should_set_weights(self) -> bool:
         # Check if all moving_averages_socres are the 0s or 1s
-        ma_scores = self.moving_averaged_scores
+        ma_scores = self.moving_average_scores
         ma_scores_sum = sum(ma_scores)
         if any([ma_scores_sum == len(ma_scores), ma_scores_sum == 0]):
             return False
@@ -484,7 +512,7 @@ class StableValidator:
         logger.info("save_state()")
         try:
             neuron_state_dict = {
-                "neuron_weights": self.moving_averaged_scores.to("cpu").tolist(),
+                "neuron_weights": self.moving_average_scores.to("cpu").tolist(),
             }
             torch.save(
                 neuron_state_dict, f"{self.config.alchemy.full_path}/model.torch"
@@ -494,7 +522,7 @@ class StableValidator:
                 color="blue",
             )
         except Exception as e:
-            logger.info(f"Failed to save model with error: {e}")
+            logger.error(f"Failed to save model with error: {e}")
 
         # empty cache
         torch.cuda.empty_cache()
@@ -521,23 +549,23 @@ class StableValidator:
                     f"Neuron weights shape {neuron_weights.shape} does not match metagraph n {self.metagraph.n}"
                     "Populating new moving_averaged_scores IDs with zeros"
                 )
-                self.moving_averaged_scores[: len(neuron_weights)] = neuron_weights.to(
+                self.moving_average_scores[: len(neuron_weights)] = neuron_weights.to(
                     self.device
                 )
                 # self.update_hotkeys()
 
             # Check for nans in saved state dict
             elif not any([has_nans, has_infs]):
-                self.moving_averaged_scores = neuron_weights.to(self.device)
-                logger.info(f"MA scores: {self.moving_averaged_scores}")
+                self.moving_average_scores = neuron_weights.to(self.device)
+                logger.info(f"MA scores: {self.moving_average_scores}")
                 # self.update_hotkeys()
             else:
                 logger.info("Loaded MA scores from scratch.")
 
             # Zero out any negative scores
-            for i, average in enumerate(self.moving_averaged_scores):
+            for i, average in enumerate(self.moving_average_scores):
                 if average < 0:
-                    self.moving_averaged_scores[i] = 0
+                    self.moving_average_scores[i] = 0
 
             colored_log(
                 f"Reloaded model {self.config.alchemy.full_path}/model.torch",

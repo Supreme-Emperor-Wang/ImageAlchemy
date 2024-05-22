@@ -137,7 +137,7 @@ class BaseMiner(ABC):
             "num_inference_steps": 50,
         }, {"guidance_scale": 5, "strength": 0.6}
 
-    def get_config(self) -> "bt.config":
+    def get_config(self) -> bt.config:
         argp = argparse.ArgumentParser(description="Miner Configs")
 
         #### Add any args from the parent class
