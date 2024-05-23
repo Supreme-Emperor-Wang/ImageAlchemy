@@ -12,10 +12,11 @@ from threading import Timer
 import requests
 import sentry_sdk
 import torch
+from pydantic import BaseModel
+
 from google.cloud import storage
 from loguru import logger
 from neurons.constants import (
-    DEV_URL,
     IA_BUCKET_NAME,
     IA_MINER_BLACKLIST,
     IA_MINER_WARNINGLIST,
@@ -26,17 +27,12 @@ from neurons.constants import (
     IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
     N_NEURONS,
-    PROD_URL,
-    VALIDATOR_DEFAULT_QUERY_TIMEOUT,
-    VALIDATOR_DEFAULT_REQUEST_FREQUENCY,
     WANDB_MINER_PATH,
     WANDB_VALIDATOR_PATH,
     MINIMUM_COMPUTES_FOR_SUBMIT,
 )
 from neurons.validator.utils import init_wandb
 from typing import Dict, Any, List
-
-import bittensor as bt
 
 
 @dataclass
@@ -112,12 +108,35 @@ def post_batch(api_url: str, batch: dict):
     return response
 
 
+class BatchSubmissionRequest(BaseModel):
+    batch_id: str
+    #
+    # Results
+    prompt: str
+    computes: List[str]
+
+    #
+    # Filtering
+    nsfw_scores: List[float]
+    blacklist_scores: List[int] = []
+    should_drop_entries: List[int] = []
+
+    #
+    # Miner
+    miner_hotkeys: List[str]
+    miner_coldkeys: List[str]
+
+    #
+    # Validator
+    validator_hotkey: str
+
+
 def filter_batch_before_submission(batch: Dict[str, Any]) -> Dict[str, Any]:
     to_return: Dict[str, Any] = {
         "batch_id": batch["batch_id"],
         "prompt": batch["prompt"],
         # Compute specific stuff
-        "compute": [],
+        "computes": [],
         "miner_hotkeys": [],
         "miner_coldkeys": [],
         "validator_hotkey": [],
@@ -142,7 +161,7 @@ def filter_batch_before_submission(batch: Dict[str, Any]) -> Dict[str, Any]:
             logger.info("Dropped one NSFW image")
             continue
 
-        to_return["compute"].append(compute)
+        to_return["computes"].append(compute)
         to_return["miner_hotkeys"].append(batch["miner_hotkeys"][idx])
         to_return["miner_coldkeys"].append(batch["miner_coldkeys"][idx])
         to_return["validator_hotkey"].append(batch["validator_hotkey"][idx])
@@ -153,7 +172,7 @@ def filter_batch_before_submission(batch: Dict[str, Any]) -> Dict[str, Any]:
     if len(to_return["compute"]) < MINIMUM_COMPUTES_FOR_SUBMIT:
         raise Exception
 
-    return to_return
+    return BatchSubmissionRequest(**to_return).dump()
 
 
 def background_loop(self, is_validator):
