@@ -8,12 +8,11 @@ import traceback
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Timer
+from typing import Any, Dict, List
 
 import requests
 import sentry_sdk
 import torch
-from pydantic import BaseModel
-
 from google.cloud import storage
 from loguru import logger
 from neurons.constants import (
@@ -26,13 +25,13 @@ from neurons.constants import (
     IA_VALIDATOR_SETTINGS_FILE,
     IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
+    MINIMUM_COMPUTES_FOR_SUBMIT,
     N_NEURONS,
     WANDB_MINER_PATH,
     WANDB_VALIDATOR_PATH,
-    MINIMUM_COMPUTES_FOR_SUBMIT,
 )
 from neurons.validator.utils import init_wandb
-from typing import Dict, Any, List
+from pydantic import BaseModel
 
 
 @dataclass
@@ -142,7 +141,7 @@ def filter_batch_before_submission(batch: Dict[str, Any]) -> Dict[str, Any]:
         "computes": [],
         "miner_hotkeys": [],
         "miner_coldkeys": [],
-        "validator_hotkey": [],
+        "validator_hotkey": batch["validator_hotkey"],
         "nsfw_scores": [],
         "blacklist_scores": [],
         "should_drop_entries": [],
@@ -169,13 +168,12 @@ def filter_batch_before_submission(batch: Dict[str, Any]) -> Dict[str, Any]:
         to_return["miner_coldkeys"].append(batch["miner_coldkeys"][idx])
         to_return["nsfw_scores"].append(batch["nsfw_scores"][idx])
         to_return["should_drop_entries"].append(batch["should_drop_entries"][idx])
-        to_return["validator_hotkey"].append(batch["validator_hotkey"][idx])
         to_return["miner_hotkeys"].append(batch["miner_hotkeys"][idx])
 
-    if len(to_return["compute"]) < MINIMUM_COMPUTES_FOR_SUBMIT:
+    if len(to_return["computes"]) < MINIMUM_COMPUTES_FOR_SUBMIT:
         raise Exception
 
-    return BatchSubmissionRequest(**to_return).dump()
+    return dict(BatchSubmissionRequest(**to_return))
 
 
 def background_loop(self, is_validator):
