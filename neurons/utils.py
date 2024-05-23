@@ -45,7 +45,7 @@ class Stats:
     generation_time: int
 
 
-#### Colors to use in the logs
+# Colors to use in the logs
 COLORS = {
     "r": "\033[1;31;40m",
     "g": "\033[1;32;40m",
@@ -57,7 +57,7 @@ COLORS = {
 }
 
 
-#### Utility function for coloring logs
+# Utility function for coloring logs
 def colored_log(message: str, color: str = "white", level: str = "INFO") -> None:
     logger.opt(colors=True).log(level, f"<bold><{color}>{message}</{color}></bold>")
 
@@ -66,7 +66,7 @@ def sh(message: str):
     return f"{message: <12}"
 
 
-### Get default stats
+# Get default stats
 def get_defaults(self):
     now = datetime.now()
     stats = Stats(
@@ -80,7 +80,7 @@ def get_defaults(self):
     return stats
 
 
-#### Background Loop
+# Background Loop
 class BackgroundTimer(Timer):
     def run(self):
         self.function(*self.args, **self.kwargs)
@@ -106,6 +106,9 @@ def post_batch(api_url: str, batch: dict):
         timeout=30,
     )
     return response
+
+
+MINIMUM_VALID_IMAGES_ERROR: str = "MINIMUM_VALID_IMAGES_ERROR"
 
 
 class BatchSubmissionRequest(BaseModel):
@@ -162,12 +165,12 @@ def filter_batch_before_submission(batch: Dict[str, Any]) -> Dict[str, Any]:
             continue
 
         to_return["computes"].append(compute)
-        to_return["miner_hotkeys"].append(batch["miner_hotkeys"][idx])
-        to_return["miner_coldkeys"].append(batch["miner_coldkeys"][idx])
-        to_return["validator_hotkey"].append(batch["validator_hotkey"][idx])
-        to_return["nsfw_scores"].append(batch["nsfw_scores"][idx])
         to_return["blacklist_scores"].append(batch["blacklist_scores"][idx])
+        to_return["miner_coldkeys"].append(batch["miner_coldkeys"][idx])
+        to_return["nsfw_scores"].append(batch["nsfw_scores"][idx])
         to_return["should_drop_entries"].append(batch["should_drop_entries"][idx])
+        to_return["validator_hotkey"].append(batch["validator_hotkey"][idx])
+        to_return["miner_hotkeys"].append(batch["miner_hotkeys"][idx])
 
     if len(to_return["compute"]) < MINIMUM_COMPUTES_FOR_SUBMIT:
         raise Exception
@@ -177,7 +180,8 @@ def filter_batch_before_submission(batch: Dict[str, Any]) -> Dict[str, Any]:
 
 def background_loop(self, is_validator):
     """
-    Handles terminating the miner after deregistration and updating the blacklist and whitelist.
+    Handles terminating the miner after deregistration and
+    updating the blacklist and whitelist.
     """
     neuron_type = "Validator" if is_validator else "Miner"
     whitelist_type = IA_VALIDATOR_WHITELIST if is_validator else IA_MINER_WHITELIST
@@ -188,11 +192,11 @@ def background_loop(self, is_validator):
         IA_TEST_BUCKET_NAME if self.subtensor.network == "test" else IA_BUCKET_NAME
     )
 
-    #### Terminate the miner / validator after deregistration
+    # Terminate the miner / validator after deregistration
     if self.background_steps % 5 == 0 and self.background_steps > 1:
         try:
             self.metagraph.sync(subtensor=self.subtensor)
-            if not self.wallet.hotkey.ss58_address in self.metagraph.hotkeys:
+            if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
                 logger.info(f">>> {neuron_type} has deregistered... terminating.")
                 try:
                     _thread.interrupt_main()
@@ -201,14 +205,14 @@ def background_loop(self, is_validator):
                         f"An error occurred trying to terminate the main thread: {e}."
                     )
                 try:
-                    os._exit(0)
+                    os.exit(0)
                 except Exception as e:
                     logger.info(f"An error occurred trying to use os._exit(): {e}.")
                 sys.exit(0)
         except Exception as e:
             logger.info(f">>> An unexpected error occurred syncing the metagraph: {e}")
 
-    #### Send new batches to the Human Validation Bot
+    # Send new batches to the Human Validation Bot
     try:
         if (self.background_steps % 1 == 0) and is_validator and (self.batches != []):
             logger.info(f"Number of batches in queue: {len(self.batches)}")
@@ -223,64 +227,66 @@ def background_loop(self, is_validator):
                         response = post_batch(self.api_url, filtered_batch)
                         if response.status_code == 200:
                             logger.info(
-                                f"Successfully posted batch {filtered_batch['batch_id']}"
+                                "Successfully posted batch"
+                                + f" {filtered_batch['batch_id']}"
                             )
                             batches_for_deletion.append(batch)
                             break
-                        else:
-                            response_data = response.json()
-                            error = response_data.get("error")
-                            if (
-                                error
-                                and "Submitted compute count must be greater than"
-                                in error
-                            ):
+
+                        response_data = response.json()
+                        if "code" in response_data:
+                            if response_data.code == MINIMUM_VALID_IMAGES_ERROR:
                                 invalid_batches.append(batch)
 
-                            logger.info(f"{response_data=}")
-                            raise Exception(
-                                f"Failed to post batch. Status code: {response.status_code}"
-                            )
+                        logger.info(f"{response_data=}")
+                        raise Exception(
+                            "Failed to post batch. "
+                            + f"Status code: {response.status_code}"
+                        )
                     except Exception as e:
                         backoff *= 2  # Double the backoff for the next attempt
-                        backoff += random.uniform(0, 1)  # Add jitter to backoff
                         if attempt != max_retries:
                             logger.error(
-                                f"Attempt number {attempt+1} failed to send batch {batch['batch_id']}. Retrying in {backoff} seconds. Error: {e}"
+                                f"Attempt number {attempt+1} failed to"
+                                + f" send batch {batch['batch_id']}. "
+                                + f"Retrying in {backoff} seconds. Error: {e}"
                             )
                             time.sleep(backoff)
                             continue
-                        else:
-                            logger.error(
-                                f"Attempted to post batch {batch['batch_id']} {attempt+1} times unsuccessfully. Skipping this batch and moving to the next batch. Error: {e}"
-                            )
-                            break
 
-            ### Delete any invalid batches
+                        logger.error(
+                            f"Attempted to post batch {batch['batch_id']} "
+                            + f"{attempt+1} times unsuccessfully. "
+                            + f"Skipping this batch and moving to the next batch. Error: {e}"
+                        )
+                        break
+
+            # Delete any invalid batches
             for batch in invalid_batches:
                 logger.info(f"Removing invalid batch: {batch['batch_id']}")
                 self.batches.remove(batch)
 
-            ### Delete any successful batches
+            # Delete any successful batches
             for batch in batches_for_deletion:
                 logger.info(f"Removing successful batch: {batch['batch_id']}")
                 self.batches.remove(batch)
 
     except Exception as e:
         logger.info(
-            f"An error occurred trying to submit a batch: {e}\n{traceback.format_exc()}"
+            f"An error occurred trying to submit a batch: "
+            + f"{e}\n{traceback.format_exc()}"
         )
         sentry_sdk.capture_exception(e)
 
-    #### Update the whitelists and blacklists
+    # Update the whitelists and blacklists
     if self.background_steps % 5 == 0:
         try:
-            ### Create client if needed
+            # Create client if needed
             if not self.storage_client:
                 self.storage_client = storage.Client.create_anonymous_client()
                 logger.info("Created anonymous storage client.")
 
-            ### Update the blacklists
+            # Update the blacklists
             blacklist_for_neuron = retrieve_public_file(
                 self.storage_client, bucket_name, blacklist_type
             )
@@ -301,7 +307,7 @@ def background_loop(self, is_validator):
                 )
                 logger.info("Retrieved the latest blacklists.")
 
-            ### Update the whitelists
+            # Update the whitelists
             whitelist_for_neuron = retrieve_public_file(
                 self.storage_client, bucket_name, whitelist_type
             )
@@ -322,7 +328,7 @@ def background_loop(self, is_validator):
                 )
                 logger.info("Retrieved the latest whitelists.")
 
-            ### Update the warning list
+            # Update the warning list
             warninglist_for_neuron = retrieve_public_file(
                 self.storage_client, bucket_name, warninglist_type
             )
@@ -339,20 +345,31 @@ def background_loop(self, is_validator):
                 }
                 logger.info("Retrieved the latest warninglists.")
                 if self.wallet.hotkey.ss58_address in self.hotkey_warninglist.keys():
+                    hotkey_address: str = self.hotkey_warninglist[
+                        self.wallet.hotkey.ss58_address
+                    ][0]
+                    hotkey_warning: str = self.hotkey_warninglist[
+                        self.wallet.hotkey.ss58_address
+                    ][1]
+
                     colored_log(
-                        f"This hotkey is on the warning list: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][0]} | Date for rectification: {self.hotkey_warninglist[self.wallet.hotkey.ss58_address][1]}",
+                        f"This hotkey is on the warning list: {hotkey_address}"
+                        + f" | Date for rectification: {hotkey_warning}",
                         color="red",
                     )
                 coldkey = get_coldkey_for_hotkey(self, self.wallet.hotkey.ss58_address)
                 if coldkey in self.coldkey_warninglist.keys():
+                    coldkey_address: str = self.coldkey_warninglist[coldkey][0]
+                    coldkey_warning: str = self.coldkey_warninglist[coldkey][1]
                     colored_log(
-                        f"This coldkey is on the warning list: {self.coldkey_warninglist[coldkey][0]} | Date for rectification: {self.coldkey_warninglist[coldkey][1]}",
+                        f"This coldkey is on the warning list: {coldkey_address}"
+                        + f" | Date for rectification: {coldkey_warning}",
                         color="red",
                     )
 
-            ### Validator only
+            # Validator only
             if is_validator:
-                ### Update weights
+                # Update weights
                 validator_weights = retrieve_public_file(
                     self.storage_client, bucket_name, IA_VALIDATOR_WEIGHT_FILES
                 )
@@ -377,7 +394,7 @@ def background_loop(self, is_validator):
                     logger.info(f"Raw model weights: {weights_to_add}")
 
                     if weights_to_add:
-                        ### Normalize weights
+                        # Normalize weights
                         if sum(weights_to_add) != 1:
                             weights_to_add = normalize_weights(weights_to_add)
                             logger.info(f"Normalized model weights: {weights_to_add}")
@@ -394,9 +411,11 @@ def background_loop(self, is_validator):
                     #     dtype=torch.float32,
                     # ).to(self.device)
 
-                ### Update settings
+                # Update settings
                 validator_settings: dict = retrieve_public_file(
-                    self.storage_client, bucket_name, IA_VALIDATOR_SETTINGS_FILE
+                    self.storage_client,
+                    bucket_name,
+                    IA_VALIDATOR_SETTINGS_FILE,
                 )
 
                 if validator_settings:
@@ -409,7 +428,8 @@ def background_loop(self, is_validator):
                     )
 
                     self.manual_validator_timeout = validator_settings.get(
-                        "manual_validator_timeout", self.manual_validator_timeout
+                        "manual_validator_timeout",
+                        self.manual_validator_timeout,
                     )
 
                     self.async_timeout = validator_settings.get(
@@ -424,21 +444,21 @@ def background_loop(self, is_validator):
                         self.request_frequency += self.manual_validator_timeout
 
                     logger.info(
-                        f"Retrieved the latest validator settings: {validator_settings}"
+                        "Retrieved the latest validator settings: " + validator_settings
                     )
 
         except Exception as e:
             logger.info(
-                f"An error occurred trying to update settings from the cloud: {e}."
+                "An error occurred trying to update settings from the cloud: " + e
             )
 
-    #### Clean up the wandb runs and cache folders
+    # Clean up the wandb runs and cache folders
     if self.background_steps == 1 or self.background_steps % 180 == 0:
         logger.info("Trying to clean wandb directoy...")
         wandb_path = WANDB_VALIDATOR_PATH if is_validator else WANDB_MINER_PATH
         try:
             if os.path.exists(wandb_path):
-                ### Write a condition to skip this if there are no runs to clean
+                # Write a condition to skip this if there are no runs to clean
                 # os.path.basename(path).split("run-")[1].split("-")[0], "%Y%m%d_%H%M%S"
                 runs = [
                     x
@@ -446,14 +466,12 @@ def background_loop(self, is_validator):
                     if "run-" in x and not "latest-run" in x
                 ]
                 if len(runs) > 0:
-                    cleanup_runs_process = subprocess.call(
+                    subprocess.call(
                         f"cd {wandb_path} && echo 'y' | wandb sync --clean --clean-old-hours 3",
                         shell=True,
                     )
                     logger.info("Cleaned all synced wandb runs.")
-                    cleanup_cache_process = subprocess.Popen(
-                        ["wandb artifact cache cleanup 5GB"], shell=True
-                    )
+                    subprocess.Popen(["wandb artifact cache cleanup 5GB"], shell=True)
                     logger.info("Cleaned all wandb cache data > 5GB.")
             else:
                 logger.warning(f"The path {wandb_path} doesn't exist yet.")
@@ -462,15 +480,15 @@ def background_loop(self, is_validator):
                 f"An error occurred trying to clean wandb artifacts and runs: {e}."
             )
 
-    #### Attempt to init wandb if it wasn't sucessfully originally
+    # Attempt to init wandb if it wasn't sucessfully originally
     if (self.background_steps % 5 == 0) and is_validator and not self.wandb_loaded:
         try:
             init_wandb(self)
             logger.info("Loaded wandb")
             self.wandb_loaded = True
-        except Exception as e:
+        except Exception:
             self.wandb_loaded = False
-            logger.error(f"Unable to load wandb. Retrying in 5 minutes.")
+            logger.error("Unable to load wandb. Retrying in 5 minutes.")
             logger.error(f"wandb loading error: {traceback.format_exc()}")
 
     self.background_steps += 1
@@ -495,9 +513,13 @@ def retrieve_public_file(client, bucket_name, source_name):
         try:
             file = blob.download_as_text()
             file = json.loads(file)
-            logger.info(f"Successfully downloaded {source_name} from {bucket_name}")
+            logger.info(
+                f"Successfully downloaded {source_name} " + f"from {bucket_name}"
+            )
         except Exception as e:
-            logger.info(f"Failed to download {source_name} from {bucket_name}: {e}")
+            logger.info(
+                f"Failed to download {source_name} from " + f"{bucket_name}: {e}"
+            )
 
     except Exception as e:
         logger.info(f"An error occurred downloading from Google Cloud: {e}")
