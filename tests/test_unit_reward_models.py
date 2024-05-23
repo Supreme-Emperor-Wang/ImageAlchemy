@@ -77,7 +77,7 @@ def test_incorrect_image_size():
 def test_nsfw_image():
     nsfw_image_url = "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/a05eaa75-ac8c-4460-b6b0-b7eb47e06987/width=1024/00027-4120052916.jpeg"
     transform = transforms.Compose([transforms.PILToTensor()])
-    synapse_nsfw = ImageGeneration(
+    response_nsfw = ImageGeneration(
         generation_type="text_to_image",
         seed=-1,
         model_type="alchemy",
@@ -95,7 +95,7 @@ def test_nsfw_image():
         prompt="A majestic lion jumping from a big stone at night",
         images=[bt.Tensor.serialize(transform(Image.open(r"tests/non_nsfw.jpeg")))],
     )
-    responses = [synapse_nsfw, response_no_nsfw]
+    responses = [response_nsfw, response_no_nsfw]
     rewards = nsfw_reward_model.get_rewards(
         responses, rewards=torch.ones(len(responses))
     )
