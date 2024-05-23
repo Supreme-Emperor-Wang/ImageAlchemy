@@ -31,8 +31,10 @@ from neurons.constants import (
     VALIDATOR_DEFAULT_REQUEST_FREQUENCY,
     WANDB_MINER_PATH,
     WANDB_VALIDATOR_PATH,
+    MINIMUM_COMPUTES_FOR_SUBMIT,
 )
 from neurons.validator.utils import init_wandb
+from typing import Dict, Any, List
 
 import bittensor as bt
 
@@ -110,6 +112,50 @@ def post_batch(api_url: str, batch: dict):
     return response
 
 
+def filter_batch_before_submission(batch: Dict[str, Any]) -> Dict[str, Any]:
+    to_return: Dict[str, Any] = {
+        "batch_id": batch["batch_id"],
+        "prompt": batch["prompt"],
+        # Compute specific stuff
+        "compute": [],
+        "miner_hotkeys": [],
+        "miner_coldkeys": [],
+        "validator_hotkey": [],
+        "nsfw_scores": [],
+        "blacklist_scores": [],
+        "should_drop_entries": [],
+    }
+
+    for idx, compute in enumerate(batch["computes"]):
+        should_drop_entry = batch["should_drop_entries"][idx]
+        if should_drop_entry > 0:
+            logger.info("Dropped one submitted image")
+            continue
+
+        blacklist_score = batch["blacklist_scores"][idx]
+        if blacklist_score < 1:
+            logger.info("Dropped one blacklisted image")
+            continue
+
+        nsfw_score = batch["nsfw_scores"][idx]
+        if nsfw_score < 1:
+            logger.info("Dropped one NSFW image")
+            continue
+
+        to_return["compute"].append(compute)
+        to_return["miner_hotkeys"].append(batch["miner_hotkeys"][idx])
+        to_return["miner_coldkeys"].append(batch["miner_coldkeys"][idx])
+        to_return["validator_hotkey"].append(batch["validator_hotkey"][idx])
+        to_return["nsfw_scores"].append(batch["nsfw_scores"][idx])
+        to_return["blacklist_scores"].append(batch["blacklist_scores"][idx])
+        to_return["should_drop_entries"].append(batch["should_drop_entries"][idx])
+
+    if len(to_return["compute"]) < MINIMUM_COMPUTES_FOR_SUBMIT:
+        raise Exception
+
+    return to_return
+
+
 def background_loop(self, is_validator):
     """
     Handles terminating the miner after deregistration and updating the blacklist and whitelist.
@@ -148,16 +194,17 @@ def background_loop(self, is_validator):
         if (self.background_steps % 1 == 0) and is_validator and (self.batches != []):
             logger.info(f"Number of batches in queue: {len(self.batches)}")
             max_retries = 3
-            backoff = 2
+            backoff = 5
             batches_for_deletion = []
             invalid_batches = []
             for batch in self.batches:
                 for attempt in range(0, max_retries):
                     try:
-                        response = post_batch(self.api_url, batch)
+                        filtered_batch = filter_batch_before_submission(batch)
+                        response = post_batch(self.api_url, filtered_batch)
                         if response.status_code == 200:
                             logger.info(
-                                f"Successfully posted batch {batch['batch_id']}"
+                                f"Successfully posted batch {filtered_batch['batch_id']}"
                             )
                             batches_for_deletion.append(batch)
                             break
@@ -176,6 +223,8 @@ def background_loop(self, is_validator):
                                 f"Failed to post batch. Status code: {response.status_code}"
                             )
                     except Exception as e:
+                        backoff *= 2  # Double the backoff for the next attempt
+                        backoff += random.uniform(0, 1)  # Add jitter to backoff
                         if attempt != max_retries:
                             logger.error(
                                 f"Attempt number {attempt+1} failed to send batch {batch['batch_id']}. Retrying in {backoff} seconds. Error: {e}"

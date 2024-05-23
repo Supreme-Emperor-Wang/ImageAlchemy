@@ -13,17 +13,16 @@ import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
 from loguru import logger
-
 from neurons.constants import VPERMIT_TAO
 from neurons.protocol import ImageGeneration, IsAlive
 from neurons.utils import BackgroundTimer, background_loop, get_defaults
 from utils import (
     clean_nsfw_from_prompt,
+    colored_log,
     do_logs,
     get_caller_stake,
     get_coldkey_for_hotkey,
     nsfw_image_filter,
-    colored_log,
     sh,
 )
 from wandb_utils import WandbUtils
@@ -382,7 +381,7 @@ class BaseMiner(ABC):
         return priority
 
     def _base_blacklist(
-        self, synapse, vpermit_tao_limit=VPERMIT_TAO, rate_limit=1
+        self, synapse, vpermit_tao_limit=0.5, rate_limit=1
     ) -> typing.Tuple[bool, str]:
         try:
             ### Get the name of the synapse

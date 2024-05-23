@@ -254,7 +254,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
     # Save images for manual validator
     if not self.config.alchemy.disable_manual_validator:
         save_images_data_for_manual_validation(responses, prompt)
-
     scattered_rewards, event, rewards = get_automated_rewards(
         self, responses, uids, task_type
     )
