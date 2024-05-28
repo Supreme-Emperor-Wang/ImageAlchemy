@@ -1,26 +1,79 @@
 <div align="center">
 
-# **Image Alchemy** <!-- omit in toc -->
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
+![TensorAlchemy - Splash image](./contrib/TensorAlchemy-splash.png)
+
+# **📢 TensorAlchemy Moves to New GitHub Repository! 🚀** <!-- omit in toc -->
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 </div>
 
-## Join our Discord and check our setup channel
-https://discord.gg/tensoralchemy
+## [New repository url](https://github.com/TensorAlchemy/TensorAlchemy)
+https://github.com/TensorAlchemy/TensorAlchemy
 
 
-## Mainnet docs
+We're thrilled to announce that we've migrated our codebase to the new TensorAlchemy repository on GitHub. The previous repository is now archived and read-only.
 
-Miner guide:
-https://docs.google.com/document/d/15nb9Cu8HTdq_wqpo-OO17OnE5wdZBTJVXPqOVk7i8MQ/edit?usp=sharing
+Let's continue building the future of TensorAlchemy together in our new GitHub home! 🌟
 
-Validator guide:
-https://docs.google.com/document/d/1ZJoglHVcra5X6-rcsJpIeHPrJfPXkjDfA11V8GXwzVc/edit?usp=sharing
+All miners and validators, please follow the guide below to stay up-to-date with the latest changes and contribute to the project:
 
-## Testnet docs
+## Migration Guide
 
-Miner guide:
-https://docs.google.com/document/d/1FzZe5EskEV0Q6BkOuVkqCrIEexzQZd_134eT74B7hPA/edit?usp=sharing
+1. **Open your terminal or command prompt and navigate to your local repository directory.**
 
-Validator guide:
-https://docs.google.com/document/d/1gj6WOgjWBfKvYBc82r_lIiHNR_xfIT5me6QFXYgXrSU/edit?usp=sharing
+2. **List your existing remotes to see the current configured remote repository.**
+
+   ```
+   git remote -v
+   ```
+
+   You should see the old remote repository URL listed, e.g.:
+
+   ```
+   origin  https://github.com/Supreme-Emperor-Wang/ImageAlchemy (fetch)
+   origin  https://github.com/Supreme-Emperor-Wang/ImageAlchemy (push)
+   ```
+
+3. **Remove the old remote repository.**
+
+   ```
+   git remote remove origin
+   ```
+
+4. **Add the new remote repository.**
+
+   ```
+   git remote add origin https://github.com/TensorAlchemy/TensorAlchemy
+   ```
+
+   Or, if you prefer to use the SSH URL:
+
+   ```
+   git remote add origin git@github.com:TensorAlchemy/TensorAlchemy.git
+   ```
+
+5. **Verify that the new remote URL is set correctly.**
+
+   ```
+   git remote -v
+   ```
+
+   You should see the new repository URL listed, e.g.:
+
+   ```
+   origin  https://github.com/TensorAlchemy/TensorAlchemy (fetch)
+   origin  https://github.com/TensorAlchemy/TensorAlchemy (push)
+   ```
+
+6. **Finally, fetch the latest changes from the new remote repository and merge them into your local branch.**
+
+   ```
+   git fetch origin
+   git reset --hard origin/main
+   ```
+
+   Replace `main` with the name of the branch you want to reset to, if different.
+
+After following these steps, your local repository should be updated to track the new `TensorAlchemy/TensorAlchemy` remote repository, and you should have the latest changes pulled from the new repository.
+
+The TensorAlchemy Team
